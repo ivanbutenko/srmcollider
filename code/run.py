@@ -1,5 +1,20 @@
-exp_key = 3061
+import os
+import MySQLdb
+import sys 
+sys.path.append( '/home/ghost/hroest/code/' )
+sys.path.append( '/home/ghost/software_libs/' )
+import mzXMLreader
+import pepXMLReader
+import time
+from utils_h import utils
+import pipeline 
+db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
+c = db.cursor()
+import silver
+import DDB 
+import csv 
 
+exp_key = 3061
 q  = """
 select distinct gene.id as gene_id, peptide.sequence, molecular_weight, ssrcalc,
 genome_occurence
@@ -15,6 +30,7 @@ where organism_key = 1
 and genome_occurence = 1
 """
 
+#read in the data from DB
 c.execute( 'use ddb;' )
 t = utils.db_table( c )
 t.read( q )
@@ -32,7 +48,6 @@ for row in t.rows():
     peptide.pairs           = []
     peptide.non_unique = {}
     peptide.charge = 2
-    #S.ion_charge = 2
     mz = peptide.mw
     bin = int( mz / 0.7) ;
     mass_bins[ bin ].append( peptide )
@@ -43,23 +58,30 @@ for row in t.rows():
     S.ass_peptide = peptide
     peptide.spectrum = S
 
+#make a list of all peptides
+all_pep = []
+for pp in mass_bins: 
+    for p in pp:
+        all_pep.append( p )
+
+#reset pairs and non_unique entries to start level
 i = 0
 for b in mass_bins:
     i += len( b )
     for pep in b:
         pep.non_unique = {}
         pep.pairs = []
+        pep.shared_trans = []
 
 bin_length = [ len( b ) for b in mass_bins]
 n, bins = numpy.histogram( bin_length , 50)
 
+tmp = [b.mw for b in mass_bins[1201]]
+sorted( tmp )[:20]
 
-for p in lab_peptides_2:
-    if len( p.pairs) >0: break
 
-old_pairs_dic = copy.copy( pairs_dic )
-
-MS1_bins = 0.7 /2
+#here we run through all pairs
+MS1_bins = 0.7# /2  #if we have charged precursors, we dont divide by two
 MS2_bins = 1.0 /2
 ssrcalc_binsize = 4/2 #that may be around 2 minutes, depending on coloumn
 lab_peptides_2 = []
@@ -82,18 +104,16 @@ for i in range( 1, len( mass_bins )-1):
     current.extend( mass_bins[i+1] )
     current_spectra = []
     for peptide in current:
-
-        S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-        S.ion_charge = 2
-        S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), R.residues, R.res_pairs)
-        S.ass_peptide = peptide
-        current_spectra.append( S )
-
+        #S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
+        #S.ion_charge = 2
+        #S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), R.residues, R.res_pairs)
+        #S.ass_peptide = peptide
+        current_spectra.append( peptide.spectrum )
     for S in current_spectra:
         peptide = S.ass_peptide
         #if peptide.sequence == 'CQECNNVIK':break
         if peptide.sequence in lab_peptides: lab_peptides_2.append( peptide )
-        if peptide.genome_occurence > 1: continue
+        #if peptide.genome_occurence > 1: continue
         mz = peptide.mw
         bin = int( mz / 0.7) 
         #only use those as S which are in the current bin
@@ -108,8 +128,15 @@ for i in range( 1, len( mass_bins )-1):
             if (abs( mz - S2.peptide_mass / S.ion_charge) < MS1_bins and
                 abs( peptide.ssr_calc - S2.ass_peptide.ssr_calc) <
                 ssrcalc_binsize  ):
-                do_share( S, S2, pairs_dic, MS2_bins )
+                do_share( S, S2, pairs_dic, MS2_bins, clash_distr )
 
+
+bin = mass_bins[1144]
+for b in bin:
+    if len( b.pairs) > 0: break
+
+mypeptide = b
+b.spectrum.y_series
 
 shared_distr = []
 shared_rel = []
@@ -118,8 +145,16 @@ for b in mass_bins:
         shared_distr.append(len(pep.non_unique) )
         shared_rel.append( len( pep.non_unique) / (2.0* len(pep.sequence) - 2) )
 
-
 h, n = numpy.histogram( shared_rel)
+
+#read in lab-peptides
+q = "select sequence from hroest.lab_peptides"
+t = utils.db_table( c )
+t.read( q )
+lab_peptides = []
+for row in t.rows():
+    lab_peptides.append( t.row( row, 'sequence' ))
+
 
 import csv
 f = open( 'mzdist.csv', 'w' )
@@ -129,8 +164,6 @@ for l in bin_length:
     i += 1
     w.writerow( [i * 0.7, l] )
 
-f.close()
-
 f = open( 'mzclashes.csv', 'w' )
 #w = csv.writer(f,  delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL) 
 for i, bin in enumerate(mass_bins):
@@ -138,39 +171,47 @@ for i, bin in enumerate(mass_bins):
     #f.write(  '%f %f\n' %  (i * 0.7, len(l)*100.0/(len(bin)+1) ) )
     f.write(  '%f %f\n' %  (i * 0.7, len(l) ) )
 
-f.close()
-
 f = open( 'clashdist.csv', 'w' )
 for i, cl in enumerate(clash_distr):
     f.write(  '%f %f\n' %  (i , cl ) )
 
-
-all_pep = []
-for pp in mass_bins: 
-    for p in pp:
-        all_pep.append( p )
-
-all_pep = []
-for pp in mass_bins: 
-    for p in pp:
-        all_pep.append( p )
-
-
+f = open( 'pairlendist.csv', 'w' )
 sum( h )
 pair_distr = [ len( p.pairs) for p in all_pep]
 h, n = numpy.histogram( pair_distr, 50, (0,50)  )
-f = open( 'pairlendist.csv', 'w' )
 for hh, nn in zip( h, n):
     f.write( '%d %f\n' % (nn, hh*100.0/sum(h) ))
+
+f = open( 'lab_pairlendist.csv', 'w' )
+pair_distr = [ len( p.pairs) for p in lab_peptides_2]
+h, n = numpy.histogram( pair_distr, 50, (0,50)  )
+for hh, nn in zip( h, n):
+    f.write( '%d %f\n' % (nn, hh*100.0/sum(h) ))
+
+#calculate how many unique transitions are left per peptide
+unique_dist = [0 for i in range(1000)]
+unique_ratios = []
+for p in all_pep:
+    unique = len( p.sequence ) - len( p.non_unique)/2 - 1
+    ratio = unique * 1.0 / ( len(p.sequence) - 1)
+    unique_dist[ unique ] += 1
+    unique_ratios.append( ratio)
+
+f = open( 'unique_transitions.csv', 'w' )
+for i,u in enumerate(unique_dist):
+    f.write( '%d %d\n' % (i,u) )
+
+f = open( 'unique_ratios.csv', 'w' )
+h, n = numpy.histogram( unique_ratios, 10)
+for hh, nn in zip( h, n):
+    f.write( '%f %f\n' % (nn*100.0 + 5 , hh*100.0/sum(h) ))
 
 f.close()
 
-pair_distr = [ len( p.pairs) for p in lab_peptides_2]
-h, n = numpy.histogram( pair_distr, 50, (0,50)  )
-f = open( 'lab_pairlendist.csv', 'w' )
-for hh, nn in zip( h, n):
-    f.write( '%d %f\n' % (nn, hh*100.0/sum(h) ))
-
+#All but the last (righthand-most) bin is half-open. In other words, if bins is:
+# [1, 2, 3, 4]
+#then the first bin is [1, 2) (including 1, but excluding 2) and the second 
+#[2, 3). The last bin, however, is [3, 4], which includes 4.]]
 
 [sum( clash_distr[:i] ) for i in range(50)]
 
@@ -204,15 +245,9 @@ h, n = numpy.histogram( pair_distr )
 
 len( lab_peptides_2)
 
-q = "select sequence from hroest.lab_peptides"
-t = utils.db_table( c )
-t.read( q )
-lab_peptides = []
-for row in t.rows():
-    lab_peptides.append( t.row( row, 'sequence' ))
 
 
-def do_share(S,S2, pairs_dic, MS2_bins):
+def do_share(S,S2, pairs_dic, MS2_bins, clash_distr):
     share = 0
     pep1 = S.ass_peptide
     pep2 = S2.ass_peptide
@@ -241,6 +276,11 @@ def do_share(S,S2, pairs_dic, MS2_bins):
                 share += 1
                 pep1.non_unique[ 'b%s' % (i) ] = ''
                 pep2.non_unique[ 'b%s' % (kk) ] = ''
+    if share > 0:
+        pep1.shared_trans.append( pep2 )
+        pep2.shared_trans.append( pep1 )
+        #if mypeptide.spectrum in (S, S2): 
+        #print "share", share, S.ass_peptide.sequence, S2.ass_peptide.sequence, sorted( mypeptide.non_unique)
     if share > len( S.y_series):
         S.ass_peptide.pairs.append( S2 )
         S2.ass_peptide.pairs.append( S )
