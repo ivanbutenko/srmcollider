@@ -107,20 +107,20 @@ for sequence in result.values():
         else: 
             collisions.append( [row, [rrr for rrr in rr 
                   if tt.row(rrr, 'sequence') != mysequence]  ] )
-
     print mysequence, q1
     print "useable:", [ (t.row(u, 'type'), t.row(u, 'q3')) for u in useable]
-    print "collisions: \n"
+    print "\ncollisions:"
     for col in collisions:
         myrow = col[0]
         print t.row( myrow, 'type'), '::::', [( tt.row(c, 'sequence') , 
                tt.row(c, 'type'), 
                tt.row(c, 'q3'), tt.row(c, 'ssrcalc') ) for c in col[1] ] 
+    print "\n\n\n\n"
 
-
+warm_welcome = """
 ###########################################################################
 ###########################################################################
 #                              SRM Collider                               #
 ###########################################################################
 ###########################################################################
-
+"""
