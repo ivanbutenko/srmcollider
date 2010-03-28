@@ -39,12 +39,13 @@ print "executed the query"
 i= 0
 for row in t.rows():
     if i % 1000 == 0: print i
-    peptide = Peptide()
+    peptide = DDB.Peptide()
     peptide.set_sequence( t.row(row, 'sequence')  )
     peptide.genome_occurence = t.row( row, 'genome_occurence' )
     peptide.ssr_calc         = t.row( row, 'ssrcalc' )
     peptide.gene_id          = t.row( row, 'gene_id' )
     peptide.mw              = t.row( row, 'molecular_weight' )
+    peptide.id              = t.row( row, 'peptide_key' )
     peptide.pairs           = []
     peptide.non_unique = {}
     peptide.charge = 2
