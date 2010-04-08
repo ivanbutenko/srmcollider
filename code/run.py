@@ -3,6 +3,9 @@ import MySQLdb
 import sys 
 sys.path.append( '/home/ghost/hroest/code/' )
 sys.path.append( '/home/ghost/software_libs/' )
+sys.path.append( '/home/hroest/lib/' )
+sys.path.append( '/home/hroest/msa/code/tppGhost' )
+sys.path.append( '/home/hroest/msa/code' )
 import mzXMLreader
 import pepXMLReader
 import time
@@ -10,15 +13,19 @@ from utils_h import utils
 import pipeline 
 db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
 c = db.cursor()
+c2 = db.cursor()
 import silver
 import DDB 
 import csv 
+R = silver.Residues.Residues('mono')
 
-exp_key = 3061
+exp_key = 3120
 q  = """
 select distinct gene.id as gene_id, peptide.sequence, molecular_weight, ssrcalc,
-genome_occurence
+genome_occurence, 
+peptide.id as peptide_key
 from gene 
+inner join experimentOrganism on gene.experiment_key = experimentOrganism.experiment_key
 inner join geneProtLink on gene.id = geneProtLink.gene_key
 inner join protein on protein.id = geneProtLink.protein_key 
 inner join protPepLink on protein.id = protPepLink.protein_key
@@ -26,27 +33,41 @@ inner join peptide on protPepLink.peptide_key = peptide.id
 inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
-where organism_key = 1
-and genome_occurence = 1
+where gene.experiment_key = %s
+#taxonomy_id = 9606 #human
+and taxonomy_id = 4932 #yeast
+#and genome_occurence = 1
+""" % exp_key
+
+
+"""
+select distinct gene.experiment_key, organism_type, 
+taxonomy_id, nc_string, short_description, experiment.description, name
+from gene 
+inner join experiment on gene.experiment_key = experiment.id
+inner join experimentOrganism on gene.experiment_key = experimentOrganism.experiment_key
+;
 """
 
 #read in the data from DB
 c.execute( 'use ddb;' )
-t = utils.db_table( c )
+t = utils.db_table( c2 )
 t.read( q )
 mass_bins = [ []  for i in range(0, 10000) ]
 print "executed the query"
 i= 0
-for row in t.rows():
+while True:
+    row = t.fetchone()
+    if row == None: break
     if i % 1000 == 0: print i
     peptide = DDB.Peptide()
     peptide.set_sequence( t.row(row, 'sequence')  )
     peptide.genome_occurence = t.row( row, 'genome_occurence' )
     peptide.ssr_calc         = t.row( row, 'ssrcalc' )
     peptide.gene_id          = t.row( row, 'gene_id' )
-    peptide.mw              = t.row( row, 'molecular_weight' )
-    peptide.id              = t.row( row, 'peptide_key' )
-    peptide.pairs           = []
+    peptide.mw               = t.row( row, 'molecular_weight' )
+    peptide.id               = t.row( row, 'peptide_key' )
+    peptide.pairs            = []
     peptide.non_unique = {}
     peptide.charge = 2
     mz = peptide.mw
@@ -55,9 +76,33 @@ for row in t.rows():
     i += 1
     S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
     S.ion_charge = 2
-    S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), R.residues, R.res_pairs)
-    S.ass_peptide = peptide
-    peptide.spectrum = S
+    S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), 
+                             R.residues, R.res_pairs)
+    S.peptide = peptide
+    insert_in_db( S, c)
+    #S.ass_peptide = peptide
+    #peptide.spectrum = S
+
+def insert_in_db(self, c):
+    peptide = self.peptide
+    vals = "type, peptide_key, experiment_key, q1_charge, q3_charge, q1, q3, ssrcalc"
+    for i, q3 in enumerate(self.b_series):
+        type = 'b%s' % (i+1)
+        q = "insert into hroest.srmClashes (%s) VALUES ('%s',%s,%s,%s,%s,%s,%s,%s);" % (
+            vals, type, peptide.id, exp_key, peptide.charge, 1, 
+            get_actual_mass(self),q3, peptide.ssr_calc )
+        c.execute(q)
+    pepLen = len(peptide)
+    for i, q3 in enumerate(self.y_series):
+        type = 'y%s' % (pepLen - i - 1)
+        q = "insert into hroest.srmClashes (%s) VALUES ('%s',%s,%s,%s,%s,%s,%s,%s);" % (
+            vals, type, peptide.id, exp_key, peptide.charge, 1, 
+            get_actual_mass(self),q3, peptide.ssr_calc )
+        c.execute(q)
+
+def get_actual_mass(self):
+    return S.peptide_mass / S.ion_charge
+
 
 #make a list of all peptides
 all_pep = []
