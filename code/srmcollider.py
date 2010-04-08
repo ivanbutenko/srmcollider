@@ -4,7 +4,9 @@ import MySQLdb
 import sys 
 sys.path.append( '/home/hroest/msa/code' )
 from utils_h import utils
-db = MySQLdb.connect(read_default_file="~/.my.cnf")
+#db = MySQLdb.connect(read_default_file=".my.cnf")
+#db = MySQLdb.connect("orl.ethz.ch", "hroest", "", db="hroest")
+db = MySQLdb.connect("orl.ethz.ch", "srmcollider", "srmcollider", db="hroest")
 c = db.cursor()
 c2 = db.cursor()
 
@@ -95,27 +97,37 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low):
             mysequence = t.row( row, 'sequence')
             tt, rr = get_collisions( q1, q3, ssr, q1_w, q3_w, ssr_w, exp_key, db)
             assert len( rr) > 0  #this would mean the sequence is not in the DB
-            if len( rr) == 1: useable.append( row )
-            else: 
-                collisions.append( [row, [rrr for rrr in rr 
-                      if tt.row(rrr, 'sequence') != mysequence]  ] )
+            mycollisions = [rrr for rrr in rr 
+                      if tt.row(rrr, 'sequence') != mysequence] 
+            #print mysequence
+            #print mycollisions
+            #print len(mycollisions)
+            #print '<br/>' * 3
+            if len( mycollisions) == 0: useable.append( row )
+            else: collisions.append( [row, mycollisions] )
         print "<br/>"*2, mysequence, q1, round(ssr, 2)
         print "<br/>"
         print "useable: <br/>"
         for u in useable:
             mytype = t.row(u, 'type') 
+            q1_charge = t.row(u, 'q1_charge') 
+            q1 = t.row(u, 'q1') 
             q3 = t.row(u, 'q3') 
-            print mytype + " " + str( round(q3, 2 ) ) + "<br/>"
+            print "(" + str( q1_charge ) + ")" + mytype + " " + " " +\
+                                 str( round(q3, 2 ) ) + "<br/>"
             w.writerow( [ mysequence, q1, q3, mytype ] )
 
         print "<br/>"*1
         print "collisions:<br/>"
         for col in collisions:
             myrow = col[0]
-            print t.row( myrow, 'type'), '::::'
+            print "(" + str(t.row( myrow, 'q1_charge')) + ")", \
+                  t.row( myrow, 'type'), \
+                    '::::'
             for c in col[1]:
                 print tt.row(c, 'sequence') 
                 print tt.row(c, 'type') 
+                print round( tt.row(c, 'q1'), 2)
                 print round( tt.row(c, 'q3'), 2)
                 print tt.row(c, 'ssrcalc') 
                 print ";;"
