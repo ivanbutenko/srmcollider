@@ -11,7 +11,8 @@ import pepXMLReader
 import time
 from utils_h import utils
 import pipeline 
-db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
+#db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
+db = MySQLdb.connect(read_default_file="~/.my.cnf")
 c = db.cursor()
 c2 = db.cursor()
 import silver
@@ -19,7 +20,8 @@ import DDB
 import csv 
 R = silver.Residues.Residues('mono')
 
-exp_key = 3120
+exp_key = 3061  #human
+#exp_key = 3120  #yeast
 q  = """
 select distinct gene.id as gene_id, peptide.sequence, molecular_weight, ssrcalc,
 genome_occurence, 
@@ -34,22 +36,16 @@ inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
 where gene.experiment_key = %s
-#taxonomy_id = 9606 #human
-and taxonomy_id = 4932 #yeast
+and taxonomy_id = 9606 #human
+#and taxonomy_id = 4932 #yeast
 #and genome_occurence = 1
 """ % exp_key
 
+c.execute( 'select * from hroest.srmClashes where experiment_key = 3061' )
 
-"""
-select distinct gene.experiment_key, organism_type, 
-taxonomy_id, nc_string, short_description, experiment.description, name
-from gene 
-inner join experiment on gene.experiment_key = experiment.id
-inner join experimentOrganism on gene.experiment_key = experimentOrganism.experiment_key
-;
-"""
 
 #read in the data from DB
+insert_db = False
 c.execute( 'use ddb;' )
 t = utils.db_table( c2 )
 t.read( q )
@@ -59,7 +55,28 @@ i= 0
 while True:
     row = t.fetchone()
     if row == None: break
-    if i % 1000 == 0: print i
+    if i % 10000 == 0: print i
+    peptide = get_peptide_from_table(t, row)
+    for mycharge in [2,3]:  #precursor charge 2 and 3
+        peptide.charge = mycharge
+        S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
+        S.ion_charge = peptide.charge
+        S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), 
+                                 R.residues, R.res_pairs)
+        S.peptide = peptide
+        if insert_db:
+            #insert fragment charge 1 and 2 into database
+            insert_in_db( S, c, 1)
+            insert_in_db( S, c, 2)
+        #insert peptide into mass_bins hash
+        S.ass_peptide = peptide
+        peptide.spectrum = S
+        mz = peptide.mw
+        bin = int( mz / 0.7) ;
+        mass_bins[ bin ].append( peptide )
+    i += 1
+
+def get_peptide_from_table(t, row):
     peptide = DDB.Peptide()
     peptide.set_sequence( t.row(row, 'sequence')  )
     peptide.genome_occurence = t.row( row, 'genome_occurence' )
@@ -69,121 +86,92 @@ while True:
     peptide.id               = t.row( row, 'peptide_key' )
     peptide.pairs            = []
     peptide.non_unique = {}
-    peptide.charge = 2
-    mz = peptide.mw
-    bin = int( mz / 0.7) ;
-    mass_bins[ bin ].append( peptide )
-    i += 1
-    S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-    S.ion_charge = 2
-    S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), 
-                             R.residues, R.res_pairs)
-    S.peptide = peptide
-    insert_in_db( S, c)
-    #S.ass_peptide = peptide
-    #peptide.spectrum = S
+    return peptide
 
-def insert_in_db(self, c):
+def insert_in_db(self, c, fragment_charge):
+    assert False
     peptide = self.peptide
     vals = "type, peptide_key, experiment_key, q1_charge, q3_charge, q1, q3, ssrcalc"
-    for i, q3 in enumerate(self.b_series):
-        type = 'b%s' % (i+1)
+    ch = fragment_charge
+    charged_y_series =  [ ( pred + (ch -1)*S.mass_H)/ch for pred in S.y_series ] 
+    charged_b_series =  [ ( pred + (ch -1)*S.mass_H)/ch for pred in S.b_series ] 
+    for i, q3 in enumerate(charged_b_series):
+        type = 'b%s%s' % (i+1, '+' * fragment_charge )
         q = "insert into hroest.srmClashes (%s) VALUES ('%s',%s,%s,%s,%s,%s,%s,%s);" % (
-            vals, type, peptide.id, exp_key, peptide.charge, 1, 
+            vals, 
+            type, peptide.id, exp_key, peptide.charge, fragment_charge, 
             get_actual_mass(self),q3, peptide.ssr_calc )
         c.execute(q)
     pepLen = len(peptide)
-    for i, q3 in enumerate(self.y_series):
-        type = 'y%s' % (pepLen - i - 1)
+    for i, q3 in enumerate(charged_y_series):
+        type = 'y%s%s' % (pepLen - i - 1, '+' * fragment_charge )
         q = "insert into hroest.srmClashes (%s) VALUES ('%s',%s,%s,%s,%s,%s,%s,%s);" % (
-            vals, type, peptide.id, exp_key, peptide.charge, 1, 
+            vals, 
+            type, peptide.id, exp_key, peptide.charge, fragment_charge, 
             get_actual_mass(self),q3, peptide.ssr_calc )
         c.execute(q)
 
 def get_actual_mass(self):
     return S.peptide_mass / S.ion_charge
 
+def get_all_peptides( mass_bins):
+    #make a list of all peptides
+    all_pep = []
+    for pp in mass_bins: 
+        for p in pp:
+            all_pep.append( p )
+    return all_pep
 
-#make a list of all peptides
-all_pep = []
-for pp in mass_bins: 
-    for p in pp:
-        all_pep.append( p )
+def reset_pairs_unique(mass_bins):
+    #reset pairs and non_unique entries to start level
+    i = 0
+    for b in mass_bins:
+        i += len( b )
+        for pep in b:
+            pep.non_unique = {}
+            pep.pairs = []
+            pep.shared_trans = []
 
-#reset pairs and non_unique entries to start level
-i = 0
-for b in mass_bins:
-    i += len( b )
-    for pep in b:
-        pep.non_unique = {}
-        pep.pairs = []
-        pep.shared_trans = []
-
-bin_length = [ len( b ) for b in mass_bins]
-n, bins = numpy.histogram( bin_length , 50)
-
-tmp = [b.mw for b in mass_bins[1201]]
-sorted( tmp )[:20]
-
+###########################################################################
 
 #here we run through all pairs
-MS1_bins = 0.7# /2  #if we have charged precursors, we dont divide by two
+reset_pairs_unique(mass_bins)
+MS1_bins = 0.7 /2
 MS2_bins = 1.0 /2
 ssrcalc_binsize = 4/2 #that may be around 2 minutes, depending on coloumn
 lab_peptides_2 = []
 pairs_dic = {}
 clash_distr = [0 for i in range( 1000 ) ]
 for i in range( 1, len( mass_bins )-1):
-    if i % 10 ==0:
-        print i, len( pairs_dic )
     if i % 100 ==0:
-        ii = 0
-        for pp in mass_bins: 
-            for p in pp:
-                if len( p.pairs ) > 0: ii+= 1
-        print "so far %s" % ii
-    #pair_distr = [ len( p.pairs) for p in mass_bins[i] ]
-    #i = 1500
+        print i, len( pairs_dic )
     current = []
     current.extend( mass_bins[i] )
     current.extend( mass_bins[i-1] )
     current.extend( mass_bins[i+1] )
     current_spectra = []
-    for peptide in current:
-        #S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-        #S.ion_charge = 2
-        #S.construct_from_peptide( peptide.get_modified_sequence('SEQUEST'), R.residues, R.res_pairs)
-        #S.ass_peptide = peptide
-        current_spectra.append( peptide.spectrum )
+    for peptide in current: current_spectra.append( peptide.spectrum )
     for S in current_spectra:
         peptide = S.ass_peptide
-        #if peptide.sequence == 'CQECNNVIK':break
         if peptide.sequence in lab_peptides: lab_peptides_2.append( peptide )
-        #if peptide.genome_occurence > 1: continue
         mz = peptide.mw
         bin = int( mz / 0.7) 
         #only use those as S which are in the current bin
         if bin != i: continue
         mz = S.peptide_mass / S.ion_charge
+        #compare query spectra S against all other spectra that are within 
+        #a certain tolerance of q1 mass
         for S2 in current_spectra:
-            if S == S2: continue
-            #if S2.ass_peptide.gene_id == S.ass_peptide.gene_id: continue
-            if S2.ass_peptide.sequence == S.ass_peptide.sequence : print "asdf"; continue
+            #we are not interested in spectras from the same sequence
+            if S2.ass_peptide.sequence == S.ass_peptide.sequence: continue
             #we measure it only once, always S is the one with the higher mass
             if S2.peptide_mass < S.peptide_mass : continue
             if (abs( mz - S2.peptide_mass / S.ion_charge) < MS1_bins and
-                abs( peptide.ssr_calc - S2.ass_peptide.ssr_calc) <
-                ssrcalc_binsize  ):
-                do_share( S, S2, pairs_dic, MS2_bins, clash_distr )
+               abs(peptide.ssr_calc - S2.ass_peptide.ssr_calc)<ssrcalc_binsize):
+                calculate_shared_transitions( S, S2, pairs_dic, 
+                                             MS2_bins, clash_distr )
 
-
-bin = mass_bins[1144]
-for b in bin:
-    if len( b.pairs) > 0: break
-
-mypeptide = b
-b.spectrum.y_series
-
+#calculate distribution of non-unique transitions
 shared_distr = []
 shared_rel = []
 for b in mass_bins:
@@ -193,7 +181,8 @@ for b in mass_bins:
 
 h, n = numpy.histogram( shared_rel)
 
-#read in lab-peptides
+#read in lab-peptides, bin length etc
+bin_length = [ len( b ) for b in mass_bins]
 q = "select sequence from hroest.lab_peptides"
 t = utils.db_table( c )
 t.read( q )
@@ -201,8 +190,6 @@ lab_peptides = []
 for row in t.rows():
     lab_peptides.append( t.row( row, 'sequence' ))
 
-
-import csv
 f = open( 'mzdist.csv', 'w' )
 w = csv.writer(f,  delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL) 
 i= 0
@@ -292,8 +279,12 @@ h, n = numpy.histogram( pair_distr )
 len( lab_peptides_2)
 
 
-
-def do_share(S,S2, pairs_dic, MS2_bins, clash_distr):
+def calculate_shared_transitions(S, S2, pairs_dic, MS2_bins, clash_distr):
+    """Compares all b/y ions of spectra S against those of peptide S2.
+    If it finds fragments that are within the MS2_bins distance, it will 
+    increase share (the return value) by one and flag the corresponding 
+    fragment in BOTH associated peptides as non-unique.
+    """
     share = 0
     pep1 = S.ass_peptide
     pep2 = S2.ass_peptide
@@ -334,64 +325,8 @@ def do_share(S,S2, pairs_dic, MS2_bins, clash_distr):
             pairs_dic[ S.peptide ].append( S2.peptide )
         else: pairs_dic[ S.peptide ] = [ S2.peptide ]
     clash_distr[ share ] += 1
+    return share
 
-import re
-3115.4423
-pep = 'AAAAAAAAAAATSGSGGCPPAPGLESGVGAVGCGYPR'
-pep = 'AAAAAAAPEPPLGLQQLSALQPEPGGVPLHSSWTFWLDR'
-R = silver.Residues.Residues('mono')
-S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-peptide = Peptide()
-peptide.set_sequence( pep )
 
-#length distr.
-select count( length(sequence)), length( sequence) from ddb.peptide where
-experiment_key = 3061 group by length( sequence );
-#genome occurence
-select count(genome_occurence) / (select count(*) from ddb.peptide where
-    experiment_key = 3061) as percentage, count(genome_occurence),
-genome_occurence from ddb.peptide inner join ddb.peptideOrganism on peptide.id
-= peptideOrganism.peptide_key where experiment_key = 3061 group by
-genome_occurence;        
-+------------+-------------------------+------------------+
-| percentage | count(genome_occurence) | genome_occurence |
-+------------+-------------------------+------------------+
-|     0.9676 |                  542402 |                1 | 
-|     0.0239 |                   13394 |                2 | 
-|     0.0048 |                    2697 |                3 | 
-|     0.0016 |                     913 |                4 | 
-|     0.0007 |                     368 |                5 | 
-|     0.0005 |                     267 |                6 | 
-|     0.0003 |                     163 |                7 | 
-|     0.0002 |                     103 |                8 | 
-|     0.0001 |                      58 |                9 | 
-|     0.0001 |                      56 |               10 | 
-|     0.0000 |                      27 |               11 | 
-|     0.0000 |                      27 |               12 | 
-|     0.0000 |                      13 |               13 | 
-|     0.0000 |                      19 |               14 | 
-|     0.0000 |                      10 |               15 | 
-|     0.0000 |                      11 |               16 | 
-|     0.0000 |                       6 |               17 | 
-|     0.0000 |                      15 |               18 | 
-|     0.0000 |                       9 |               19 | 
-|     0.0000 |                       5 |               20 | 
-|     0.0000 |                       1 |               21 | 
-|     0.0000 |                       1 |               22 | 
-|     0.0000 |                       4 |               23 | 
-|     0.0000 |                       1 |               24 | 
-|     0.0000 |                       3 |               25 | 
-|     0.0000 |                       1 |               26 | 
-|     0.0000 |                       1 |               29 | 
-|     0.0000 |                       1 |               31 | 
-|     0.0000 |                       1 |               37 | 
-|     0.0000 |                       1 |               49 | 
-|     0.0000 |                       1 |               50 | 
-|     0.0000 |                       1 |               52 | 
-|     0.0000 |                       1 |               55 | 
-|     0.0000 |                       1 |               56 | 
-|     0.0000 |                       1 |               67 | 
-|     0.0000 |                       1 |              155 | 
-+------------+-------------------------+------------------+
-36 rows in set (5.15 sec)
+
 
