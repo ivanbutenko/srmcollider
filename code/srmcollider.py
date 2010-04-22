@@ -244,22 +244,42 @@ else:
     <textarea cols="60" name="peptides" rows="20"></textarea>
     <br/>
     <br/>
+    <label for="ssr_window">SSRCalc window</label>
+    <input type="text" name="ssr_window" value="4"> arbitrary units
+    <br/>
+    <label for="q1_window">Q1 mass window</label>
+    <input type="text" name="q1_window" value="0.7"> Th
+    <br/>
+    <label for="q3_window">Q3 mass window</label>
+    <input type="text" name="q3_window" value="1.0"> Th
+    <br/>
+    <label for="low_mass">Low mass threshold for transitions</label>
+    <input type="text" name="low_mass" value="300"> Th
+    <br/>
+    <label for="high_mass">High mass threshold for transitions</label>
+    <input type="text" name="high_mass" value="1500"> Th
+    <br/>
+    <br/>
     <INPUT type="submit" value="Send"> 
     </P>
  </FORM>
 <br/>
 The following parameters are set:
 <br/>
+<!-- 
 q1_window = 1 Da <br/>
 q3_window = 1 Da <br/>
 ssr_window = 4 units <br/>
-genome = yeast<br/>
 high_mass = 1500 Da <br/>
 low_mass = 300 Da <br/>
+-->
+genome = yeast<br/>
 peptides are fully tryptic only <br/>
 <br/><br/>
+<!--
 To try this tool, you could use the following sample peptides:
 <br/>%s    
+-->
 """ % sample_peptides_html
 
 
