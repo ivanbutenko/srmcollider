@@ -57,22 +57,30 @@ where gene.experiment_key = %s
 # 22.2 per second, thus do 500k in 6 hours ==> using per peptide methods
 ##method 1
 # 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
-experiment_type = """check q1 charge 2 and q3 charge 1 
-against background of all four
-four combinations with thresholds 0.7 1 4. Range = 300 - 1500"""
-do_1vs = True
-do_vs4 = True #background all four?
+do_1vs = True #check only one charge state?
+do_vs1 = False #background only one charge state?
 q3_range = [300, 1500]
+#q3_range = [0, 10000 ]
 ssrcalc_window = 4.0 / 2
-q1_window = 0.7 / 2
+q1_window = 0.2 / 2
+#q1_window = 0.7 / 2
 q3_window = 1.0 / 2
-cursor = db.cursor()
 do_1_only = "and q1_charge = 2 and q3_charge = 1"
-if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
-else: query_add = ""
+experiment_type = """check all four charge states [%s] vs all four charge states [%s]
+with thresholds of SSRCalc %s Q1 %s Q3 %s and a range of %s - %s Da for the q3 transitions.
+""" % ( not do_1vs, not do_vs1, ssrcalc_window*2,  q1_window*2, q3_window*2, q3_range[0], q3_range[1])
+print experiment_type
+if True:
+    if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
+    else: query_add = ""
+    if do_vs1 : query2_add = do_1_only
+    else: query2_add = ""
 
 #
+###
 #
+#here we start
+cursor = db.cursor()
 query = """
 select parent_id
  from hroest.srmPeptide
@@ -82,14 +90,6 @@ cursor.execute( query )
 pepids = cursor.fetchall()
 allpeps = [ 0 for i in range(2 * 10**6)]
 start = time.time()
-if do_vs4 : query2_add = ""
-else: query2_add = do_1_only
-
-experiment_type = """check all four charge states [%s] vs all four charge states [%s]
-with thresholds of %s %s %s and a range of %s - %s Da for the q3 transitions.
-""" % (do_1vs, do_vs4, ssrcalc_window*2,  q1_window*2, q3_window*2, q3_range[0], q3_range[1])
-print experiment_type
-
 for i, p_id in enumerate(pepids):
     if i % 1000 ==0: print i
     query1 = """
@@ -119,14 +119,15 @@ for i, p_id in enumerate(pepids):
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
     """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id[0] ,
            'q3_low':q3_range[0],'q3_high':q3_range[1], 'q1_window' : q1_window,
-           'query_add' : query2_add}
+           'query_add' : query2_add, 'ssr_window' : ssrcalc_window }
     tmp = cursor.execute( query2 )
     collisions = cursor.fetchall()
     #it might even be faster to switch the loops
+    #since the outer loop can be aborted as soon as a collision is found
     for c in collisions:
         for t in transitions:
             #here, its enough to know that one transition is colliding
-            if abs( t[0] - c[0] ) < 0.5: non_unique[ t[1] ] = 0; break
+            if abs( t[0] - c[0] ) < q3_window: non_unique[ t[1] ] = 0; break
     #####method 1 (slow) per transition
     ##for t in transitions:
     ##    query2 = """
@@ -610,13 +611,40 @@ n = [nn * 100.0 + 5 for nn in n]
 h = [ hh *100.0 / len(mydist) for hh in h]
 import gnuplot
 reload( gnuplot )
-gnuplot.Gnuplot.draw_boxes_from_data( [h,n], 
-  '%s_%s_%d%d%d_range%sto%s.eps' 
- % (do_1vs, do_vs4, ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1]),
-  'Unique transitions per peptide / %' , 'Occurence / %' )
+filename = '%s_%s_%d%d%d_range%sto%s' % (do_1vs, do_vs4, 
+    ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
+gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+  'Unique transitions per peptide / %' , 'Occurence / %', keep_data = True,
+                                     tmp_csv = filename + '.csv' )
 #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
 
 
+
+#get a peptide length distribution
+#if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
+#else: query_add = ""
+cursor = db.cursor()
+query = """
+select parent_id, LENGTH( sequence )
+ from hroest.srmPeptide
+ inner join ddb.peptide on peptide.id = peptide_key
+ %s
+""" % query_add
+cursor.execute( query )
+pepids = cursor.fetchall()
+
+len_distr  = [ [] for i in range(255) ]
+for zz in pepids:
+    p_id, peplen = zz
+    len_distr[ peplen ].append( allpeps[ p_id ]  )
+
+
+avg_unique_per_length = [ [] for i in range(255) ]
+for i, l in enumerate(len_distr):
+    if len(l) > 0:
+        avg_unique_per_length[i] =   [ sum(l) / len(l) 
+
+avg_unique_per_length =  [ sum(l) / len(l) for l in len_distr if len(l) > 0]
 
 
 #calculate how many unique transitions are left per peptide
