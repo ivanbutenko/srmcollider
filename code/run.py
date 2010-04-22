@@ -20,10 +20,12 @@ import silver
 import DDB 
 import csv 
 R = silver.Residues.Residues('mono')
+import numpy
 
-experiment_type = "all four combinations with thresholds 0.7 1 4"
 
-exp_key = 3061  #human
+
+exp_key = 3061  #human (800 - 5000 Da)
+#exp_key = 3130  #human (all)
 #exp_key = 3120  #yeast
 q  = """
 select distinct gene.id as gene_id, peptide.sequence, molecular_weight, ssrcalc,
@@ -39,10 +41,110 @@ inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
 where gene.experiment_key = %s
-and taxonomy_id = 9606 #human
+#and taxonomy_id = 9606 #human
 #and taxonomy_id = 4932 #yeast
 #and genome_occurence = 1
 """ % exp_key
+
+
+#select count(*) from ddb.peptide 
+#inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
+#peptide.sequence
+#where experiment_key = 3130;
+
+#with this method, I can do 
+##method 2
+# 22.2 per second, thus do 500k in 6 hours ==> using per peptide methods
+##method 1
+# 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
+experiment_type = """check q1 charge 2 and q3 charge 1 
+against background of all four
+four combinations with thresholds 0.7 1 4. Range = 300 - 1500"""
+do_1vs = True
+do_vs4 = True #background all four?
+q3_range = [300, 1500]
+ssrcalc_window = 4.0 / 2
+q1_window = 0.7 / 2
+q3_window = 1.0 / 2
+cursor = db.cursor()
+do_1_only = "and q1_charge = 2 and q3_charge = 1"
+if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
+else: query_add = ""
+
+#
+#
+query = """
+select parent_id
+ from hroest.srmPeptide
+ %s
+""" % query_add
+cursor.execute( query )
+pepids = cursor.fetchall()
+allpeps = [ 0 for i in range(2 * 10**6)]
+start = time.time()
+if do_vs4 : query2_add = ""
+else: query2_add = do_1_only
+
+experiment_type = """check all four charge states [%s] vs all four charge states [%s]
+with thresholds of %s %s %s and a range of %s - %s Da for the q3 transitions.
+""" % (do_1vs, do_vs4, ssrcalc_window*2,  q1_window*2, q3_window*2, q3_range[0], q3_range[1])
+print experiment_type
+
+for i, p_id in enumerate(pepids):
+    if i % 1000 ==0: print i
+    query1 = """
+    select q1, ssrcalc, q3, srm_id
+    from hroest.srmPeptide
+    inner join hroest.srmTransitions
+      on parent_id = parent_key
+    where parent_id = %(parent_id)s
+    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+    """ % { 'parent_id' : p_id[0], 'q3_low' : q3_range[0],
+           'q3_high' : q3_range[1], 'query_add' : query1_add }
+    nr_transitions = cursor.execute( query1 )
+    transitions = cursor.fetchall()
+    q1 = transitions[0][0]
+    ssrcalc = transitions[0][1]
+    non_unique = {}
+    transitions = [ [t[2], t[3]] for t in transitions ]
+    ####method 2 (fast) per protein
+    query2 = """
+    select q3 from hroest.srmPeptide
+    inner join hroest.srmTransitions
+      on parent_id = parent_key
+    where   ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+        and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+    and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+    and parent_id != %(parent_id)d
+    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id[0] ,
+           'q3_low':q3_range[0],'q3_high':q3_range[1], 'q1_window' : q1_window,
+           'query_add' : query2_add}
+    tmp = cursor.execute( query2 )
+    collisions = cursor.fetchall()
+    #it might even be faster to switch the loops
+    for c in collisions:
+        for t in transitions:
+            #here, its enough to know that one transition is colliding
+            if abs( t[0] - c[0] ) < 0.5: non_unique[ t[1] ] = 0; break
+    #####method 1 (slow) per transition
+    ##for t in transitions:
+    ##    query2 = """
+    ##    select q3 from hroest.srmPeptide
+    ##    inner join hroest.srmTransitions
+    ##      on parent_id = parent_key
+    ##    where ssrcalc > %(ssrcalc)s - 2 and ssrcalc < %(ssrcalc)s + 2
+    ##    and q1 > %(q1)s - 0.35 and q1 < %(q1)s + 0.35
+    ##    and parent_id != %(parent_id)d
+    ##    and q3 > %(q3)s - 0.5 and q3 < %(q3)s + 0.5
+    ##    ;
+    ##    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id[0], 'q3' : t[0] }
+    ##    tmp = cursor.execute( query2 )
+    ##    if tmp > 0: non_unique[ t[1] ] = 0
+    allpeps[ p_id[0] ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
+    end = time.time()
+
+
 
 #read in the data from DB and put into bins
 insert_db = False
@@ -490,6 +592,32 @@ for hh, nn in zip( h, n):
 
 ###################################
 ###################################
+
+#new method, clash distribution
+mydist = []
+for i, p_id in enumerate(pepids):
+    #this is the number of UNIQUE transitions
+    mydist.append( allpeps[p_id[0] ] ) 
+
+
+dist_1x_vs_4x_range
+
+len(mydist)
+f = open( 'mzclashes.csv', 'w' )
+
+h, n = numpy.histogram( mydist , 10)
+n = [nn * 100.0 + 5 for nn in n]
+h = [ hh *100.0 / len(mydist) for hh in h]
+import gnuplot
+reload( gnuplot )
+gnuplot.Gnuplot.draw_boxes_from_data( [h,n], 
+  '%s_%s_%d%d%d_range%sto%s.eps' 
+ % (do_1vs, do_vs4, ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1]),
+  'Unique transitions per peptide / %' , 'Occurence / %' )
+#title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
+
+
+
 
 #calculate how many unique transitions are left per peptide
 unique_dist = [0 for i in range(1000)]
