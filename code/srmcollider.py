@@ -244,20 +244,26 @@ else:
     <textarea cols="60" name="peptides" rows="20"></textarea>
     <br/>
     <br/>
+    <p>
     <label for="ssr_window">SSRCalc window</label>
     <input type="text" name="ssr_window" value="4"> arbitrary units
-    <br/>
+    </p>
+    <p>
     <label for="q1_window">Q1 mass window</label>
     <input type="text" name="q1_window" value="0.7"> Th
-    <br/>
+    </p>
+    <p>
     <label for="q3_window">Q3 mass window</label>
     <input type="text" name="q3_window" value="1.0"> Th
-    <br/>
+    </p>
+    <p>
     <label for="low_mass">Low mass threshold for transitions</label>
     <input type="text" name="low_mass" value="300"> Th
-    <br/>
+    </p>
+    <p>
     <label for="high_mass">High mass threshold for transitions</label>
     <input type="text" name="high_mass" value="1500"> Th
+    </p>
     <br/>
     <br/>
     <INPUT type="submit" value="Send"> 
