@@ -231,6 +231,11 @@ import cgi
 form = cgi.FieldStorage()   # FieldStorage object to
 if form.has_key('peptides'):
     peptides = form.getvalue('peptides')
+    q1_w = float(form.getvalue('q1_window') )
+    q3_w = float(form.getvalue('q3_window') )
+    ssr_w = float(form.getvalue('ssr_window') )
+    high = float(form.getvalue('high_mass') )
+    low = float(form.getvalue('low_mass') )
     #print peptides
     #peptides = input
     start = time.time()
@@ -282,10 +287,8 @@ low_mass = 300 Da <br/>
 genome = yeast<br/>
 peptides are fully tryptic only <br/>
 <br/><br/>
-<!--
 To try this tool, you could use the following sample peptides:
 <br/>%s    
--->
 """ % sample_peptides_html
 
 
