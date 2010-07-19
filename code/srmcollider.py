@@ -1,19 +1,14 @@
 #!/usr/bin/python
 
-import cgitb; cgitb.enable()
-import MySQLdb, time
+import MySQLdb
 import sys 
-sys.path.append( '/home/hroest/projects/msa/code' )
+sys.path.append( '/home/hroest/msa/code' )
 from utils_h import utils
 #db = MySQLdb.connect(read_default_file=".my.cnf")
 #db = MySQLdb.connect("orl.ethz.ch", "hroest", "", db="hroest")
 db = MySQLdb.connect("orl.ethz.ch", "srmcollider", "srmcollider", db="hroest")
 c = db.cursor()
 c2 = db.cursor()
-
-#myCSVFile = '/nas/www/html/hroest/srmcollider.csv'
-myCSVFile = '/var/www/documents/srmcollider.csv'
-myCSVFile_rel = '/../documents/srmcollider.csv'
 
 def get_collisions( q1, q3, ssrcalc, q1_window, q3_window, ssrcalc_window, 
                    exp_key, db):
@@ -77,8 +72,7 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low):
     result = t.fetchall_groupBy('sequence')
 
     #print some links to csv file and input/output validation
-    #print "<a href ='/../documents/srmcollider.csv'>Download csv file</a>"
-    print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
+    print "<a href ='/hroest/srmcollider.csv'>Download csv file</a>"
     print "<br/>"
     print "input: %s peptides" % (len( input.split() )) 
     print "<br/>"
@@ -86,7 +80,7 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low):
 
     #also prepare a csv
     import csv
-    f = open( myCSVFile, 'w')
+    f = open('/nas/www/html/hroest/srmcollider.csv', 'w')
     w = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     w.writerow( ['sequence', 'q1', 'q3', 'type'] )
     
@@ -233,12 +227,10 @@ if form.has_key('peptides'):
     peptides = form.getvalue('peptides')
     #print peptides
     #peptides = input
-    start = time.time()
     main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low)
-    print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
   print """
-<FORM action="/cgi-bin/srmcollider.py" method="post">
+<FORM action="/cgi-bin/hroest/srmcollider.py" method="post">
     <P>
     <label for="peptides">Peptides</label><br />
     <textarea cols="60" name="peptides" rows="20"></textarea>
@@ -261,5 +253,4 @@ peptides are fully tryptic only <br/>
 To try this tool, you could use the following sample peptides:
 <br/>%s    
 """ % sample_peptides_html
-
 
