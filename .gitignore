@@ -1,3 +1,7 @@
-*.png
 *.svg
 *.csv
+*.pdf
+*.png
+code/to_delete/*
+code/svn_collider/*
+
