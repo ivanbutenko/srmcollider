@@ -225,6 +225,11 @@ import cgi
 form = cgi.FieldStorage()   # FieldStorage object to
 if form.has_key('peptides'):
     peptides = form.getvalue('peptides')
+    q1_w = float(form.getvalue('q1_window') )
+    q3_w = float(form.getvalue('q3_window') )
+    ssr_w = float(form.getvalue('ssr_window') )
+    high = float(form.getvalue('high_mass') )
+    low = float(form.getvalue('low_mass') )
     #print peptides
     #peptides = input
     main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low)
@@ -236,18 +241,42 @@ else:
     <textarea cols="60" name="peptides" rows="20"></textarea>
     <br/>
     <br/>
+    <p>
+    <label for="ssr_window">SSRCalc window</label>
+    <input type="text" name="ssr_window" value="4"> arbitrary units
+    </p>
+    <p>
+    <label for="q1_window">Q1 mass window</label>
+    <input type="text" name="q1_window" value="0.7"> Th
+    </p>
+    <p>
+    <label for="q3_window">Q3 mass window</label>
+    <input type="text" name="q3_window" value="1.0"> Th
+    </p>
+    <p>
+    <label for="low_mass">Low mass threshold for transitions</label>
+    <input type="text" name="low_mass" value="300"> Th
+    </p>
+    <p>
+    <label for="high_mass">High mass threshold for transitions</label>
+    <input type="text" name="high_mass" value="1500"> Th
+    </p>
+    <br/>
+    <br/>
     <INPUT type="submit" value="Send"> 
     </P>
  </FORM>
 <br/>
 The following parameters are set:
 <br/>
+<!-- 
 q1_window = 1 Da <br/>
 q3_window = 1 Da <br/>
 ssr_window = 4 units <br/>
-genome = yeast<br/>
 high_mass = 1500 Da <br/>
 low_mass = 300 Da <br/>
+-->
+genome = yeast<br/>
 peptides are fully tryptic only <br/>
 <br/><br/>
 To try this tool, you could use the following sample peptides:
