@@ -122,8 +122,10 @@ for i, p_id in enumerate(pepids):
            'query_add' : query2_add, 'ssr_window' : ssrcalc_window }
     tmp = cursor.execute( query2 )
     collisions = cursor.fetchall()
-    #it might even be faster to switch the loops
-    #since the outer loop can be aborted as soon as a collision is found
+    #here we loop through all possible combinations of transitions and 
+    #potential collisions and check whether we really have a collision
+    #TODO it might even be faster to switch the loops
+    #TODO since the outer loop can be aborted as soon as a collision is found
     for c in collisions:
         for t in transitions:
             #here, its enough to know that one transition is colliding
@@ -591,38 +593,67 @@ for hh, nn in zip( h, n):
     f.write( '%d %f\n' % (nn, hh*100.0/sum(h) ))
 
 
+
+
+
 ###################################
 ###################################
-
-#new method, clash distribution
-mydist = []
-for i, p_id in enumerate(pepids):
-    #this is the number of UNIQUE transitions
-    mydist.append( allpeps[p_id[0] ] ) 
-
-
-dist_1x_vs_4x_range
-
-len(mydist)
-f = open( 'mzclashes.csv', 'w' )
-
-h, n = numpy.histogram( mydist , 10)
-n = [nn * 100.0 + 5 for nn in n]
-h = [ hh *100.0 / len(mydist) for hh in h]
-import gnuplot
-reload( gnuplot )
-filename = '%s_%s_%d%d%d_range%sto%s' % (do_1vs, do_vs4, 
-    ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
-gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
-  'Unique transitions per peptide / %' , 'Occurence / %', keep_data = True,
-                                     tmp_csv = filename + '.csv' )
-#title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
-
+# End of April , final PDF print method
+###################################
+if True:
+    #new method, clash distribution
+    mydist = []
+    for i, p_id in enumerate(pepids):
+        #this is the number of UNIQUE transitions
+        mydist.append( allpeps[p_id[0] ] ) 
+    len(mydist)
+    h, n = numpy.histogram( mydist , 10)
+    n = [nn * 100.0 + 5 for nn in n]
+    h = [ hh *100.0 / len(mydist) for hh in h]
+    import gnuplot
+    reload( gnuplot )
+    filename = '%s_%s_%d%d%d_range%sto%s' % (do_1vs, do_vs1, 
+        ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
+    gnu = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+      'Unique transitions per peptide / %' , 'Occurence / %', keep_data = True,
+                                         tmp_csv = filename + '.csv' )
+    gnu.add_to_body( "set yrange[0:30]" )
+    gnu.draw_boxes()
+    #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
 
 
 #get a peptide length distribution
-#if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
-#else: query_add = ""
+if True:
+    cursor = db.cursor()
+    query = """
+    select parent_id, LENGTH( sequence )
+     from hroest.srmPeptide
+     inner join ddb.peptide on peptide.id = peptide_key
+     %s
+    """ % query_add
+    cursor.execute( query )
+    pepids = cursor.fetchall()
+    len_distr  = [ [] for i in range(255) ]
+    for zz in pepids:
+        p_id, peplen = zz
+        len_distr[ peplen ].append( allpeps[ p_id ]  )
+    avg_unique_per_length = [ 0 for i in range(255) ]
+    for i, l in enumerate(len_distr):
+        if len(l) > 0:
+            avg_unique_per_length[i] =    sum(l) / len(l) 
+    h = avg_unique_per_length[6:26]
+    h = [ hh *100.0 for hh in h]
+    n = range(6,26)
+    reload( gnuplot )
+    filename = '%s_%s_%d%d%d_range%sto%s_lendist' % (do_1vs, do_vs1, 
+        ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
+    gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+      'Peptide length', 'Average number of unique transitions per peptide / %', keep_data = True )
+    gnu.add_to_body( "set xrange[%s:%s]"  % (4, 26) )
+    gnu.add_to_body( "set yrange[0:100]" )
+    gnu.draw_boxes()
+
+
 cursor = db.cursor()
 query = """
 select parent_id, LENGTH( sequence )
@@ -633,18 +664,6 @@ select parent_id, LENGTH( sequence )
 cursor.execute( query )
 pepids = cursor.fetchall()
 
-len_distr  = [ [] for i in range(255) ]
-for zz in pepids:
-    p_id, peplen = zz
-    len_distr[ peplen ].append( allpeps[ p_id ]  )
-
-
-avg_unique_per_length = [ [] for i in range(255) ]
-for i, l in enumerate(len_distr):
-    if len(l) > 0:
-        avg_unique_per_length[i] =   [ sum(l) / len(l) 
-
-avg_unique_per_length =  [ sum(l) / len(l) for l in len_distr if len(l) > 0]
 
 
 #calculate how many unique transitions are left per peptide
