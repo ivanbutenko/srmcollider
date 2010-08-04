@@ -7,32 +7,6 @@
 
 #-- old table == srmClashes (non-normalized; contains ALL transitions)
 
-
-select * from hroest.srmClashes 
-inner join ddb.peptide on peptide.id = srmClashes.peptide_key
-where q1 between 518 and 519 
-and q3 between 740 and 760
-and ssrcalc between 20 and 25
-#limit 100
-;
-
-#drop table hroest.srmClashes;
-#truncate table hroest.srmClashes;
-#create table hroest.srmClashes(
-#    id INT PRIMARY KEY AUTO_INCREMENT,
-#    type varchar(100),
-#    peptide_key INT,
-#    experiment_key INT,
-#    q1_charge INT,
-#    q3_charge INT,
-#    q1 DOUBLE,
-#    q3 DOUBLE, 
-#    ssrcalc DOUBLE
-#);
-#alter table hroest.srmClashes add index(experiment_key);
-#alter table hroest.srmClashes add index(peptide_key);
-#alter table hroest.srmClashes add index(q1, q3, ssrcalc);
-
 drop table hroest.srmPeptide;
 truncate table hroest.srmPeptide;
 create table hroest.srmPeptide(
