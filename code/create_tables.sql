@@ -7,8 +7,8 @@
 
 #-- old table == srmClashes (non-normalized; contains ALL transitions)
 
-drop table hroest.srmPeptide;
-truncate table hroest.srmPeptide;
+#drop table hroest.srmPeptide;
+#truncate table hroest.srmPeptide;
 create table hroest.srmPeptide(
     parent_id INT PRIMARY KEY AUTO_INCREMENT,
     peptide_key INT,
@@ -20,8 +20,8 @@ alter table hroest.srmPeptide add index(peptide_key);
 alter table hroest.srmPeptide add index(q1);
 alter table hroest.srmPeptide add index(ssrcalc);
 
-drop table hroest.srmTransitions;
-truncate table hroest.srmTransitions;
+#drop table hroest.srmTransitions;
+#truncate table hroest.srmTransitions;
 create table hroest.srmTransitions(
     srm_id INT PRIMARY KEY AUTO_INCREMENT,
     parent_key INT,
@@ -34,19 +34,13 @@ alter table hroest.srmTransitions add index(q3);
 
 #-- create a table that has bins in MS1 dimenstion of size 0.7 Da and in 
 #-- MS2 dimensions of size 1 Da and in SSRCalc dimension 4 units
-drop table hroest.srmCollisions400710;
-truncate table hroest.srmCollisions400710;
+#drop table hroest.srmCollisions400710;
+#truncate table hroest.srmCollisions400710;
 create table hroest.srmCollisions400710(
     coll_srm1 INT,
     coll_srm2 INT
 );
 alter table hroest.srmCollisions400710 add unique index(coll_srm1, coll_srm2);
-drop table hroest.srmCollisions400710_all;
-truncate table hroest.srmCollisions400710_all;
-create table hroest.srmCollisions400710_all(
-    coll_srm1 INT,
-    coll_srm2 INT
-);
 
 drop table hroest.srm_counts;
 create temporary table hroest.srm_counts as
