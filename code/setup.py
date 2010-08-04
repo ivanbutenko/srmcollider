@@ -32,7 +32,7 @@ import numpy
 exp_key = 3061  #human (800 - 5000 Da)
 #exp_key = 3130  #human (all)
 exp_key = 3120  #yeast
-q  = """
+all_peptide_query  = """
 select distinct gene.id as gene_id, peptide.sequence, molecular_weight, ssrcalc,
 genome_occurence, 
 peptide.id as peptide_key
@@ -53,48 +53,79 @@ where gene.experiment_key = %s
 
 
 ###################################
-# A store the transitions
+# A) store the transitions
 ###################################
 #read in the data from DB and put into bins
-insert_db = False
+insert_db = True
+read_from_db = False
 c.execute( 'use ddb;' )
 t = utils.db_table( c2 )
-t.read( q )
+t.read( all_peptide_query )
 print "executed the query"
 rows = t.c.fetchall()
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
-S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
+tmp_c  = db.cursor()
 start = time.time()
+done = []
 for i,row in enumerate(rows):
     if i % 10000 == 0: print i
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = get_peptide_from_table(t, row)
         peptide.charge = mycharge
+        if peptide.genome_occurence > 1:
+            #check whether we have that peptide already
+            if peptide.id in done: continue
+        S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
         S.ion_charge = peptide.charge
-        S.peptide_mass = S.calculate_peptide_mass( 
+        #S.peptide_mass = S.calculate_peptide_mass( 
+        #    peptide.get_modified_sequence('SEQUEST'), R.residues, 
+        #    None, S.ion_charge)
+        S.construct_from_peptide( 
             peptide.get_modified_sequence('SEQUEST'), R.residues, 
-            None, S.ion_charge)
-        #S.ass_peptide = peptide
-        #S.fragment_ids = {}
+            R.res_pairs)
+        S.ass_peptide = peptide
+        S.fragment_ids = {}
         if insert_db:
             #insert peptide into db
             insert_peptide_in_db(S, db)
             #insert fragment charge 1 and 2 into database
             insert_in_db( S, db, 1)
             insert_in_db( S, db, 2)
+        elif read_from_db:
+            #instead of inserting, we read the database
+            read_fragment_ids(S, tmp_c, peptide, peptide_table, transition_table)
         #insert peptide into mass_bins hash
-        #peptide.spectrum = S
+        peptide.spectrum = S
         mz = S.peptide_mass / S.ion_charge
         bin = int( mz / 0.7) ;
         mass_bins[ bin ].append( peptide )
         rt_bins[ int(peptide.ssr_calc) ].append( peptide )
         end = time.time()
+    done.append( peptide.id)
 
 
+def read_fragment_ids(self, cursor, peptide ):
+    #reads srmPeptide and srmTransitions in order to store the srm_ids of the 
+    #fragments. Speed ~ 300 / s
+    qq = """select 
+    q3_charge, type, srm_id
+    from hroest.srmPeptide 
+    inner join hroest.srmTransitions on parent_id = parent_key
+    where peptide_key = %s and q1_charge = %s
+    order by q3_charge, type
+    """ % (peptide.id, peptide.charge)
+    cursor.execute( qq ) 
+    all_transitions = cursor.fetchall()
+    self.fragment_ids = { 1 : [ [], [] ], 2 : [ [], [] ]}
+    tmp = 0
+    for r in all_transitions:
+        if r[1] == 'b' : tmp =0
+        else: tmp = 1
+        self.fragment_ids[ r[0] ][tmp].append( r[2] )
 
 ###################################
-# B store the collisions
+# B) store the collisions
 ###################################
 
 
@@ -152,7 +183,7 @@ for i in range( 1, len( mass_bins )-1):
             #we need to do S vs S2 BUT ALSO S2 vs S (later one)
             if ( ms1diff < MS1_bins and ssrdiff < ssrcalc_binsize):
                 sh = all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic,
-                     MS2_bins, clash_distr, range_all, c, table_all,frag_range )
+                     MS2_bins, clash_distr, range_all, c, table, frag_range )
 
 
 
@@ -191,20 +222,20 @@ def get_actual_mass(self):
 
 def insert_in_db(self, db, fragment_charge):
     c = db.cursor()
-    peptide = self.peptide
+    peptide = self.ass_peptide
     parent_id = peptide.parent_id
     vals = "type, parent_key, q3_charge, q3"
     ch = fragment_charge
-    charged_y_series =  [ ( pred + (ch -1)*S.mass_H)/ch for pred in S.y_series ]
-    charged_b_series =  [ ( pred + (ch -1)*S.mass_H)/ch for pred in S.b_series ]
-    S.fragment_ids[ ch ] = [ [], [] ]
+    charged_y_series =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
+    charged_b_series =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
+    self.fragment_ids[ ch ] = [ [], [] ]
     for i, q3 in enumerate(charged_b_series):
         type = 'b'
         q = "insert into hroest.srmTransitions (%s) VALUES ('%s',%s,%s,%s)" % (
             vals, 
             type, parent_id, fragment_charge, q3 )
         c.execute(q)
-        S.fragment_ids[ch][0].append( db.insert_id()  )
+        self.fragment_ids[ch][0].append( db.insert_id()  )
     pepLen = len(peptide)
     for i, q3 in enumerate(charged_y_series):
         type = 'y'
@@ -212,7 +243,7 @@ def insert_in_db(self, db, fragment_charge):
             vals, 
             type, parent_id, fragment_charge, q3 )
         c.execute(q)
-        S.fragment_ids[ch][1].append( db.insert_id()  )
+        self.fragment_ids[ch][1].append( db.insert_id()  )
 
 def all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic, 
                       MS2_bins, clash_distr, range_small, c, table, frag_range):
