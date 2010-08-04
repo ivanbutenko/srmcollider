@@ -63,6 +63,8 @@ t = utils.db_table( c2 )
 t.read( all_peptide_query )
 print "executed the query"
 rows = t.c.fetchall()
+transition_table = 'hroest.srmTransitions_new'
+peptide_table = 'hroest.srmPeptides_new'
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -88,10 +90,10 @@ for i,row in enumerate(rows):
         S.fragment_ids = {}
         if insert_db:
             #insert peptide into db
-            insert_peptide_in_db(S, db)
+            insert_peptide_in_db(S, db, peptide_table)
             #insert fragment charge 1 and 2 into database
-            insert_in_db( S, db, 1)
-            insert_in_db( S, db, 2)
+            insert_in_db( S, db, 1, transition_table)
+            insert_in_db( S, db, 2, transition_table)
         elif read_from_db:
             #instead of inserting, we read the database
             read_fragment_ids(S, tmp_c, peptide, peptide_table, transition_table)
@@ -105,16 +107,16 @@ for i,row in enumerate(rows):
     done.append( peptide.id)
 
 
-def read_fragment_ids(self, cursor, peptide ):
+def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
     #reads srmPeptide and srmTransitions in order to store the srm_ids of the 
     #fragments. Speed ~ 300 / s
     qq = """select 
     q3_charge, type, srm_id
-    from hroest.srmPeptide 
-    inner join hroest.srmTransitions on parent_id = parent_key
+    from %s 
+    inner join %s on parent_id = parent_key
     where peptide_key = %s and q1_charge = %s
     order by q3_charge, type
-    """ % (peptide.id, peptide.charge)
+    """ % (peptide_table, transition_table, peptide.id, peptide.charge)
     cursor.execute( qq ) 
     all_transitions = cursor.fetchall()
     self.fragment_ids = { 1 : [ [], [] ], 2 : [ [], [] ]}
@@ -204,12 +206,13 @@ def get_peptide_from_table(t, row):
     peptide.non_unique = {}
     return peptide
 
-def insert_peptide_in_db(self, db):
+def insert_peptide_in_db(self, db, peptide_table):
     c = db.cursor()
     peptide = self.ass_peptide
     #insert peptide into db
     vals = "peptide_key, q1_charge, q1, ssrcalc"
-    q = "insert into hroest.srmPeptide (%s) VALUES (%s,%s,%s,%s)" % (
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s)" % (
+        peptide_table,
         vals, 
         peptide.id, peptide.charge, 
         get_actual_mass(self), peptide.ssr_calc )
@@ -220,7 +223,7 @@ def get_actual_mass(self):
     return self.peptide_mass / self.ion_charge
 
 
-def insert_in_db(self, db, fragment_charge):
+def insert_in_db(self, db, fragment_charge, transition_table):
     c = db.cursor()
     peptide = self.ass_peptide
     parent_id = peptide.parent_id
@@ -231,7 +234,8 @@ def insert_in_db(self, db, fragment_charge):
     self.fragment_ids[ ch ] = [ [], [] ]
     for i, q3 in enumerate(charged_b_series):
         type = 'b'
-        q = "insert into hroest.srmTransitions (%s) VALUES ('%s',%s,%s,%s)" % (
+        q = "insert into %s (%s) VALUES ('%s',%s,%s,%s)" % (
+            transition_table,
             vals, 
             type, parent_id, fragment_charge, q3 )
         c.execute(q)
@@ -251,6 +255,10 @@ def all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic,
         for ch2 in frag_range:
             calculate_clashes_in_series_insert_db( S, S2, ch1, ch2, pairs_dic, 
                                  MS2_bins, clash_distr, range_small, c, table )
+
+class NonExecuteableDatabaseCursor:
+    def __init__(self): pass
+    def execute(self, t): print t
 
 def calculate_clashes_in_series_insert_db(S, S2, charge1, charge2, pairs_dic, 
                         MS2_bins, clash_distr, myrange, c, table):
@@ -274,6 +282,7 @@ def calculate_clashes_in_series_insert_db(S, S2, charge1, charge2, pairs_dic,
     charged_y_series2=[ ( pred + (ch -1)*S2.mass_H)/ch for pred in S2.y_series ]
     charged_b_series2=[ ( pred + (ch -1)*S2.mass_H)/ch for pred in S2.b_series ]
     fragment_ids2 = S2.fragment_ids[ ch ]
+    #c = NonExecuteableDatabaseCursor() #for testing
     #every time we count share + 1 we cannot use one b or y
     #only exception: if it clashes with BOTH series, but how
     #often does that happen?
