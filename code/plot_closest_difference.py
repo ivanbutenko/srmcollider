@@ -12,24 +12,25 @@ c = db.cursor()
 sys.path.append( '/home/hroest/msa/code/tppGhost' )
 import gnuplot
 
+coll_table = 'hroest.tmp_srm_all_collisions_filtered'
 query_up = """
 -- create temporary tables for the plotting
-drop table hroest.tmp_analyse_q1diff;
+drop table if exists hroest.tmp_analyse_q1diff;
 create table hroest.tmp_analyse_q1diff as
-select q1diff, q1diff_abs, coll_srm1 from hroest.tmp_srm_all_collisions_filtered
+select q1diff, q1diff_abs, coll_srm1 from %(coll_table)s
 where q1diff < 0.1
 
 order by coll_srm1, q1diff_abs 
 ;
-drop table hroest.tmp_analyse_q3diff;
+drop table if exists hroest.tmp_analyse_q3diff;
 create table hroest.tmp_analyse_q3diff as
-select q3diff, q3diff_abs, coll_srm1 from hroest.tmp_srm_all_collisions_filtered
+select q3diff, q3diff_abs, coll_srm1 from %(coll_table)s
 #where q1diff < 0.1
 order by coll_srm1, q3diff_abs 
 ;
-drop table hroest.tmp_analyse_ssrcalcdiff;
+drop table if exists hroest.tmp_analyse_ssrcalcdiff;
 create table hroest.tmp_analyse_ssrcalcdiff as
-select ssrcalcdiff, ssrcalcdiff_abs, coll_srm1 from hroest.tmp_srm_all_collisions_filtered
+select ssrcalcdiff, ssrcalcdiff_abs, coll_srm1 from %(coll_table)s
 #where q1diff < 0.1
 order by coll_srm1, ssrcalcdiff_abs 
 ;
@@ -38,7 +39,7 @@ alter table hroest.tmp_analyse_ssrcalcdiff add index(coll_srm1);
 alter table hroest.tmp_analyse_q1diff add index(coll_srm1);
 alter table hroest.tmp_analyse_q3diff add index(coll_srm1);
 select * from hroest.tmp_analyse_q1diff
-"""
+""" % { 'coll_table' : coll_table}
 
 
 query_down = """
@@ -46,12 +47,14 @@ query_down = """
 drop table hroest.tmp_analyse_q1diff;
 drop table hroest.tmp_analyse_q3diff;
 drop table hroest.tmp_analyse_ssrcalcdiff;
-"""
+""" 
 
 ##########################################################################
-reload( gnuplot )
 c.execute( query_up)
+print "Query up executed"
 
+c.close()
+c = db.cursor()
 c.execute("""
 select ssrcalcdiff from hroest.tmp_analyse_ssrcalcdiff
 group by coll_srm1
@@ -65,6 +68,9 @@ filename = 'ssrcalc_diff_distribution_1vs1'
 gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
   'SSRCalc difference / arbitrary units', 'Occurence', keep_data = True )
 
+print "Query 1 executed"
+c.close()
+c = db.cursor()
 c.execute("""
 select q1diff from hroest.tmp_analyse_q1diff 
 group by coll_srm1
@@ -83,6 +89,8 @@ gnu.add_to_body( "set xrange[%s:%s]"  % (-0.35, 0.35) )
 gnu.add_to_body( "set xtics -0.3, 0.1" )
 gnu.draw_boxes()
 
+c.close()
+c = db.cursor()
 my_q3s = c.execute("""
 select q3diff from hroest.tmp_analyse_q3diff 
 group by coll_srm1
@@ -105,4 +113,6 @@ gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
   'Q1 difference / Th', 'Occurence', keep_data = True )
 
 
-c.execute( quert_down )
+c.close()
+c = db.cursor()
+c.execute( query_down )
