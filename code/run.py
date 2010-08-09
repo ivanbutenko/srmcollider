@@ -53,9 +53,9 @@ if True:
 cursor = db.cursor()
 query = """
 select parent_id
- from hroest.srmPeptide
+ from %s
  %s
-""" % query_add
+""" % (peptide_table, query_add )
 cursor.execute( query )
 pepids = cursor.fetchall()
 allpeps = [ 0 for i in range(2 * 10**6)]
@@ -64,13 +64,14 @@ for i, p_id in enumerate(pepids):
     if i % 1000 ==0: print i
     query1 = """
     select q1, ssrcalc, q3, srm_id
-    from hroest.srmPeptide
-    inner join hroest.srmTransitions
+    from %(pep)s
+    inner join %(trans)s
       on parent_id = parent_key
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
     """ % { 'parent_id' : p_id[0], 'q3_low' : q3_range[0],
-           'q3_high' : q3_range[1], 'query_add' : query1_add }
+           'q3_high' : q3_range[1], 'query_add' : query1_add, 
+           'pep' : peptide_table, 'trans' : transition_table }
     nr_transitions = cursor.execute( query1 )
     transitions = cursor.fetchall()
     q1 = transitions[0][0]
@@ -79,8 +80,9 @@ for i, p_id in enumerate(pepids):
     transitions = [ [t[2], t[3]] for t in transitions ]
     ####method 2 (fast) per protein
     query2 = """
-    select q3 from hroest.srmPeptide
-    inner join hroest.srmTransitions
+    select q3 
+    from %(pep)s
+    inner join %(trans)s
       on parent_id = parent_key
     where   ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
@@ -89,7 +91,8 @@ for i, p_id in enumerate(pepids):
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
     """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id[0] ,
            'q3_low':q3_range[0],'q3_high':q3_range[1], 'q1_window' : q1_window,
-           'query_add' : query2_add, 'ssr_window' : ssrcalc_window }
+           'query_add' : query2_add, 'ssr_window' : ssrcalc_window,
+           'pep' : peptide_table, 'trans' : transition_table }
     tmp = cursor.execute( query2 )
     collisions = cursor.fetchall()
     #here we loop through all possible combinations of transitions and 
@@ -148,10 +151,10 @@ if True:
     cursor = db.cursor()
     query = """
     select parent_id, LENGTH( sequence )
-     from hroest.srmPeptide
+     from %s
      inner join ddb.peptide on peptide.id = peptide_key
      %s
-    """ % query_add
+    """ % (peptide_table, query_add )
     cursor.execute( query )
     pepids = cursor.fetchall()
     len_distr  = [ [] for i in range(255) ]
