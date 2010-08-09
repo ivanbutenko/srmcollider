@@ -31,26 +31,18 @@ import numpy
 
 exp_key = 3061  #human (800 - 5000 Da)
 #exp_key = 3130  #human (all)
-exp_key = 3120  #yeast
+#exp_key = 3120  #yeast
 all_peptide_query  = """
-select distinct gene.id as gene_id, peptide.sequence, molecular_weight, ssrcalc,
-genome_occurence, 
-peptide.id as peptide_key
-from gene 
-inner join experimentOrganism on gene.experiment_key = experimentOrganism.experiment_key
-inner join geneProtLink on gene.id = geneProtLink.gene_key
-inner join protein on protein.id = geneProtLink.protein_key 
-inner join protPepLink on protein.id = protPepLink.protein_key
-inner join peptide on protPepLink.peptide_key = peptide.id
+select distinct peptide.sequence, molecular_weight, ssrcalc,
+genome_occurence, peptide.id as peptide_key
+from peptide 
 inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
-where gene.experiment_key = %s
-#and taxonomy_id = 9606 #human
-#and taxonomy_id = 4932 #yeast
-#and genome_occurence = 1
+where experiment_key = %s
 """ % exp_key
 
+#human go from parent_id = 1 to parent_id = 1177958
 
 ###################################
 # A) store the transitions
@@ -69,15 +61,11 @@ mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
 start = time.time()
-done = []
 for i,row in enumerate(rows):
     if i % 10000 == 0: print i
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = get_peptide_from_table(t, row)
         peptide.charge = mycharge
-        if peptide.genome_occurence > 1:
-            #check whether we have that peptide already
-            if peptide.id in done: continue
         S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
         S.ion_charge = peptide.charge
         #S.peptide_mass = S.calculate_peptide_mass( 
@@ -104,7 +92,6 @@ for i,row in enumerate(rows):
         mass_bins[ bin ].append( peptide )
         rt_bins[ int(peptide.ssr_calc) ].append( peptide )
         end = time.time()
-    done.append( peptide.id)
 
 
 def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
@@ -130,16 +117,6 @@ def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
 # B) store the collisions
 ###################################
 
-
-#read in lab-peptides, bin length etc
-bin_length = [ len( b ) for b in mass_bins]
-rt_bin_len = [ len( b ) for b in rt_bins]
-q = "select sequence from hroest.lab_peptides"
-t = utils.db_table( c )
-t.read( q )
-lab_peptides = []
-for row in t.rows():
-    lab_peptides.append( t.row( row, 'sequence' ))
 
 #here we run through all pairs
 reset_pairs_unique(mass_bins)
@@ -170,7 +147,6 @@ for i in range( 1, len( mass_bins )-1):
     #for i, S in enumerate(current_spectra):
     for S in current_spectra:
         peptide = S.ass_peptide
-        if peptide.sequence in lab_peptides: lab_peptides_2.append( peptide )
         mz = S.peptide_mass / S.ion_charge
         bin = int( mz / 0.7) 
         #only use those as S which are in the current bin => take each S only once
@@ -199,7 +175,7 @@ def get_peptide_from_table(t, row):
     peptide.set_sequence( t.row(row, 'sequence')  )
     peptide.genome_occurence = t.row( row, 'genome_occurence' )
     peptide.ssr_calc         = t.row( row, 'ssrcalc' )
-    peptide.gene_id          = t.row( row, 'gene_id' )
+    #peptide.gene_id          = t.row( row, 'gene_id' )
     peptide.mw               = t.row( row, 'molecular_weight' )
     peptide.id               = t.row( row, 'peptide_key' )
     peptide.pairs            = []
@@ -463,6 +439,74 @@ h, n = numpy.histogram( pair_distr, 50, (0,50)  )
 for hh, nn in zip( h, n):
     f.write( '%d %f\n' % (nn, hh*100.0/sum(h) ))
 
+
+
+
+
+
+
+
+
+#calculate how many unique transitions are left per peptide
+unique_dist = [0 for i in range(1000)]
+unique_ratios = []
+unique_dist_window = [0 for i in range(1000)]
+unique_ratios_window = []
+for i, p in enumerate(all_pep):
+    unique = len( p.sequence ) - len( p.non_unique)/2 - 1
+    ratio = unique * 1.0 / ( len(p.sequence) - 1)
+    unique_dist[ unique ] += 1
+    unique_ratios.append( ratio)
+    if i % 10000 == 0: print i
+
+f = open( 'unique_transitions.csv', 'w' )
+for i,u in enumerate(unique_dist):
+    f.write( '%d %d\n' % (i,u) )
+
+#calculate transitions per peptide as ratios
+f = open( 'unique_ratios.csv', 'w' )
+h, n = numpy.histogram( unique_ratios, 10)
+for hh, nn in zip( h, n):
+    f.write( '%f %f\n' % (nn*100.0 + 5 , hh*100.0/sum(h) ))
+
+f.close()
+
+#All but the last (righthand-most) bin is half-open. In other words, if bins is:
+# [1, 2, 3, 4]
+#then the first bin is [1, 2) (including 1, but excluding 2) and the second 
+#[2, 3). The last bin, however, is [3, 4], which includes 4.]]
+
+[sum( clash_distr[:i] ) for i in range(50)]
+
+lab_peptides_3 = utils.unique( lab_peptides_2)
+
+lab_peptides_3 = []
+for pep in lab_peptides_2:
+    if not pep in lab_peptides_3: 
+        lab_peptides_3.append( pep )
+
+len( lab_peptides_3 )
+len( lab_peptides_2 )
+
+
+
+tots = {}
+seqs = {}
+for p in lab_peptides_2: 
+    tots[ p.sequence ] = ''
+    if len( p.pairs) > 0: 
+        print p.sequence
+        seqs[ p.sequence ] = ''
+
+f.close()
+
+for p in lab_peptides_2: 
+    if p.sequence == 'DIHFMPCSGLTGANIK': break
+
+h, n = numpy.histogram( pair_distr )
+[p for p in pair_distr if p >0 ]
+
+len( lab_peptides_2)
 
 
 
