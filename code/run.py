@@ -29,22 +29,29 @@ import numpy
 # 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
 do_1vs = True #check only one charge state?
 do_vs1 = False #background only one charge state?
-q3_range = [300, 1500]
+ppm = True #measure q3 in ppm
+transition_table = 'hroest.srmTransitions_yeast'
+peptide_table = 'hroest.srmPeptides_yeast'
+q3_range = [300, 2000]
 #q3_range = [0, 10000 ]
 ssrcalc_window = 2.0 / 2
-q1_window = 0.2 / 2
-#q1_window = 0.7 / 2
-q3_window = 1.0 / 2
+q1_window = 25.0 / 2.0
+#q1_window = 0.7 / 2.0
+q3_window = 10.0 / 2.0
 do_1_only = "and q1_charge = 2 and q3_charge = 1"
-experiment_type = """check all four charge states [%s] vs all four charge states [%s]
-with thresholds of SSRCalc %s Q1 %s Q3 %s and a range of %s - %s Da for the q3 transitions.
-""" % ( not do_1vs, not do_vs1, ssrcalc_window*2,  q1_window*2, q3_window*2, q3_range[0], q3_range[1])
-print experiment_type
 if True:
-    if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
+    if do_1vs : query_add = "and q1_charge = 2"; query1_add = do_1_only
     else: query_add = ""
     if do_vs1 : query2_add = do_1_only
     else: query2_add = ""
+    ppm_string = "Th"
+    if ppm: ppm_string = "PPM"
+    experiment_type = """check all four charge states [%s] vs all four charge 
+states [%s] with thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and 
+a range of %s - %s Da for the q3 transitions.  """ % ( not do_1vs, not do_vs1,
+      ssrcalc_window*2,  q1_window*2, q3_window*2, ppm_string, 
+      q3_range[0], q3_range[1])
+    print experiment_type
 
 #
 ###
