@@ -165,15 +165,51 @@ if True:
     h = [ hh *100.0 / len(mydist) for hh in h]
     import gnuplot
     reload( gnuplot )
-    filename = '%s_%s_%d%d%d_range%sto%s' % (do_1vs, do_vs1, 
-        ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
+    filename = common_filename
     gnu = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
       'Unique transitions per peptide / %' , 'Occurence / %', keep_data = True,
                                          tmp_csv = filename + '.csv' )
-    gnu.add_to_body( "set yrange[0:30]" )
-    gnu.draw_boxes()
+    cumh = get_cum_dist( h )
+    filename = common_filename + "_cum"
+    gnu = gnuplot.Gnuplot.draw_boxes_from_data( [cumh,n], filename + '.eps',
+      'Unique transitions per peptide / %' , 'Cumulative Occurence / %')
+    #gnu.add_to_body( "set yrange[0:30]" )
+    #gnu.draw_boxes()
     #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
 
+
+def get_cum_dist(original):
+    cumulative = []
+    cum  = 0
+    for i, val in enumerate(original):
+        cum += val
+        cumulative.append(  cum )
+    return cumulative
+
+#print the q3min_distr
+if True:
+    len( [m for m in q3min_distr if m == 0.0 ]) * 1.0 / total_count
+    h, n = numpy.histogram( q3min_distr, 500)
+    reload( gnuplot )
+    n = [nn * 10**3 for nn in n]
+    filename = common_filename + '_q3distr' 
+    gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+      'Q3 difference / 10^{-3} Th', 'Number of transitions', keep_data = True )
+    #gnu.add_to_body( "set xrange[%s:%s]"  % (-1, 1) )
+    #gnu.add_to_body( "set yrange[0:100]" )
+    #gnu.draw_boxes()
+
+#print the q3min_distr in ppm
+if True:
+    h, n = numpy.histogram( q3min_distr, 5000)
+    reload( gnuplot )
+    n = [nn * 10**3 for nn in n]
+    filename = common_filename + '_q3distr_ppm' 
+    gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+      'Q3 difference / ppm', 'Number of transitions', keep_data = True )
+    #gnu.add_to_body( "set xrange[%s:%s]"  % (-0.1, 0.1) )
+    #gnu.add_to_body( "set yrange[0:100]" )
+    #gnu.draw_boxes()
 
 #get a peptide length distribution
 if True:
@@ -198,7 +234,7 @@ if True:
     h = [ hh *100.0 for hh in h]
     n = range(6,26)
     reload( gnuplot )
-    filename = '%s_%s_%d%d%d_range%sto%s_lendist' % (do_1vs, do_vs1, 
+    filename = 'yeast_%s_%s_%d%d%d_range%sto%s_lendist' % (do_1vs, do_vs1, 
         ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
     gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
       'Peptide length', 'Average number of unique transitions per peptide / %', keep_data = True )
@@ -207,78 +243,44 @@ if True:
     gnu.draw_boxes()
 
 
-cursor = db.cursor()
-query = """
-select parent_id, LENGTH( sequence )
- from hroest.srmPeptide
- inner join ddb.peptide on peptide.id = peptide_key
- %s
-""" % query_add
-cursor.execute( query )
-pepids = cursor.fetchall()
+
+reload(gnuplot)
+c2.execute( "select floor(q1), count(*) from %s group by floor(q1)" % peptide_table)
+bins = c2.fetchall()
+filename = 'yeast_mzdist'
+n = [nn[0] for nn in bins]
+h = [hh[1] for hh in bins]
+gnu  = gnuplot.Gnuplot.draw_points_from_data( [h,n], filename + '.eps',
+  'Th', 'Occurence', keep_data = True)
+gnu.add_to_body( "set xrange[400:]"   )
+gnu.draw_points()
 
 
-#calculate how many unique transitions are left per peptide
-unique_dist = [0 for i in range(1000)]
-unique_ratios = []
-unique_dist_window = [0 for i in range(1000)]
-unique_ratios_window = []
-for i, p in enumerate(all_pep):
-    unique = len( p.sequence ) - len( p.non_unique)/2 - 1
-    ratio = unique * 1.0 / ( len(p.sequence) - 1)
-    unique_dist[ unique ] += 1
-    unique_ratios.append( ratio)
-    if i % 10000 == 0: print i
-
-f = open( 'unique_transitions.csv', 'w' )
-for i,u in enumerate(unique_dist):
-    f.write( '%d %d\n' % (i,u) )
-
-#calculate transitions per peptide as ratios
-f = open( 'unique_ratios.csv', 'w' )
-h, n = numpy.histogram( unique_ratios, 10)
-for hh, nn in zip( h, n):
-    f.write( '%f %f\n' % (nn*100.0 + 5 , hh*100.0/sum(h) ))
-
-f.close()
-
-#All but the last (righthand-most) bin is half-open. In other words, if bins is:
-# [1, 2, 3, 4]
-#then the first bin is [1, 2) (including 1, but excluding 2) and the second 
-#[2, 3). The last bin, however, is [3, 4], which includes 4.]]
-
-[sum( clash_distr[:i] ) for i in range(50)]
-
-lab_peptides_3 = utils.unique( lab_peptides_2)
-
-lab_peptides_3 = []
-for pep in lab_peptides_2:
-    if not pep in lab_peptides_3: 
-        lab_peptides_3.append( pep )
-
-len( lab_peptides_3 )
-len( lab_peptides_2 )
+reload(gnuplot)
+c2.execute( "select floor(ssrcalc), count(*) from %s group by floor(ssrcalc)" % peptide_table)
+bins = c2.fetchall()
+filename = 'yeast_rtdist'
+n = [nn[0] for nn in bins]
+h = [hh[1] for hh in bins]
+gnu  = gnuplot.Gnuplot.draw_points_from_data( [h,n], filename + '.eps',
+  'Retention time', 'Occurence', keep_data = True)
+gnu.add_to_body( "set xrange[0:100]"   )
+gnu.draw_points(2, True)
 
 
 
-tots = {}
-seqs = {}
-for p in lab_peptides_2: 
-    tots[ p.sequence ] = ''
-    if len( p.pairs) > 0: 
-        print p.sequence
-        seqs[ p.sequence ] = ''
+#print distribution in RT dimension
+f = open( 'rtdist.csv', 'w' )
+w = csv.writer(f,  delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL) 
+for i in range(50):
+    w.writerow( [i - 50, rt_bin_len[ i - 50] ] )
+
+
+
+#print distribution in Q1 dimension
+f = open( 'mzdist.csv', 'w' )
+w = csv.writer(f,  delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL) 
+for l in bins:
+    w.writerow( [l[0], l[1] ] )
 
 f.close()
-
-for p in lab_peptides_2: 
-    if p.sequence == 'DIHFMPCSGLTGANIK': break
-
-h, n = numpy.histogram( pair_distr )
-[p for p in pair_distr if p >0 ]
-
-len( lab_peptides_2)
-
-
-
-
