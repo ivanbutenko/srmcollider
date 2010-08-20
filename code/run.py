@@ -73,81 +73,92 @@ print par.experiment_type
 ###
 #
 #here we start
+#make sure we only get unique peptides
 cursor = db.cursor()
 query = """
-select parent_id, q1, q1_charge
+select parent_id, q1, q1_charge, ssrcalc
  from %s
+ inner join
+ ddb.peptide on peptide.id = %s.peptide_key
+ inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
+ where genome_occurence = 1
  %s
-""" % (peptide_table, query_add )
+""" % (par.peptide_table, par.peptide_table, par.query_add )
 cursor.execute( query )
 pepids = cursor.fetchall()
-allpeps = [ 0 for i in range(2 * 10**6)]
+#allpeps = [ 0 for i in range(2 * 10**6)]
+allpeps = {}
+q3min_distr = []
+q3min_distr_ppm = []
+non_unique_count = 0
+total_count = 0
 start = time.time()
 for i, pep in enumerate(pepids):
-    p_id, q1, q1_charge = pep
     if i % 1000 ==0: print i
-    q3_high = q3_range[1]
-    if q3_high < 0:
-        if not query1_add == 'and q1_charge = 2 and q3_charge = 1':
-            raise( 'relative q3_high not implemented for this combination')
-        q3_high = q1 * q1_charge + q3_high
-    query1 = """
-    select q1, ssrcalc, q3, srm_id
-    from %(pep)s
-    inner join %(trans)s
-      on parent_id = parent_key
-    where parent_id = %(parent_id)s
-    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
-    """ % { 'parent_id' : p_id, 'q3_low' : q3_range[0],
-           'q3_high' : q3_high, 'query_add' : query1_add,
-           'pep' : peptide_table, 'trans' : transition_table }
-    nr_transitions = cursor.execute( query1 )
-    transitions = cursor.fetchall()
-    q1 = transitions[0][0]
-    ssrcalc = transitions[0][1]
     non_unique = {}
+    non_unique_clash = {}
     non_unique_ppm = {}
-    ####method 2 (fast) per protein
+    p_id, q1, q1_charge, ssrcalc = pep
+    #
+    q3_high = par.get_q3_high(q1, q1_charge)
+    q3_low = par.get_q3_low()
+    #
     query2 = """
-    select q3
+    select q3, parent_id, srm_id, q1_charge, q3_charge
     from %(pep)s
     inner join %(trans)s
       on parent_id = parent_key
-    where   ssrcalc > %(ssrcalc)s - %(ssr_window)s
+    where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
     and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-    and parent_id != %(parent_id)d
-    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+    %(query_add)s
     """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
-           'q3_low':q3_range[0],'q3_high':q3_high, 'q1_window' : q1_window,
-           'query_add' : query2_add, 'ssr_window' : ssrcalc_window,
-           'pep' : peptide_table, 'trans' : transition_table }
+           'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
+           'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+           'pep' : par.peptide_table, 'trans' : par.transition_table }
+    #and parent_id != %(parent_id)d
+    #and q3 > %(q3_low)s and q3 < %(q3_high)s
     tmp = cursor.execute( query2 )
-    collisions = cursor.fetchall()
-    #here we loop through all possible combinations of transitions and
-    #potential collisions and check whether we really have a collision
-    #TODO it might even be faster to switch the loops
-    #TODO since the outer loop can be aborted as soon as a collision is found
-    q3_window_used = q3_window
-    #for c in collisions:
-    #    for t in transitions:
-    #        #here, its enough to know that one transition is colliding
-    #        if abs( t[0] - c[0] ) < q3_window: non_unique[ t[1] ] = 0; break
+    res = cursor.fetchall()
+    collisions, transitions = filtercollisions(res, p_id, q3_low, q3_high, par)
+    # here we loop through all possible combinations of transitions and 
+    # potential collisions and check whether we really have a collision
+    # TIMING until here it takes 72 s /1000 runs
+    q3_window_used = par.q3_window
     for t in transitions:
-        if ppm: q3_window_used = q3_window * 10**(-6) * t[2]
-        min = q3_window_used
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        min = q3_window_used 
         for c in collisions:
             #here, its enough to know that one transition is colliding
-            if abs( t[2] - c[0] ) <= min:
-                min = abs( t[2] - c[0] )
-                non_unique[ t[3] ] = t[2] - c[0]
-                non_unique_ppm[ t[3] ] = (t[2] - c[0] ) * 10**6 / t[2]
+            if abs( t[0] - c[0] ) <= min: 
+                min = abs( t[0] - c[0] )
+                non_unique[ t[2] ] = t[0] - c[0]
+                non_unique_clash[ t[2] ] = c[2]
+                non_unique_ppm[ t[2] ] = (t[0] - c[0] ) * 10**6 / t[0]
     allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
     for v in non_unique.values(): q3min_distr.append( v )
     for v in non_unique_ppm.values(): q3min_distr_ppm.append( v )
     non_unique_count += len( non_unique )
     total_count += len( transitions)
     end = time.time()
+    # TIMING until here it takes 91 s /1000 runs
+    if i > 1000: break
+    end = time.time()
+
+def filtercollisions(res, p_id, q3_low, q3_high, par):
+    if par.do_vs1: 
+        #filter result if we only want 1
+        res = [r for r in res if r[3] == 2 and r[4] == 1]
+    transitions = [r for r in res if r[1] == p_id 
+                   and r[0] > q3_low and r[0] < q3_high]
+    if par.do_1vs: 
+        transitions = [r for r in res if r[1] == p_id 
+                       and r[3]  == 2 and r[4] == 1
+                       and r[0] > q3_low and r[0] < q3_high]
+    [r for r in res if r[1] == p_id ]
+    collisions = [r for r in res if r[1] != p_id 
+                  and r[0] > q3_low and r[0] < q3_high]
+    return collisions, transitions
 
 
 ###########################################################################
@@ -183,9 +194,10 @@ pepids = [ (k,) for k in allpeps.keys()]
 if True:
     #new method, clash distribution
     mydist = []
-    for i, p_id in enumerate(pepids):
+    for i, pep in enumerate(pepids):
         #this is the number of UNIQUE transitions
-        mydist.append( allpeps[p_id[0] ] ) 
+        p_id, q1, q1_charge = pep
+        mydist.append( allpeps[p_id ] ) 
     len(mydist)
     h, n = numpy.histogram( mydist , 10)
     n = [nn * 100.0 + 5 for nn in n]
