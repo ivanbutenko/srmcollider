@@ -153,6 +153,33 @@ for i, pep in enumerate(pepids):
 ###########################################################################
 #
 # Analysis and printing
+
+import pickle
+common_filename = 'yeast_%s_%s_%d_%d_%dppm_range%sto%s' % (do_1vs, do_vs1, 
+    ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
+pickle.dump( q3min_distr, open(common_filename + '_q3min_distr.pkl' , 'w'))
+pickle.dump( q3min_distr_ppm, open(common_filename + '_q3min_distr_ppm.pkl', 'w'))
+pickle.dump( allpeps, open(common_filename + '_allpeps.pkl', 'w'))
+pickle.dump( [non_unique_count, total_count], open(common_filename + '_count.pkl', 'w'))
+
+
+dir = '/home/hroest/srm_clashes/results/pedro/'
+fname = dir + "yeast_True_False_20_250_100ppm_range300to2000"
+old_count = pickle.load( open(fname + "_allpeps.pkl"))
+
+allpeps = pickle.load( open(fname + "_allpeps.pkl"))
+pepids = [ (k,) for k in allpeps.keys()]
+
+#p_id = 1
+#{1L: 3830996L, 11L: 13837110L, 9L: 3881908L, 12L: 13837111L, 7L: 3881910L}
+#{1L: 0.0024949999999535066, 11L: 0.0, 9L: -0.00089500000001407898, 12L: 0.0, 7L: -0.00089500000001407898}
+
+#select * from hroest.srmTransitions_yeast inner join hroest.srmPeptides_yeast
+#on parent_key = parent_id inner join  ddb.peptide on peptide_key = peptide.id
+#where srm_id in (1, 3830996);
+
+
+
 if True:
     #new method, clash distribution
     mydist = []
