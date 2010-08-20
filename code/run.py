@@ -52,7 +52,7 @@ if True:
 #here we start
 cursor = db.cursor()
 query = """
-select parent_id
+select parent_id, q1, q1_charge
  from %s
  %s
 """ % (peptide_table, query_add )
@@ -60,8 +60,14 @@ cursor.execute( query )
 pepids = cursor.fetchall()
 allpeps = [ 0 for i in range(2 * 10**6)]
 start = time.time()
-for i, p_id in enumerate(pepids):
+for i, pep in enumerate(pepids):
+    p_id, q1, q1_charge = pep
     if i % 1000 ==0: print i
+    q3_high = q3_range[1]
+    if q3_high < 0:
+        if not query1_add == 'and q1_charge = 2 and q3_charge = 1':
+            raise( 'relative q3_high not implemented for this combination')
+        q3_high = q1 * q1_charge + q3_high
     query1 = """
     select q1, ssrcalc, q3, srm_id
     from %(pep)s
@@ -69,55 +75,55 @@ for i, p_id in enumerate(pepids):
       on parent_id = parent_key
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
-    """ % { 'parent_id' : p_id[0], 'q3_low' : q3_range[0],
-           'q3_high' : q3_range[1], 'query_add' : query1_add, 
+    """ % { 'parent_id' : p_id, 'q3_low' : q3_range[0],
+           'q3_high' : q3_high, 'query_add' : query1_add,
            'pep' : peptide_table, 'trans' : transition_table }
     nr_transitions = cursor.execute( query1 )
     transitions = cursor.fetchall()
     q1 = transitions[0][0]
     ssrcalc = transitions[0][1]
     non_unique = {}
-    transitions = [ [t[2], t[3]] for t in transitions ]
+    non_unique_ppm = {}
     ####method 2 (fast) per protein
     query2 = """
-    select q3 
+    select q3
     from %(pep)s
     inner join %(trans)s
       on parent_id = parent_key
-    where   ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+    where   ssrcalc > %(ssrcalc)s - %(ssr_window)s
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
     and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
     and parent_id != %(parent_id)d
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
-    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id[0] ,
-           'q3_low':q3_range[0],'q3_high':q3_range[1], 'q1_window' : q1_window,
+    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
+           'q3_low':q3_range[0],'q3_high':q3_high, 'q1_window' : q1_window,
            'query_add' : query2_add, 'ssr_window' : ssrcalc_window,
            'pep' : peptide_table, 'trans' : transition_table }
     tmp = cursor.execute( query2 )
     collisions = cursor.fetchall()
-    #here we loop through all possible combinations of transitions and 
+    #here we loop through all possible combinations of transitions and
     #potential collisions and check whether we really have a collision
     #TODO it might even be faster to switch the loops
     #TODO since the outer loop can be aborted as soon as a collision is found
-    for c in collisions:
-        for t in transitions:
+    q3_window_used = q3_window
+    #for c in collisions:
+    #    for t in transitions:
+    #        #here, its enough to know that one transition is colliding
+    #        if abs( t[0] - c[0] ) < q3_window: non_unique[ t[1] ] = 0; break
+    for t in transitions:
+        if ppm: q3_window_used = q3_window * 10**(-6) * t[2]
+        min = q3_window_used
+        for c in collisions:
             #here, its enough to know that one transition is colliding
-            if abs( t[0] - c[0] ) < q3_window: non_unique[ t[1] ] = 0; break
-    #####method 1 (slow) per transition
-    ##for t in transitions:
-    ##    query2 = """
-    ##    select q3 from hroest.srmPeptide
-    ##    inner join hroest.srmTransitions
-    ##      on parent_id = parent_key
-    ##    where ssrcalc > %(ssrcalc)s - 2 and ssrcalc < %(ssrcalc)s + 2
-    ##    and q1 > %(q1)s - 0.35 and q1 < %(q1)s + 0.35
-    ##    and parent_id != %(parent_id)d
-    ##    and q3 > %(q3)s - 0.5 and q3 < %(q3)s + 0.5
-    ##    ;
-    ##    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id[0], 'q3' : t[0] }
-    ##    tmp = cursor.execute( query2 )
-    ##    if tmp > 0: non_unique[ t[1] ] = 0
-    allpeps[ p_id[0] ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
+            if abs( t[2] - c[0] ) <= min:
+                min = abs( t[2] - c[0] )
+                non_unique[ t[3] ] = t[2] - c[0]
+                non_unique_ppm[ t[3] ] = (t[2] - c[0] ) * 10**6 / t[2]
+    allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
+    for v in non_unique.values(): q3min_distr.append( v )
+    for v in non_unique_ppm.values(): q3min_distr_ppm.append( v )
+    non_unique_count += len( non_unique )
+    total_count += len( transitions)
     end = time.time()
 
 
