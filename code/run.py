@@ -27,31 +27,47 @@ import numpy
 # 22.2 per second, thus do 500k in 6 hours ==> using per peptide methods
 ##method 1
 # 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
-do_1vs = True #check only one charge state?
-do_vs1 = False #background only one charge state?
-ppm = True #measure q3 in ppm
-transition_table = 'hroest.srmTransitions_yeast'
-peptide_table = 'hroest.srmPeptides_yeast'
-q3_range = [300, 2000]
-#q3_range = [0, 10000 ]
-ssrcalc_window = 2.0 / 2
-q1_window = 25.0 / 2.0
-#q1_window = 0.7 / 2.0
-q3_window = 10.0 / 2.0
-do_1_only = "and q1_charge = 2 and q3_charge = 1"
-if True:
-    if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
-    else: query_add = ""
-    if do_vs1 : query2_add = do_1_only
-    else: query2_add = ""
-    ppm_string = "Th"
-    if ppm: ppm_string = "PPM"
-    experiment_type = """check all four charge states [%s] vs all four charge 
-states [%s] with thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and 
-a range of %s - %s Da for the q3 transitions.  """ % ( not do_1vs, not do_vs1,
-      ssrcalc_window*2,  q1_window*2, q3_window*2, ppm_string, 
-      q3_range[0], q3_range[1])
-    print experiment_type
+class SRM_parameters(object):
+    def __init__(self): 
+        self.do_1vs = True #check only one charge state?
+        self.do_vs1 = False #background only one charge state?
+        self.ppm = True #measure q3 in ppm
+        self.transition_table = 'hroest.srmTransitions_yeast'
+        self.peptide_table = 'hroest.srmPeptides_yeast'
+        self.q3_range = [300, 2000]
+        self.ssrcalc_window = 2.0 / 2
+        self.q1_window = 25.0 / 2.0
+        self.q3_window = 10.0 / 2.0
+        self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
+    def eval(self):
+        self.query_add = ""
+        self.query2_add = ""
+        self.ppm_string = "Th"
+        if self.do_1vs :
+            self.query_add = "and q1_charge = 2"
+            self.query1_add = self.do_1_only
+        if self.do_vs1 : 
+            self.query2_add = self.do_1_only
+        if self.ppm: self.ppm_string = "PPM"
+        self.experiment_type = """\
+        check all four charge states [%s] vs all four charge states [%s] with
+        thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s - %s
+        Da for the q3 transitions.  """ % ( not self.do_1vs, not self.do_vs1,
+          self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, self.ppm_string, 
+          self.q3_range[0], self.q3_range[1])
+    def get_q3_high(self, q1, q1_charge):
+        q3_high = self.q3_range[1]
+        if q3_high < 0: 
+            if not self.query1_add == 'and q1_charge = 2 and q3_charge = 1':
+                raise( 'relative q3_high not implemented for this combination')
+            self.q3_high = q1 * q1_charge + q3_high
+        return q3_high
+    def get_q3_low(self):
+        return self.q3_range[0]
+
+par = SRM_parameters()
+par.eval()
+print par.experiment_type
 
 #
 ###
