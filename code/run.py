@@ -40,7 +40,7 @@ q1_window = 25.0 / 2.0
 q3_window = 10.0 / 2.0
 do_1_only = "and q1_charge = 2 and q3_charge = 1"
 if True:
-    if do_1vs : query_add = "and q1_charge = 2"; query1_add = do_1_only
+    if do_1vs : query_add = "where q1_charge = 2"; query1_add = do_1_only
     else: query_add = ""
     if do_vs1 : query2_add = do_1_only
     else: query2_add = ""
