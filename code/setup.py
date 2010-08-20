@@ -55,8 +55,11 @@ t = utils.db_table( c2 )
 t.read( all_peptide_query )
 print "executed the query"
 rows = t.c.fetchall()
-transition_table = 'hroest.srmTransitions_new'
-peptide_table = 'hroest.srmPeptides_new'
+
+#1000 entries / 9 s with fast (executemany), 10.5 with index
+#1000 entries / 31 s with normal (execute), 34 with index
+transition_table = 'hroest.srmTransitions_test'
+peptide_table = 'hroest.srmPeptides_test'
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -80,8 +83,8 @@ for i,row in enumerate(rows):
             #insert peptide into db
             insert_peptide_in_db(S, db, peptide_table)
             #insert fragment charge 1 and 2 into database
-            insert_in_db( S, db, 1, transition_table)
-            insert_in_db( S, db, 2, transition_table)
+            fast_insert_in_db( S, db, 1, transition_table)
+            fast_insert_in_db( S, db, 2, transition_table)
         elif read_from_db:
             #instead of inserting, we read the database
             read_fragment_ids(S, tmp_c, peptide, peptide_table, transition_table)
@@ -198,8 +201,8 @@ def insert_peptide_in_db(self, db, peptide_table):
 def get_actual_mass(self):
     return self.peptide_mass / self.ion_charge
 
-
 def insert_in_db(self, db, fragment_charge, transition_table):
+    assert False #use fast now
     c = db.cursor()
     peptide = self.ass_peptide
     parent_id = peptide.parent_id
@@ -219,11 +222,31 @@ def insert_in_db(self, db, fragment_charge, transition_table):
     pepLen = len(peptide)
     for i, q3 in enumerate(charged_y_series):
         type = 'y'
-        q = "insert into hroest.srmTransitions (%s) VALUES ('%s',%s,%s,%s)" % (
+        q = "insert into %s (%s) VALUES ('%s',%s,%s,%s)" % (
+            transition_table,
             vals, 
             type, parent_id, fragment_charge, q3 )
         c.execute(q)
         self.fragment_ids[ch][1].append( db.insert_id()  )
+
+def fast_insert_in_db(self, db, fragment_charge, transition_table):
+    c = db.cursor()
+    peptide = self.ass_peptide
+    parent_id = peptide.parent_id
+    vals = "type, parent_key, q3_charge, q3"
+    q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s)" 
+    ch = fragment_charge
+    charged_y =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
+    charged_b =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
+    many = [ ['y', parent_id, ch, q3] for i, q3 in enumerate(charged_y) ]
+    manyb = [ ['b', parent_id, ch, q3] for i, q3 in enumerate(charged_b) ]
+    many.extend( manyb )
+    c.executemany( q, many)
+    first_id = db.insert_id()
+    self.fragment_ids[ ch ] = {
+    'y' : [i for i in range(first_id, first_id + len(charged_y )) ] , 
+    'b' : [i for i in range(first_id + len(charged_y ),  first_id + 2*len(charged_y )) ]
+    }
 
 def all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic, 
                       MS2_bins, clash_distr, range_small, c, table, frag_range):
