@@ -49,18 +49,18 @@ class SRM_parameters(object):
         if self.do_vs1 : 
             self.query2_add = self.do_1_only
         if self.ppm: self.ppm_string = "PPM"
-        self.experiment_type = """\
+        self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
-        thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s - %s
+        thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s
         Da for the q3 transitions.  """ % ( not self.do_1vs, not self.do_vs1,
-          self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, self.ppm_string, 
-          self.q3_range[0], self.q3_range[1])
+          self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
+          self.ppm_string, self.q3_range[0], self.q3_range[1])
     def get_q3_high(self, q1, q1_charge):
         q3_high = self.q3_range[1]
         if q3_high < 0: 
             if not self.query1_add == 'and q1_charge = 2 and q3_charge = 1':
                 raise( 'relative q3_high not implemented for this combination')
-            self.q3_high = q1 * q1_charge + q3_high
+            q3_high = q1 * q1_charge + q3_high
         return q3_high
     def get_q3_low(self):
         return self.q3_range[0]
@@ -86,7 +86,7 @@ select parent_id, q1, q1_charge, ssrcalc
 """ % (par.peptide_table, par.peptide_table, par.query_add )
 cursor.execute( query )
 pepids = cursor.fetchall()
-#allpeps = [ 0 for i in range(2 * 10**6)]
+#
 allpeps = {}
 q3min_distr = []
 q3min_distr_ppm = []
@@ -99,12 +99,26 @@ for i, pep in enumerate(pepids):
     non_unique_clash = {}
     non_unique_ppm = {}
     p_id, q1, q1_charge, ssrcalc = pep
-    #
     q3_high = par.get_q3_high(q1, q1_charge)
     q3_low = par.get_q3_low()
     #
+    query1 = """
+    select q1, ssrcalc, q3, srm_id
+    from %(pep)s
+    inner join %(trans)s
+      on parent_id = parent_key
+    where parent_id = %(parent_id)s
+    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+    """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
+           'q3_high' : q3_high, 'query_add' : par.query1_add,
+           'pep' : par.peptide_table, 'trans' : par.transition_table }
+    nr_transitions = cursor.execute( query1 )
+    transitions = cursor.fetchall()
+    #q1 = transitions[0][0]
+    #ssrcalc = transitions[0][1]
+    #
     query2 = """
-    select q3, parent_id, srm_id, q1_charge, q3_charge
+    select q3
     from %(pep)s
     inner join %(trans)s
       on parent_id = parent_key
@@ -119,51 +133,41 @@ for i, pep in enumerate(pepids):
     #and parent_id != %(parent_id)d
     #and q3 > %(q3_low)s and q3 < %(q3_high)s
     tmp = cursor.execute( query2 )
-    res = cursor.fetchall()
-    collisions, transitions = filtercollisions(res, p_id, q3_low, q3_high, par)
-    # here we loop through all possible combinations of transitions and 
-    # potential collisions and check whether we really have a collision
-    # TIMING until here it takes 72 s /1000 runs
+    collisions = cursor.fetchall()
+    #here we loop through all possible combinations of transitions and
+    #potential collisions and check whether we really have a collision
+    #TODO it might even be faster to switch the loops
+    #TODO since the outer loop can be aborted as soon as a collision is found
     q3_window_used = par.q3_window
     for t in transitions:
-        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-        min = q3_window_used 
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[2]
+        min = q3_window_used
         for c in collisions:
             #here, its enough to know that one transition is colliding
-            if abs( t[0] - c[0] ) <= min: 
-                min = abs( t[0] - c[0] )
-                non_unique[ t[2] ] = t[0] - c[0]
-                non_unique_clash[ t[2] ] = c[2]
-                non_unique_ppm[ t[2] ] = (t[0] - c[0] ) * 10**6 / t[0]
+            if abs( t[2] - c[0] ) <= min:
+                min = abs( t[2] - c[0] )
+                non_unique[ t[3] ] = t[2] - c[0]
+                non_unique_ppm[ t[3] ] = (t[2] - c[0] ) * 10**6 / t[2]
     allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
     for v in non_unique.values(): q3min_distr.append( v )
     for v in non_unique_ppm.values(): q3min_distr_ppm.append( v )
     non_unique_count += len( non_unique )
     total_count += len( transitions)
     end = time.time()
-    # TIMING until here it takes 91 s /1000 runs
-    if i > 1000: break
-    end = time.time()
 
-def filtercollisions(res, p_id, q3_low, q3_high, par):
-    if par.do_vs1: 
-        #filter result if we only want 1
-        res = [r for r in res if r[3] == 2 and r[4] == 1]
-    transitions = [r for r in res if r[1] == p_id 
-                   and r[0] > q3_low and r[0] < q3_high]
-    if par.do_1vs: 
-        transitions = [r for r in res if r[1] == p_id 
-                       and r[3]  == 2 and r[4] == 1
-                       and r[0] > q3_low and r[0] < q3_high]
-    [r for r in res if r[1] == p_id ]
-    collisions = [r for r in res if r[1] != p_id 
-                  and r[0] > q3_low and r[0] < q3_high]
-    return collisions, transitions
+
 
 
 ###########################################################################
 #
 # Analysis and printing
+
+
+restable = 'hroest.testres'
+c.execute( "create table %s (parent_key int, unique_transitions double) " % restable)
+c.executemany( "insert into %s values " % restable + "values (%s,%s)", 
+              allpeps.items() )
+
 
 import pickle
 common_filename = 'yeast_%s_%s_%d_%d_%dppm_range%sto%s' % (do_1vs, do_vs1, 
