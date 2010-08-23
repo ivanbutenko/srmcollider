@@ -34,7 +34,7 @@ class SRM_parameters(object):
         self.ppm = True #measure q3 in ppm
         self.transition_table = 'hroest.srmTransitions_yeast'
         self.peptide_table = 'hroest.srmPeptides_yeast'
-        self.q3_range = [300, 2000]
+        self.q3_range = [400, 1200]
         self.ssrcalc_window = 2.0 / 2
         self.q1_window = 25.0 / 2.0
         self.q3_window = 10.0 / 2.0
@@ -68,6 +68,24 @@ class SRM_parameters(object):
 par = SRM_parameters()
 par.eval()
 print par.experiment_type
+
+def testcase():
+    par = SRM_parameters()
+    par.q1_window = 0.7 / 2
+    par.q3_window = 1.0 / 2
+    par.ppm = False
+    par.transition_table = 'hroest.srmTransitions_test'
+    par.peptide_table = 'hroest.srmPeptides_test'
+    #default 
+    par.do_1vs = True #check only one charge state?
+    par.do_vs1 = False #background only one charge state?
+    par.q3_range = [400, 1200]
+    par.ssrcalc_window = 2.0 / 2
+    par.do_1_only = "and q1_charge = 2 and q3_charge = 1"
+    #
+    par.eval()
+    return par
+
 
 #
 ###
@@ -125,13 +143,13 @@ for i, pep in enumerate(pepids):
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
     and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+    and parent_id != %(parent_id)d
+    and q3 > %(q3_low)s and q3 < %(q3_high)s
     %(query_add)s
     """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
            'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
            'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
            'pep' : par.peptide_table, 'trans' : par.transition_table }
-    #and parent_id != %(parent_id)d
-    #and q3 > %(q3_low)s and q3 < %(q3_high)s
     tmp = cursor.execute( query2 )
     collisions = cursor.fetchall()
     #here we loop through all possible combinations of transitions and
@@ -157,6 +175,10 @@ for i, pep in enumerate(pepids):
 
 
 
+##testcase
+assert sum( allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert non_unique_count == 26
+assert total_count == 12502
 
 ###########################################################################
 #
