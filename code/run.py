@@ -16,15 +16,23 @@ from utils_h import utils
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
 c = db.cursor()
 c2 = db.cursor()
+cursor = db.cursor()
 import silver
 import DDB 
 import csv 
 R = silver.Residues.Residues('mono')
 import numpy
+import progress
 
 #with this method, I can do 
 ##method 2
-# 22.2 per second, thus do 500k in 6 hours ==> using per peptide methods
+# 22.2 per second (1Da), thus do 500k in 6 hours ==> using per peptide methods
+# 5 per second (25Da), thus do 500k in 24 hours ==> using per peptide methods
+#
+#10ppm, 1Da => 200 / s
+#10ppm, 9Da => 20 / s
+#10ppm, 25Da => 7 / s
+#10ppm, 50Da => 4 / s
 ##method 1
 # 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
 class SRM_parameters(object):
@@ -64,10 +72,18 @@ class SRM_parameters(object):
         return q3_high
     def get_q3_low(self):
         return self.q3_range[0]
-
-par = SRM_parameters()
-par.eval()
-print par.experiment_type
+    def get_common_filename(self):
+        common_filename = 'yeast_%s_%s_%d_%d' % (self.do_1vs, self.do_vs1, 
+            self.ssrcalc_window*20,  self.q1_window*20)
+        if self.ppm:
+            common_filename += '_%dppm' % (self.q3_window*20)
+        else:
+            common_filename += '_%d' % (self.q3_window*20)
+        if self.q3_range[1] < 0:
+            common_filename += "_range%stomin%s" % (self.q3_range[0], abs( self.q3_range[1]) )
+        else:
+            common_filename += "_range%sto%s" % (self.q3_range[0], abs( self.q3_range[1]) )
+        return common_filename
 
 def testcase():
     par = SRM_parameters()
@@ -86,126 +102,165 @@ def testcase():
     par.eval()
     return par
 
-
-#
-###
-#
-#here we start
-#make sure we only get unique peptides
-cursor = db.cursor()
-query = """
-select parent_id, q1, q1_charge, ssrcalc
- from %s
- inner join
- ddb.peptide on peptide.id = %s.peptide_key
- inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
- where genome_occurence = 1
- %s
-""" % (par.peptide_table, par.peptide_table, par.query_add )
-cursor.execute( query )
-pepids = cursor.fetchall()
-#
-allpeps = {}
-q3min_distr = []
-q3min_distr_ppm = []
-non_unique_count = 0
-total_count = 0
-start = time.time()
-for i, pep in enumerate(pepids):
-    if i % 1000 ==0: print i
-    non_unique = {}
-    non_unique_clash = {}
-    non_unique_ppm = {}
-    p_id, q1, q1_charge, ssrcalc = pep
-    q3_high = par.get_q3_high(q1, q1_charge)
-    q3_low = par.get_q3_low()
-    #
-    query1 = """
-    select q1, ssrcalc, q3, srm_id
-    from %(pep)s
-    inner join %(trans)s
-      on parent_id = parent_key
-    where parent_id = %(parent_id)s
-    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
-    """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
-           'q3_high' : q3_high, 'query_add' : par.query1_add,
-           'pep' : par.peptide_table, 'trans' : par.transition_table }
-    nr_transitions = cursor.execute( query1 )
-    transitions = cursor.fetchall()
-    #q1 = transitions[0][0]
-    #ssrcalc = transitions[0][1]
-    #
-    query2 = """
-    select q3
-    from %(pep)s
-    inner join %(trans)s
-      on parent_id = parent_key
-    where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
-        and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-    and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-    and parent_id != %(parent_id)d
-    and q3 > %(q3_low)s and q3 < %(q3_high)s
-    %(query_add)s
-    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
-           'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
-           'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-           'pep' : par.peptide_table, 'trans' : par.transition_table }
-    tmp = cursor.execute( query2 )
-    collisions = cursor.fetchall()
-    #here we loop through all possible combinations of transitions and
-    #potential collisions and check whether we really have a collision
-    #TODO it might even be faster to switch the loops
-    #TODO since the outer loop can be aborted as soon as a collision is found
-    q3_window_used = par.q3_window
-    for t in transitions:
-        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[2]
-        min = q3_window_used
-        for c in collisions:
-            #here, its enough to know that one transition is colliding
-            if abs( t[2] - c[0] ) <= min:
-                min = abs( t[2] - c[0] )
-                non_unique[ t[3] ] = t[2] - c[0]
-                non_unique_ppm[ t[3] ] = (t[2] - c[0] ) * 10**6 / t[2]
-    allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
-    for v in non_unique.values(): q3min_distr.append( v )
-    for v in non_unique_ppm.values(): q3min_distr_ppm.append( v )
-    non_unique_count += len( non_unique )
-    total_count += len( transitions)
-    end = time.time()
+class SRMcollider(object):
+    def find_clashes(self, cursor, par):
+        #make sure we only get unique peptides
+        cursor = db.cursor()
+        query = """
+        select parent_id, q1, q1_charge, ssrcalc
+         from %s
+         inner join
+         ddb.peptide on peptide.id = %s.peptide_key
+         inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
+         where genome_occurence = 1
+         %s
+        """ % (par.peptide_table, par.peptide_table, par.query_add )
+        cursor.execute( query )
+        self.pepids = cursor.fetchall()
+        f
+        self.allpeps = {}
+        self.q3min_distr = []
+        self.q3min_distr_ppm = []
+        self.non_unique_count = 0
+        self.total_count = 0
+        start = time.time()
+        progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+        for i, pep in enumerate(self.pepids):
+            #if i % 100 ==0: print i
+            non_unique = {}
+            non_unique_clash = {}
+            non_unique_ppm = {}
+            p_id, q1, q1_charge, ssrcalc = pep
+            q3_high = par.get_q3_high(q1, q1_charge)
+            q3_low = par.get_q3_low()
+            #
+            query1 = """
+            select q3, srm_id
+            from %(pep)s
+            inner join %(trans)s
+              on parent_id = parent_key
+            where parent_id = %(parent_id)s
+            and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+            """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
+                   'q3_high' : q3_high, 'query_add' : par.query1_add,
+                   'pep' : par.peptide_table, 'trans' : par.transition_table }
+            nr_transitions = cursor.execute( query1 )
+            transitions = cursor.fetchall()
+            #
+            query2 = """
+            select q3
+            from %(pep)s
+            inner join %(trans)s
+              on parent_id = parent_key
+            where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+                and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+            and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+            and parent_id != %(parent_id)d
+            and q3 > %(q3_low)s and q3 < %(q3_high)s
+            %(query_add)s
+            """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
+                   'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
+                   'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+                   'pep' : par.peptide_table, 'trans' : par.transition_table }
+            tmp = cursor.execute( query2 )
+            collisions = cursor.fetchall()
+            #here we loop through all possible combinations of transitions and
+            #potential collisions and check whether we really have a collision
+            #TODO it might even be faster to switch the loops
+            #TODO since the outer loop can be aborted as soon as a collision is found
+            q3_window_used = par.q3_window
+            for t in transitions:
+                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+                this_min = q3_window_used
+                for c in collisions:
+                    if abs( t[0] - c[0] ) <= this_min:
+                        this_min = abs( t[0] - c[0] )
+                        non_unique[ t[1] ] = t[0] - c[0]
+                        non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
+            self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
+            for v in non_unique.values(): self.q3min_distr.append( v )
+            for v in non_unique_ppm.values(): self.q3min_distr_ppm.append( v )
+            self.non_unique_count += len( non_unique )
+            self.total_count += len( transitions)
+            end = time.time()
+            progressm.update(1)
+        self.total_time = end - start
+    def store_in_from_file(self):
+        import pickle
+        pickle.dump( q3min_distr, open(common_filename + '_q3min_distr.pkl' , 'w'))
+        pickle.dump( q3min_distr_ppm, open(common_filename + '_q3min_distr_ppm.pkl', 'w'))
+        pickle.dump( allpeps, open(common_filename + '_allpeps.pkl', 'w'))
+        pickle.dump( [non_unique_count, total_count], open(common_filename + '_count.pkl', 'w'))
+    def load_from_file(self, par, directory):
+        import pickle
+        #fname = directory + "yeast_True_False_20_250_100ppm_range300to2000"
+        fname = directory + par.get_common_filename()
+        self.q3min_distr = pickle.load( open(fname + "_q3min_distr.pkl"))
+        self.q3min_distr_ppm = pickle.load( open(fname + "_q3min_distr_ppm.pkl"))
+        self.allpeps = pickle.load( open(fname + "_allpeps.pkl"))
+        self.non_unique_count, self.total_count = pickle.load( open(fname + "_count.pkl"))
+        self.pepids = [ (k,) for k in self.allpeps.keys()]
 
 
 
 ##testcase
-assert sum( allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert non_unique_count == 26
-assert total_count == 12502
+###########################################################################
+par  = testcase()
+collider = SRMcollider()
+collider.find_clashes(cursor, par)
+
+print "I ran the testcase in %ss" % collider.total_time
+assert sum( collider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert collider.non_unique_count == 26
+assert collider.total_count == 12502
+
+#Run the collider
+###########################################################################
+par = SRM_parameters()
+par.q1_window = 0.7 / 2  
+par.q3_window = 1.0 / 2  
+par.ppm = False
+par.eval()
+print par.experiment_type
+print par.get_common_filename()
+
+collider = SRMcollider()
+collider.find_clashes(cursor, par)
+
+collider = SRMcollider()
+directory = '/home/hroest/srm_clashes/results/pedro/'
+collider.load_from_file( par, directory)
+
+print "I ran the collider for %s min" % ((end - start)/60 )
+print "I ran the collider for %s h" % ((end - start)/3600 )
+
+print_stats(collider)
+
+def print_stats(self):
+    #print "I ran the collider for %ss" % self.total_time
+    print "Nonunique / Total transitions : %s / %s = %s" % (self.non_unique_count, self.total_count, self.non_unique_count * 1.0 /self.total_count)
+
+total_time = end - start
+def print_stats():
+    print "I ran the collider for %ss" % total_time
+    print "Nonunique / Total transitions : %s / %s = %s" % (non_unique_count, total_count, non_unique_count * 1.0 /total_count)
+
+
+print_stats()
+
+some 
 
 ###########################################################################
 #
-# Analysis and printing
+# Storage of results
+self = par
 
-
-restable = 'hroest.testres'
-c.execute( "create table %s (parent_key int, unique_transitions double) " % restable)
-c.executemany( "insert into %s values " % restable + "values (%s,%s)", 
+restable = 'hroest.srm_results_' + common_filename
+cursor.execute("drop table %s" % restable)
+cursor.execute("create table %s (parent_key int, unique_transitions double) " % restable)
+cursor.executemany( "insert into %s values " % restable + "(%s,%s)", 
               allpeps.items() )
 
-
-import pickle
-common_filename = 'yeast_%s_%s_%d_%d_%dppm_range%sto%s' % (do_1vs, do_vs1, 
-    ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
-pickle.dump( q3min_distr, open(common_filename + '_q3min_distr.pkl' , 'w'))
-pickle.dump( q3min_distr_ppm, open(common_filename + '_q3min_distr_ppm.pkl', 'w'))
-pickle.dump( allpeps, open(common_filename + '_allpeps.pkl', 'w'))
-pickle.dump( [non_unique_count, total_count], open(common_filename + '_count.pkl', 'w'))
-
-
-dir = '/home/hroest/srm_clashes/results/pedro/'
-fname = dir + "yeast_True_False_20_250_100ppm_range300to2000"
-old_count = pickle.load( open(fname + "_allpeps.pkl"))
-
-allpeps = pickle.load( open(fname + "_allpeps.pkl"))
-pepids = [ (k,) for k in allpeps.keys()]
 
 #p_id = 1
 #{1L: 3830996L, 11L: 13837110L, 9L: 3881908L, 12L: 13837111L, 7L: 3881910L}
