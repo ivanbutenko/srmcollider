@@ -1,0 +1,560 @@
+\include{header}
+
+\usepackage{gensymb}
+\usepackage{hyphenat}
+\usepackage{subfig}
+
+\usepackage{booktabs} %make lines in tables (midrule, toprule etc)
+\newcommand*\maketablespace{ \addlinespace[15pt] }
+
+%\setcounter{tocdepth}{3}
+\begin{document}
+
+\author{Hannes Röst}
+\title{Lab Notebook SRM clashes}
+\maketitle
+
+\tableofcontents
+
+\section{Large background, 300 to 2000 Da}
+I worked now in Pedros idea with very large Q1 windows (25 Da) and very
+small Q1 windows (1 or 10 ppm). I had to introduce some more code to be
+able to cope with the ppm story. I also had to check that the peptides
+chosen were unique (even though those in the background were not)
+
+We chose to search 2+ parent and 1+ fragment ion against a background of
+2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment). SSRCalcRange
+(window size) was 2 arbitrary units which is about 1 minute, depending
+on the coloumn.
+
+\subsubsection{25 Da window}
+
+\begin{verbatim}
+check all four charge states [False] vs all four charge 
+states [True] with thresholds of SSRCalc 2.0, Q1 25.0 (Th), Q3 10.0 (PPM) and 
+a range of 300 - 2000 Da for the q3 transitions. 
+Ratio of non-unique peptides is 0.280395401014
+\end{verbatim}
+
+%Figure~\ref{25Da_10ppm} we have a yeast dataset, a complete digested proteome from
+all proteins found by Ensembl. Only 2+ parent ions and 1+ fragment ions of
+unique peptides were used for the analysis wheras a background of all peptides
+(also non-unique) and 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment)
+was used.  We used windows of 25 Da for Q1, 10 ppm for Q3 and 2 SSRCalc units.
+We see that accuracy from 10 ppm to 1 ppm will help only in very few cases on
+Q3 level.
+
+%\begin{figure}
+%
+%\center
+%\subfloat[1][1]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300to2000.pdf}} \\
+%\subfloat[2][2]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300to2000_q3distr_ppm.pdf}}
+%
+%\caption{
+%Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+%SSRCalcRange was 2 arbitrary units, Q1 25 Da and Q3 10 ppm
+%}
+%\label{25Da_10ppm}
+%\end{figure}
+%\begin{figure}
+%\subfloat[1][Zoom in]{\includegraphics[width=0.6\textwidth,angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300to2000_q3distr_ppm_small_window.pdf}} 
+%\subfloat[2][Th instead of ppm]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300to2000_q3distr.pdf}}\\
+%\caption{Top: With Th instead of ppm}
+%\label{some_label}
+%\end{figure}
+
+
+%\subsubsection{9 Da window}
+%Figure~\ref{9Da_10ppm} shows the same with 9 Da window (10 ppm on Q3)
+%
+%\begin{figure}
+%\center
+%\subfloat[][Unique transitions per peptide]{\includegraphics[width=0.6\textwidth,angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range300to2000.pdf} }  \\
+%\subfloat[][Q3 distribution]{\includegraphics[width=0.6\textwidth,angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range300to2000_q3distr_ppm.pdf}}
+%%
+%\caption{
+%Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+%SSRCalcRange was 2 arbitrary units, Q1 9 Da and Q3 10 ppm
+%}
+%\label{9Da_10ppm}
+%\end{figure}
+%
+%
+%\subsubsection{1 Da window}
+%Figure~\ref{1Da_10ppm} shows the same with 1 Da window (10 ppm on Q3)
+%
+%\begin{figure}
+%\center
+%\subfloat[][Unique transitions per peptide]{\includegraphics[width=0.6\textwidth,angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range300to2000.pdf} }  \\
+%\subfloat[][Unique transitions per peptide]{\includegraphics[width=0.6\textwidth,angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range300to2000_cum.pdf} }  
+%%\subfloat[][Q3 distribution]{\includegraphics[width=0.6\textwidth,angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range300to2000_q3distr_ppm.pdf}}
+%%
+%\caption{
+%Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+%SSRCalcRange was 2 arbitrary units, Q1 9 Da and Q3 10 ppm
+%}
+%\label{1Da_10ppm}
+%\end{figure}
+%
+%
+%\subsubsection{0.2 Da window}
+%Figure~\ref{02Da_1Da} shows 0.2 Da on Q1 and 1 Da on Q3.
+%Here we have a range of 300 Da to 1500 Da only.
+%
+%\begin{figure}
+%
+%\center
+%%\subfloat[1][1]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20210_range300to1500_lendist.pdf}} \\
+%\subfloat[2][2]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20210_range300to1500.pdf}}
+%
+%\caption{
+%Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+%SSRCalcRange was 2 arbitrary units, Massrange for Q3 300-1500 Da, Q1 window 0.2 Da
+%}
+%\label{02Da_1Da}
+%\end{figure}
+%
+%
+%
+%
+%
+%\clearpage
+%
+\section{Large background, 300 to minus 300 Da}
+\subsection{25 Da, 10 ppm }
+
+\begin{verbatim}
+Experiment Type:
+    check all four charge states [False] vs all four charge states [True] with
+    thresholds of SSRCalc 2.0, Q1 25.0 (Th), Q3 10.0 (PPM) and a range of 300 to -300
+    Da for the q3 transitions.  
+    Ratio of non-unique peptides is 0.268012370107
+\end{verbatim}
+
+
+\begin{figure}
+
+\center
+\subfloat[1][1]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300tomin300.pdf}} \\
+\subfloat[1][1]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300tomin300_cum.pdf}} 
+%\subfloat[2][2]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300tomin300_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 25 Da and Q3 10 ppm
+}
+\label{fig:2.25Da_10ppm}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][2]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range300tomin300_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 25 Da and Q3 10 ppm
+}
+\label{fig:2.25Da_10ppm_q3dist}
+\end{figure}
+
+
+
+\clearpage
+\section{Peptides between 400 and 1200 Da}
+
+%
+%\begin{verbatim}
+%
+%drop table tmptbl;
+%create temporary table tmptbl as
+%select count(*) as occ , srmPeptides_yeast.peptide_key from hroest.srmPeptides_yeast 
+%inner join ddb.peptide on srmPeptides_yeast.peptide_key = peptide.id 
+%inner join ddb.peptideOrganism on peptideOrganism.peptide_key = peptide.id
+%where q1 > 400 and q1 < 1200 
+%and genome_occurence = 1
+%group by srmPeptides_yeast.peptide_key
+%;
+%alter table tmptbl add index(peptide_key);
+%
+%select count(*) from tmptbl
+%#inner join ddb.protPepLink on protPepLink.peptide_key = tmptbl.peptide_key
+%#group by protein_key
+%;
+%
+%select count(*) from tmptbl
+%#inner join ddb.protPepLink on protPepLink.peptide_key = tmptbl.peptide_key
+%where occ = 2
+%#group by protein_key
+%;
+%
+%
+%#
+%##
+%#
+%# -- check whether we really filtered out non-unique peptides
+%create temporary table unique_yeast_proteins as
+%select protein_key from ddb.peptide 
+%#select count(*) from ddb.peptide 
+%inner join ddb.protPepLink on protPepLink.peptide_key = peptide.id
+%inner join ddb.peptideOrganism on peptideOrganism.peptide_key = peptide.id
+%where experiment_key = 3120 
+%and genome_occurence = 1
+%group by protein_key
+%;
+%
+%drop table non_unique_yeast_proteins;
+%create temporary table non_unique_yeast_proteins as
+%select distinct protein_key from ddb.peptide 
+%inner join ddb.protPepLink on protPepLink.peptide_key = peptide.id
+%where experiment_key = 3120 
+%and protein_key not in (select * from unique_yeast_proteins)
+%;
+%
+%#see how many peptides each of the non unique proteins has
+%select protPepLink.protein_key, count(*) from
+%non_unique_yeast_proteins 
+%inner join ddb.protPepLink on protPepLink.protein_key = non_unique_yeast_proteins.protein_key
+%group by protPepLink.protein_key;
+%
+%
+%#check one protein
+%select genome_occurence, sequence from ddb.peptide
+%inner join ddb.protPepLink on protPepLink.peptide_key = peptide.id
+%inner join ddb.peptideOrganism on peptideOrganism.peptide_key = peptide.id
+%where protein_key = 2818530;
+%
+%#check one sequence
+%select * from ddb.peptide 
+%inner join ddb.protPepLink on protPepLink.peptide_key = peptide.id
+%where sequence = 'SLEDNETEIK' and experiment_key = 3120;
+%
+%
+%
+%\end{verbatim}
+%
+
+See table~\ref{tab:yeast_pepprot} for the peptide and protein analysis. It
+shows how many peptides and proteins are visible in a window of 400 to 1200 Da
+and how many of those have 2+ and 3+ charged parent ions in that window. I
+calculated it for all peptides and for the unique peptides only.
+
+\begin{table}[h]
+
+\centering
+\caption[Yeast peptide and protein distribution.]
+{\textbf{Yeast peptide and protein distribution.}
+The number of proteins and peptides in yeast. Shown are all, those which have
+parent ions between 400 and 1200 Da and finally those which additionally also
+have both 2+ and 3+ parent ions in that range. \newline
+The top table show all peptides, the bottom table shows only those which occur
+once in the genome.
+}
+\label{tab:yeast_pepprot}
+
+\begin{tabular}{ l c c }
+\maketablespace
+Description & Peptides  & Proteins \\
+\toprule
+All & 137\,161 & 6602 \\
+400-1200 & 130\,734 & 6593 \\
+400-1200, 2+ and 3+ parent ions & \phantom{1}62\,663 & 6422\\
+\toprule
+All & 134\,412 & 6437 \\
+400-1200 & 128\,094 & 6419 \\
+400-1200, 2+ and 3+ parent ions & \phantom{1}61\,530 & 6180\\
+
+\end{tabular}
+\end{table}
+
+All 128\,094 peptides in this range have 1\,690\,316 transitions.
+
+All the following data was created with these parameters: 
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+
+fragment) and 3+ parent (1+,2+ fragment). The background was the ensembl yeast
+genome release, release 57.
+
+The SSRCalc window was 2 arbitrary units, Q1 variable and Q3 was 10 ppm.
+
+Only ions from peptides with a molecular mass between 800\,Da and 5000\,Da 
+and transitions between 400 and 1200\,Th were included. 
+\subsection{50 Da}
+
+%Non unique transitions are 0.51060038478~\% or 863\,076
+Nonunique / Total transitions : 863076.0 / 1690316.0 = 0.51060038478
+
+Percentage of collisions below 1 ppm: 74.79~\%
+
+
+See Figure~\ref{fig:400range.50Da_10ppm} and Figure~\ref{fig:400range.50Da_10ppm_q3dist}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_100ppm_range400to1200.pdf}} \\
+\subfloat[1][Cumulative unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_100ppm_range400to1200_cum.pdf}} 
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+The number of peptides is plotted against the percentage of unique transitions
+per peptide (top). Below, a cumulative distribution is shown.
+}
+\label{fig:400range.50Da_10ppm}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_100ppm_range400to1200_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 25 Da and Q3 10 ppm
+}
+\label{fig:400range.50Da_10ppm_q3dist}
+\end{figure}
+
+\subsection{25 Da}
+
+Nonunique / Total transitions : 602972.0 / 1690316.0 = 0.356721465099
+Percentage of collisions below 1 ppm: 73.63~\%
+
+
+See Figure~\ref{fig:400range.25Da_10ppm} and Figure~\ref{fig:400range.25Da_10ppm_q3dist}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range400to1200.pdf}} \\
+\subfloat[1][Cumulative unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range400to1200_cum.pdf}} 
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+The number of peptides is plotted against the percentage of unique transitions
+per peptide (top). Below, a cumulative distribution is shown.
+}
+\label{fig:400range.25Da_10ppm}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range400to1200_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 25 Da and Q3 10 ppm
+}
+\label{fig:400range.25Da_10ppm_q3dist}
+\end{figure}
+
+
+\subsection{15 Da}
+
+Nonunique / Total transitions : 448789 / 1690316 = 0.265505976397
+Percentage of collisions below 1 ppm: 16.59~\%
+
+
+See Figure~\ref{fig:400range.15Da_10ppm} and Figure~\ref{fig:400range.15Da_10ppm_q3dist}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_150_100ppm_range400to1200.pdf}} \\
+\subfloat[1][Cumulative unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_150_100ppm_range400to1200_cum.pdf}} 
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+The number of peptides is plotted against the percentage of unique transitions
+per peptide (top). Below, a cumulative distribution is shown.
+}
+\label{fig:400range.15Da_10ppm}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_150_100ppm_range400to1200_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 15 Da and Q3 10 ppm
+}
+\label{fig:400range.15Da_10ppm_q3dist}
+\end{figure}
+
+
+\subsection{9 Da}
+
+Nonunique / Total transitions : 310193.0 / 1690316.0 = 0.18351184039
+
+Percentage of collisions below 1 ppm: 74.29~\%
+
+
+See Figure~\ref{fig:400range.9Da_10ppm} and Figure~\ref{fig:400range.9Da_10ppm_q3dist}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range400to1200.pdf}} \\
+\subfloat[1][Cumulative unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range400to1200_cum.pdf}} 
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+The number of peptides is plotted against the percentage of unique transitions
+per peptide (top). Below, a cumulative distribution is shown.
+}
+\label{fig:400range.9Da_10ppm}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range400to1200_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 9 Da and Q3 10 ppm
+}
+\label{fig:400range.9Da_10ppm_q3dist}
+\end{figure}
+
+
+\subsection{1 Da}
+
+Nonunique / Total transitions : 86612.0 / 1690316.0 = 0.0512401231486
+
+Percentage of collisions below 1 ppm: 79.77~\%
+
+
+See Figure~\ref{fig:400range.1Da_10ppm} and Figure~\ref{fig:400range.1Da_10ppm_q3dist}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range400to1200.pdf}} \\
+\subfloat[1][Cumulative unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range400to1200_cum.pdf}} 
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+The number of peptides is plotted against the percentage of unique transitions
+per peptide (top). Below, a cumulative distribution is shown.
+}
+\label{fig:400range.1Da_10ppm}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range400to1200_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 1 Da and Q3 10 ppm
+}
+\label{fig:400range.1Da_10ppm_q3dist}
+\end{figure}
+
+
+\subsection{Traditional SRM: 0.7 Da, 1 Da}
+
+This is the comparison to traditional SRM with Q1 of 0.7 Da and Q3 of 1 Da.
+
+Nonunique / Total transitions : 418245.0 / 1690316.0 = 0.247435982384
+
+Percentage of collisions below 1 ppm: 20.04~\%
+
+
+See Figure~\ref{fig:400range.07Da_1Da} and Figure~\ref{fig:400range.07Da_1Da_q3dist}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_7_10_range400to1200.pdf}} \\
+\subfloat[1][Cumulative unique transition distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_7_10_range400to1200_cum.pdf}} 
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+The number of peptides is plotted against the percentage of unique transitions
+per peptide (top). Below, a cumulative distribution is shown.
+}
+\label{fig:400range.07Da_1Da}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_7_10_range400to1200_q3distr_ppm.pdf}}
+
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units, Q1 0.7 Da and Q3 1 Da
+}
+\label{fig:400range.07Da_1Da_q3dist}
+\end{figure}
+
+
+\subsection{Comparison}
+
+
+
+
+\begin{table}[h]
+
+\centering
+\caption[]
+{\textbf{Percentage of non-unique transitions}
+Comparison of the methods explored above using the percentage of non-unique
+transitions of the total number of transitions.
+}
+\label{tab:comp_nonunique}
+
+\begin{tabular}{ l  c }
+\maketablespace
+Method &Non-unique transitions / \%  \\
+\toprule
+SRM (0.7 Da, 1 Da) & 24.7 \\
+\midrule
+1 Da, 10 ppm&  \phantom{1}5.1 \\
+9 Da, 10 ppm&  18.3\\
+15 Da, 10 ppm& 26.5\\
+25 Da, 10 ppm& 35.7\\
+50 Da, 10 ppm& 51.0\\
+
+\end{tabular}
+\end{table}
+
+
+See Figure~\ref{fig:400range.comp} and Figure~\ref{fig:400range.comp_cum}.
+
+\begin{figure}
+
+\center
+\subfloat[1][Traditional: 0.7 Da, 0.7 Da]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_7_10_range400to1200_comp.pdf}} 
+\subfloat[1][1Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range400to1200_comp.pdf}} \\
+\subfloat[1][9Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range400to1200_comp.pdf}} 
+\subfloat[1][15Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_150_100ppm_range400to1200_comp.pdf}} \\
+\subfloat[1][25Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range400to1200_comp.pdf}} 
+\subfloat[1][50Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_100ppm_range400to1200_comp.pdf}} \\
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+Comparison of the histograms.  }
+\label{fig:400range.comp}
+\end{figure}
+\begin{figure}
+
+\center
+\subfloat[1][Traditional: 0.7 Da, 0.7 Da]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_7_10_range400to1200_cum.pdf}} 
+\subfloat[1][1Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_10_100ppm_range400to1200_cum.pdf}} \\
+\subfloat[1][9Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_90_100ppm_range400to1200_cum.pdf}} 
+\subfloat[1][15Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_150_100ppm_range400to1200_cum.pdf}} \\
+\subfloat[1][25Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_250_100ppm_range400to1200_cum.pdf}} 
+\subfloat[1][50Da, 10ppm]{\includegraphics[width=0.3\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_100ppm_range400to1200_cum.pdf}} \\
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+Comparison of the cumulative distributions.  }
+\label{fig:400range.comp_cum}
+\end{figure}
+
+\begin{figure}
+
+\center
+\includegraphics[width=0.7\textwidth, angle=-90]{/home/hroest/srm_clashes/results/multiple_csv/cumm_plot.pdf}
+
+\caption{ \textbf{Percentage unique transitions in the tryptic yeast peptidome.}
+Comparison of the cumulative distributions using different Q1 window sizes and
+10 ppm accuracy against the SRM standard: 0.7 Da Q1 and 1.0 Da Q3 window.}
+\label{fig:400range.comp_cum_all}
+\end{figure}
+
+
+
+
+\end{document}
