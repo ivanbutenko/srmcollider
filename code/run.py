@@ -289,12 +289,23 @@ if True:
     gnu = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
       'Unique transitions per peptide / %' , 'Occurence / %', keep_data = True,
                                          tmp_csv = filename + '.csv' )
+    gnu.add_to_body( "set yrange[0:80]" )
+    gnu.draw_boxes(keep_data = True)
+    #
+
+if True:
+    h, n = numpy.histogram( mydist , 100)
+    n = [nn * 100.0 for nn in n]
+    h = [hh * 100.0 / len(mydist) for hh in h]
     cumh = get_cum_dist( h )
+    h.append(100)
+    cumh.append(100)
     filename = common_filename + "_cum"
-    gnu = gnuplot.Gnuplot.draw_boxes_from_data( [cumh,n], filename + '.eps',
-      'Unique transitions per peptide / %' , 'Cumulative Occurence / %')
-    #gnu.add_to_body( "set yrange[0:30]" )
-    #gnu.draw_boxes()
+    plt_cmd = 'with lines lt -1 lw 2'
+    gnu = gnuplot.Gnuplot.draw_from_data( [cumh,n], plt_cmd, filename + '.eps',
+      'Unique transitions per peptide / %' , 'Cumulative Occurence / %', keep_data=True)
+    gnu.add_to_body( "set yrange[0:100]" )
+    gnu.draw(plt_cmd, keep_data=True)
     #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
 
 
@@ -321,15 +332,21 @@ if True:
 
 #print the q3min_distr in ppm
 if True:
-    h, n = numpy.histogram( q3min_distr, 5000)
-    reload( gnuplot )
-    n = [nn * 10**3 for nn in n]
+    h, n = numpy.histogram( q3min_distr_ppm, 100, (-5, 5) )
+    print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (sum( h[40:60] )* 100.0 / sum( h )))
+    n = [nn for nn in n]
     filename = common_filename + '_q3distr_ppm' 
     gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
       'Q3 difference / ppm', 'Number of transitions', keep_data = True )
     #gnu.add_to_body( "set xrange[%s:%s]"  % (-0.1, 0.1) )
-    #gnu.add_to_body( "set yrange[0:100]" )
+    #gnu.add_to_body( "set xrange[%s:%s]"  % (-5, 5) )
     #gnu.draw_boxes()
+
+
+
+###########################################################################
+## STOP
+###########################################################################
 
 #get a peptide length distribution
 if True:
