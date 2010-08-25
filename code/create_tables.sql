@@ -12,8 +12,9 @@ truncate table hroest.srmPeptides_test;
 create table hroest.srmPeptides_test(
     parent_id INT PRIMARY KEY AUTO_INCREMENT,
     peptide_key INT,
-    q1_charge INT,
+    q1_charge TINYINT,
     q1 DOUBLE,
+    modified_sequence VARCHAR(255),
     ssrcalc DOUBLE
 );
 alter table hroest.srmPeptides_test add index(peptide_key);
@@ -25,9 +26,10 @@ truncate table hroest.srmTransitions_test;
 create table hroest.srmTransitions_test(
     srm_id INT PRIMARY KEY AUTO_INCREMENT,
     parent_key INT,
-    q3_charge INT,
+    q3_charge TINYINT ,
     q3 DOUBLE,
-    type VARCHAR(3)
+    type CHAR(1),
+    fragment_number TINYINT
 );
 alter table hroest.srmTransitions_test add index(parent_key);
 alter table hroest.srmTransitions_test add index(q3);

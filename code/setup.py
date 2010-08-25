@@ -28,6 +28,7 @@ import DDB
 import csv 
 R = silver.Residues.Residues('mono')
 import numpy
+import progress
 
 exp_key = 3061  #human (800 - 5000 Da)
 #exp_key = 3130  #human (all)
@@ -48,32 +49,32 @@ where experiment_key = %s
 # A) store the transitions
 ###################################
 #read in the data from DB and put into bins
+# 75 peptides/sec
 insert_db = True
+modify_cysteins = True
 read_from_db = False
 c.execute( 'use ddb;' )
 t = utils.db_table( c2 )
 t.read( all_peptide_query )
 print "executed the query"
 rows = t.c.fetchall()
-
 #1000 entries / 9 s with fast (executemany), 10.5 with index
 #1000 entries / 31 s with normal (execute), 34 with index
-transition_table = 'hroest.srmTransitions_test'
-peptide_table = 'hroest.srmPeptides_test'
+transition_table = 'hroest.srmTransitions_yeast_2'
+peptide_table = 'hroest.srmPeptides_yeast_2'
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
+progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 start = time.time()
 for i,row in enumerate(rows):
-    if i % 10000 == 0: print i
+    progressm.update(1)
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = get_peptide_from_table(t, row)
         peptide.charge = mycharge
+        if modify_cysteins: peptide.modify_cysteins()
         S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
         S.ion_charge = peptide.charge
-        #S.peptide_mass = S.calculate_peptide_mass( 
-        #    peptide.get_modified_sequence('SEQUEST'), R.residues, 
-        #    None, S.ion_charge)
         S.construct_from_peptide( 
             peptide.get_modified_sequence('SEQUEST'), R.residues, 
             R.res_pairs)
@@ -189,12 +190,14 @@ def insert_peptide_in_db(self, db, peptide_table):
     c = db.cursor()
     peptide = self.ass_peptide
     #insert peptide into db
-    vals = "peptide_key, q1_charge, q1, ssrcalc"
-    q = "insert into %s (%s) VALUES (%s,%s,%s,%s)" % (
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s')" % (
         peptide_table,
         vals, 
         peptide.id, peptide.charge, 
-        get_actual_mass(self), peptide.ssr_calc )
+        get_actual_mass(self), peptide.ssr_calc, 
+        peptide.get_modified_sequence()
+    )
     c.execute(q)
     peptide.parent_id = db.insert_id()
 
@@ -233,13 +236,14 @@ def fast_insert_in_db(self, db, fragment_charge, transition_table):
     c = db.cursor()
     peptide = self.ass_peptide
     parent_id = peptide.parent_id
-    vals = "type, parent_key, q3_charge, q3"
-    q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s)" 
+    vals = "type, fragment_number, parent_key, q3_charge, q3 "
+    q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
     ch = fragment_charge
+    tr = len(self.y_series)
     charged_y =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
     charged_b =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
-    many = [ ['y', parent_id, ch, q3] for i, q3 in enumerate(charged_y) ]
-    manyb = [ ['b', parent_id, ch, q3] for i, q3 in enumerate(charged_b) ]
+    many = [ ['y', i+1, parent_id, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
+    manyb = [ ['b', i+1, parent_id, ch, q3] for i, q3 in enumerate(charged_b) ]
     many.extend( manyb )
     c.executemany( q, many)
     first_id = db.insert_id()
@@ -316,7 +320,7 @@ def calculate_clashes_in_series_insert_db(S, S2, charge1, charge2, pairs_dic,
     #    if pairs_dic.has_key( S.peptide ): 
     #        pairs_dic[ S.peptide ].append( S2.peptide )
     #    else: pairs_dic[ S.peptide ] = [ S2.peptide ]
-    clash_distr[ share ] += 1
+    ##clash_distr[ share ] += 1
     return share
 
 def reset_pairs_unique(mass_bins):
