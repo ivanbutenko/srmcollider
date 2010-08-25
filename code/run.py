@@ -49,11 +49,15 @@ mycollider.print_stats()
 
 
 
+collider.print_trans_collisions(par, p_id = 1, q3_low = 0, q3_high = 5000)
+collider.print_trans_collisions(par, p_id = 49, q3_low = 0, q3_high = 5000)
+collider.print_trans_collisions(par, p_id = 61, q3_low = 0, q3_high = 5000)
+
+#doubly charged parent, and b ion on y6
+collider.print_trans_collisions(par, p_id = 79, q3_low = 0, q3_high = 5000)
 
 
-print_stats()
 
-some 
 
 ###########################################################################
 #
@@ -64,38 +68,18 @@ restable = 'hroest.srm_results_' + common_filename
 cursor.execute("drop table %s" % restable)
 cursor.execute("create table %s (parent_key int, unique_transitions double) " % restable)
 cursor.executemany( "insert into %s values " % restable + "(%s,%s)", 
-              allpeps.items() )
-
-
-#p_id = 1
-#{1L: 3830996L, 11L: 13837110L, 9L: 3881908L, 12L: 13837111L, 7L: 3881910L}
-#{1L: 0.0024949999999535066, 11L: 0.0, 9L: -0.00089500000001407898, 12L: 0.0, 7L: -0.00089500000001407898}
-
-#select * from hroest.srmTransitions_yeast inner join hroest.srmPeptides_yeast
-#on parent_key = parent_id inner join  ddb.peptide on peptide_key = peptide.id
-#where srm_id in (1, 3830996);
-
+              mycollider.allpeps.items() )
 
 
 ###########################################################################
 #
 # Analysis and printing
 
-def get_cum_dist(original):
-    cumulative = []
-    cum  = 0
-    for i, val in enumerate(original):
-        cum += val
-        cumulative.append(  cum )
-    return cumulative
-
-
-import gnuplot
 import numpy
-
-
-
-#print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (sum( h[40:60] )* 100.0 / sum( h )))
+self = mycollider
+mydist = [  self.allpeps[ p[0] ] for p in self.pepids]
+h, n = numpy.histogram( mydist , 100)
+print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (sum( h[40:60] )* 100.0 / sum( h )))
 #exact_zero = len( [m for m in q3min_distr if m == 0.0 ]) * 1.0 
 #perc_exact_zero = exact_zero / len( q3min_distr ) 
 #perc_total_interferences = non_unique_count * 1.0 / total_count
