@@ -340,3 +340,250 @@ def print_trans_collisions(par, p_id = 1, q3_low = 300, q3_high = 2000,
             print("""%.2f\t%s%s <==> %.2f\t%s %07.2f %.2f %.2f %s %s""" % (t[0], t[5], jj, c[0], c[4], c[1], c[2], t[0] - c[0], c[3], c[5] ) )
         else:
             print("""%.2f\t%s%s """ % (t[0], t[5], jj) )
+
+""
+###########################################################################
+#
+# Setup Functions
+#
+def get_peptide_from_table(t, row):
+    peptide = DDB.Peptide()
+    peptide.set_sequence( t.row(row, 'sequence')  )
+    peptide.genome_occurence = t.row( row, 'genome_occurence' )
+    peptide.ssr_calc         = t.row( row, 'ssrcalc' )
+    #peptide.gene_id          = t.row( row, 'gene_id' )
+    peptide.mw               = t.row( row, 'molecular_weight' )
+    peptide.id               = t.row( row, 'peptide_key' )
+    peptide.pairs            = []
+    peptide.non_unique = {}
+    return peptide
+
+def insert_peptide_in_db(self, db, peptide_table):
+    c = db.cursor()
+    peptide = self.ass_peptide
+    #insert peptide into db
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s')" % (
+        peptide_table,
+        vals, 
+        peptide.id, peptide.charge, 
+        get_actual_mass(self), peptide.ssr_calc, 
+        peptide.get_modified_sequence()
+    )
+    c.execute(q)
+    peptide.parent_id = db.insert_id()
+
+def get_actual_mass(self):
+    return self.peptide_mass / self.ion_charge
+
+def insert_in_db(self, db, fragment_charge, transition_table):
+    assert False #use fast now
+    c = db.cursor()
+    peptide = self.ass_peptide
+    parent_id = peptide.parent_id
+    vals = "type, parent_key, q3_charge, q3"
+    ch = fragment_charge
+    charged_y_series =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
+    charged_b_series =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
+    self.fragment_ids[ ch ] = [ [], [] ]
+    for i, q3 in enumerate(charged_b_series):
+        type = 'b'
+        q = "insert into %s (%s) VALUES ('%s',%s,%s,%s)" % (
+            transition_table,
+            vals, 
+            type, parent_id, fragment_charge, q3 )
+        c.execute(q)
+        self.fragment_ids[ch][0].append( db.insert_id()  )
+    pepLen = len(peptide)
+    for i, q3 in enumerate(charged_y_series):
+        type = 'y'
+        q = "insert into %s (%s) VALUES ('%s',%s,%s,%s)" % (
+            transition_table,
+            vals, 
+            type, parent_id, fragment_charge, q3 )
+        c.execute(q)
+        self.fragment_ids[ch][1].append( db.insert_id()  )
+
+def fast_insert_in_db(self, db, fragment_charge, transition_table):
+    c = db.cursor()
+    peptide = self.ass_peptide
+    parent_id = peptide.parent_id
+    vals = "type, fragment_number, parent_key, q3_charge, q3 "
+    q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
+    ch = fragment_charge
+    tr = len(self.y_series)
+    charged_y =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
+    charged_b =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
+    many = [ ['y', i+1, parent_id, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
+    manyb = [ ['b', i+1, parent_id, ch, q3] for i, q3 in enumerate(charged_b) ]
+    many.extend( manyb )
+    c.executemany( q, many)
+    first_id = db.insert_id()
+    self.fragment_ids[ ch ] = {
+    'y' : [i for i in range(first_id, first_id + len(charged_y )) ] , 
+    'b' : [i for i in range(first_id + len(charged_y ),  first_id + 2*len(charged_y )) ]
+    }
+
+def all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic, 
+                      MS2_bins, clash_distr, range_small, c, table, frag_range):
+    for ch1 in frag_range:
+        for ch2 in frag_range:
+            calculate_clashes_in_series_insert_db( S, S2, ch1, ch2, pairs_dic, 
+                                 MS2_bins, clash_distr, range_small, c, table )
+
+class NonExecuteableDatabaseCursor:
+    def __init__(self): pass
+    def execute(self, t): print t
+
+def calculate_clashes_in_series_insert_db(S, S2, charge1, charge2, pairs_dic, 
+                        MS2_bins, clash_distr, myrange, c, table):
+    """Compares all b/y ions of spectra S against those of peptide S2.
+    If it finds fragments that are within the MS2_bins distance, it will 
+    increase share (the return value) by one and flag the corresponding 
+    fragment in BOTH associated peptides as non-unique.
+    """
+    #charge1 = ch1
+    #charge2 = ch2
+    vals = "coll_srm1, coll_srm2"
+    #fragment_ids[ 0 ] = b, [1] = y
+    share = 0
+    pep1 = S.ass_peptide
+    pep2 = S2.ass_peptide
+    ch = charge1
+    charged_y_series1=[ ( pred + (ch -1)*S.mass_H)/ch for pred in S.y_series ]
+    charged_b_series1=[ ( pred + (ch -1)*S.mass_H)/ch for pred in S.b_series ]
+    fragment_ids1 = S.fragment_ids[ ch ]
+    ch = charge2
+    charged_y_series2=[ ( pred + (ch -1)*S2.mass_H)/ch for pred in S2.y_series ]
+    charged_b_series2=[ ( pred + (ch -1)*S2.mass_H)/ch for pred in S2.b_series ]
+    fragment_ids2 = S2.fragment_ids[ ch ]
+    #c = NonExecuteableDatabaseCursor() #for testing
+    #every time we count share + 1 we cannot use one b or y
+    #only exception: if it clashes with BOTH series, but how
+    #often does that happen?
+    for i, y in enumerate( charged_y_series1 ):
+        if int(y) not in myrange: continue
+        for kk, yy in enumerate( charged_y_series2 ):
+            if abs( y - yy) < MS2_bins: 
+                c.execute("insert into hroest.%s (%s) VALUES (%s,%s)" % ( 
+                    table, vals, fragment_ids1[1][i], fragment_ids2[1][kk] )  )
+        for kk, bb in enumerate( charged_b_series2 ):
+            if abs( y - bb) < MS2_bins: 
+                c.execute("insert into hroest.%s (%s) VALUES (%s,%s)" % ( 
+                    table, vals, fragment_ids1[1][i], fragment_ids2[0][kk] )  )
+    for i, b in enumerate( charged_b_series1 ):
+        if int(b) not in myrange: continue
+        for kk, yy in enumerate( charged_y_series2 ):
+            if abs( b - yy) < MS2_bins: 
+                c.execute("insert into hroest.%s (%s) VALUES (%s,%s)" % (
+                    table, vals, fragment_ids1[0][i], fragment_ids2[1][kk] )  )
+        for kk, bb in enumerate( charged_b_series2 ):
+            if abs( b - bb) < MS2_bins: 
+                c.execute("insert into hroest.%s (%s) VALUES (%s,%s)" % ( 
+                    table, vals, fragment_ids1[0][i], fragment_ids2[0][kk] ) )
+    if share > 0:
+        pep1.shared_trans.append( pep2 )
+        pep2.shared_trans.append( pep1 )
+        #if mypeptide.spectrum in (S, S2): 
+        #print "share", share, S.ass_peptide.sequence, S2.ass_peptide.sequence, sorted( mypeptide.non_unique)
+    #if share > len( S.y_series):
+    #    S.ass_peptide.pairs.append( S2 )
+    #    S2.ass_peptide.pairs.append( S )
+    #    if pairs_dic.has_key( S.peptide ): 
+    #        pairs_dic[ S.peptide ].append( S2.peptide )
+    #    else: pairs_dic[ S.peptide ] = [ S2.peptide ]
+    ##clash_distr[ share ] += 1
+    return share
+
+def reset_pairs_unique(mass_bins):
+    #reset pairs and non_unique entries to start level
+    i = 0
+    for b in mass_bins:
+        i += len( b )
+        for pep in b:
+            pep.non_unique = {}
+            pep.pairs = []
+            pep.shared_trans = []
+
+def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic, 
+                        MS2_bins, clash_distr, myrange):
+    """Compares all b/y ions of spectra S against those of peptide S2.
+    If it finds fragments that are within the MS2_bins distance, it will 
+    increase share (the return value) by one and flag the corresponding 
+    fragment in BOTH associated peptides as non-unique.
+    """
+    #charge1 = ch1
+    #charge2 = ch2
+    share = 0
+    pep1 = S.ass_peptide
+    pep2 = S2.ass_peptide
+    ch = charge1
+    charged_y_series1=[ ( pred + (ch -1)*S.mass_H)/ch for pred in S.y_series ]
+    charged_b_series1=[ ( pred + (ch -1)*S.mass_H)/ch for pred in S.b_series ]
+    ch = charge2
+    charged_y_series2=[ ( pred + (ch -1)*S2.mass_H)/ch for pred in S2.y_series ]
+    charged_b_series2=[ ( pred + (ch -1)*S2.mass_H)/ch for pred in S2.b_series ]
+    #every time we count share + 1 we cannot use one b or y
+    #only exception: if it clashes with BOTH series, but how
+    #often does that happen?
+    for i, y in enumerate( charged_y_series1 ):
+        if int(y) not in myrange: continue
+        for kk, yy in enumerate( charged_y_series2 ):
+            if abs( y - yy) < MS2_bins: 
+                share += 1
+                pep1.non_unique[ 'y%s' % (i) ] = ''
+                pep2.non_unique[ 'y%s' % (kk) ] = ''
+        for kk, bb in enumerate( charged_b_series2 ):
+            if abs( y - bb) < MS2_bins: 
+                share += 1
+                pep1.non_unique[ 'y%s' % (i) ] = ''
+                pep2.non_unique[ 'b%s' % (kk) ] = ''
+    for i, b in enumerate( charged_b_series1 ):
+        if int(b) not in myrange: continue
+        for kk, yy in enumerate( charged_y_series2 ):
+            if abs( b - yy) < MS2_bins: 
+                share += 1
+                pep1.non_unique[ 'b%s' % (i) ] = ''
+                pep2.non_unique[ 'y%s' % (kk) ] = ''
+        for kk, bb in enumerate( charged_b_series2 ):
+            if abs( b - bb) < MS2_bins: 
+                share += 1
+                pep1.non_unique[ 'b%s' % (i) ] = ''
+                pep2.non_unique[ 'b%s' % (kk) ] = ''
+    if share > 0:
+        pep1.shared_trans.append( pep2 )
+        pep2.shared_trans.append( pep1 )
+        #if mypeptide.spectrum in (S, S2): 
+        #print "share", share, S.ass_peptide.sequence, S2.ass_peptide.sequence, sorted( mypeptide.non_unique)
+    #if share > len( S.y_series):
+    #    S.ass_peptide.pairs.append( S2 )
+    #    S2.ass_peptide.pairs.append( S )
+    #    if pairs_dic.has_key( S.peptide ): 
+    #        pairs_dic[ S.peptide ].append( S2.peptide )
+    #    else: pairs_dic[ S.peptide ] = [ S2.peptide ]
+    clash_distr[ share ] += 1
+    return share
+
+
+#make a list of all peptides
+
+#old analysis
+
+def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
+    #reads srmPeptide and srmTransitions in order to store the srm_ids of the 
+    #fragments. Speed ~ 300 / s
+    qq = """select 
+    q3_charge, type, srm_id
+    from %s 
+    inner join %s on parent_id = parent_key
+    where peptide_key = %s and q1_charge = %s
+    order by q3_charge, type
+    """ % (peptide_table, transition_table, peptide.id, peptide.charge)
+    cursor.execute( qq ) 
+    all_transitions = cursor.fetchall()
+    self.fragment_ids = { 1 : [ [], [] ], 2 : [ [], [] ]}
+    tmp = 0
+    for r in all_transitions:
+        if r[1] == 'b' : tmp =0
+        else: tmp = 1
+        self.fragment_ids[ r[0] ][tmp].append( r[2] )
