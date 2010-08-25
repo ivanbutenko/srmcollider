@@ -1,40 +1,27 @@
 #!/usr/bin/python
-import os
 import MySQLdb
-import sys 
-sys.path.append( '/home/ghost/hroest/code/' )
-sys.path.append( '/home/ghost/software_libs/' )
-sys.path.append( '/home/hroest/lib/' )
-sys.path.append( '/home/hroest/msa/code/tppGhost' )
-sys.path.append( '/home/hroest/msa/code' )
-sys.path.append( '/home/hroest/srm_clashes/code' )
-#import mzXMLreader
-#import pepXMLReader
 import time
-from utils_h import utils
-#import pipeline 
-#db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
+import sys 
+sys.path.append( '/home/hroest/srm_clashes/code' )
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
-c = db.cursor()
-c2 = db.cursor()
-cursor = db.cursor()
-import silver
-import DDB 
-import csv 
-R = silver.Residues.Residues('mono')
-import numpy
 import collider
 
-##testcase
+##Run the testcase
 ###########################################################################
-par  = testcase()
-collider = SRMcollider()
-collider.find_clashes(cursor, par)
+reload( collider )
+par  = collider.testcase()
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par) 
 
-print "I ran the testcase in %ss" % collider.total_time
-assert sum( collider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert collider.non_unique_count == 26
-assert collider.total_count == 12502
+print "I ran the testcase in %ss" % mycollider.total_time
+assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert mycollider.non_unique_count == 26
+assert mycollider.total_count == 12502
+assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
+assert len( mycollider.allcollisions ) == 26
+
+
+mycollider.q1min_distr[:100]
 
 #Run the collider
 ###########################################################################
@@ -46,30 +33,22 @@ par.eval()
 print par.experiment_type
 print par.get_common_filename()
 
-collider = SRMcollider()
-collider.find_clashes(cursor, par)
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par)
+mycollider.store_in_file()
 
-collider = SRMcollider()
+mycollider = collider.SRMcollider()
 directory = '/home/hroest/srm_clashes/results/pedro/'
-collider.load_from_file( par, directory)
-collider.print_unique_histogram(par)
-collider.print_cumm_unique(par)
-collider.print_q3min(par)
-collider.print_q3min_ppm(par)
+mycollider.load_from_file( par, directory)
 
-print "I ran the collider for %s min" % ((end - start)/60 )
-print "I ran the collider for %s h" % ((end - start)/3600 )
+mycollider.print_unique_histogram(par)
+mycollider.print_cumm_unique(par)
+mycollider.print_q3min(par)
+mycollider.print_q3min_ppm(par)
+mycollider.print_stats()
 
-print_stats(collider)
 
-def print_stats(self):
-    #print "I ran the collider for %ss" % self.total_time
-    print "Nonunique / Total transitions : %s / %s = %s" % (self.non_unique_count, self.total_count, self.non_unique_count * 1.0 /self.total_count)
 
-total_time = end - start
-def print_stats():
-    print "I ran the collider for %ss" % total_time
-    print "Nonunique / Total transitions : %s / %s = %s" % (non_unique_count, total_count, non_unique_count * 1.0 /total_count)
 
 
 print_stats()
