@@ -6,16 +6,12 @@ There are two different kinds of setups:
     B) also store all collisions (in a table like srmCollisions400710)
 """
 
-import os
 import MySQLdb
 import sys 
-sys.path.append( '/home/ghost/hroest/code/' )
-sys.path.append( '/home/ghost/software_libs/' )
 sys.path.append( '/home/hroest/lib/' )
-sys.path.append( '/home/hroest/msa/code/tppGhost' )
-sys.path.append( '/home/hroest/msa/code' )
-#import mzXMLreader
-#import pepXMLReader
+sys.path.append( '/home/hroest/srm_clashes/code' ) #Collider
+sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
+sys.path.append( '/home/hroest/msa/code' ) #utils
 import time
 from utils_h import utils
 #import pipeline 
@@ -34,6 +30,7 @@ import collider
 exp_key = 3061  #human (800 - 5000 Da)
 #exp_key = 3130  #human (all)
 exp_key = 3120  #yeast
+exp_key = 3131  #yeast (all)
 all_peptide_query  = """
 select distinct peptide.sequence, molecular_weight, ssrcalc,
 genome_occurence, peptide.id as peptide_key
@@ -42,6 +39,7 @@ inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
 where experiment_key = %s
+and length( peptide.sequence ) > 1
 """ % exp_key
 
 #human go from parent_id = 1 to parent_id = 1177958

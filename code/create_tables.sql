@@ -18,7 +18,7 @@ create table hroest.srmPeptides_test(
     ssrcalc DOUBLE
 );
 alter table hroest.srmPeptides_test add index(peptide_key);
-alter table hroest.srmPeptides_test add index(q0);
+alter table hroest.srmPeptides_test add index(q1);
 alter table hroest.srmPeptides_test add index(ssrcalc);
 
 #drop table hroest.srmTransitions_test;

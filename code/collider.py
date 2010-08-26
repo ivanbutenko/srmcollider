@@ -7,6 +7,8 @@ import numpy
 import progress
 import gnuplot
 
+import DDB
+
 #with this method, I can do 
 ##method 2
 # 22.2 per second (1Da), thus do 500k in 6 hours ==> using per peptide methods
@@ -22,6 +24,7 @@ class SRM_parameters(object):
     def __init__(self): 
         self.do_1vs = True #check only one charge state?
         self.do_vs1 = False #background only one charge state?
+        self.dontdo2p2f = True #do not look at 2+ parent / 2+ fragment ions
         self.ppm = True #measure q3 in ppm
         self.transition_table = 'hroest.srmTransitions_yeast'
         self.peptide_table = 'hroest.srmPeptides_yeast'
@@ -39,13 +42,18 @@ class SRM_parameters(object):
             self.query1_add = self.do_1_only
         if self.do_vs1 : 
             self.query2_add = self.do_1_only
+        elif self.dontdo2p2f:
+            self.query2_add = "and not (q1_charge = 2 and q3_charge = 2)"
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
         thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s
-        Da for the q3 transitions.  """ % ( not self.do_1vs, not self.do_vs1,
+        Da for the q3 transitions.  Ignore 2+ parent / 2+ fragment ions %s, 
+        selecting from %s and %s.""" % ( 
+            not self.do_1vs, not self.do_vs1,
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
-          self.ppm_string, self.q3_range[0], self.q3_range[1])
+          self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
+          self.peptide_table, self.transition_table)
     def get_q3_high(self, q1, q1_charge):
         q3_high = self.q3_range[1]
         if q3_high < 0: 
@@ -68,6 +76,18 @@ class SRM_parameters(object):
             common_filename += "_range%sto%s" % (self.q3_range[0], abs( self.q3_range[1]) )
         return common_filename
 
+    @property
+    def transition_db(self): return self.transition_table.split('.')[0]
+
+    @property
+    def transition_tbl(self): return self.transition_table.split('.')[1]
+
+    @property
+    def peptide_db(self): return self.peptide_table.split('.')[0]
+
+    @property
+    def peptide_tbl(self): return self.peptide_table.split('.')[1]
+
 def testcase():
     par = SRM_parameters()
     par.q1_window = 0.7 / 2
@@ -75,6 +95,7 @@ def testcase():
     par.ppm = False
     par.transition_table = 'hroest.srmTransitions_test'
     par.peptide_table = 'hroest.srmPeptides_test'
+    par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
     par.do_1vs = True #check only one charge state?
     par.do_vs1 = False #background only one charge state?
@@ -95,15 +116,11 @@ def get_cum_dist(original):
 
 class SRMcollider(object):
 
-    def find_clashes(self, db, par):
+    def find_clashes_small(self, db, par):
         #make sure we only get unique peptides
         cursor = db.cursor()
         self.pepids = self._get_unique_pepids(par, cursor)
         self.allpeps = {}
-        self.allcollisions = []
-        self.q3min_distr = []
-        self.q1min_distr = []
-        self.q3min_distr_ppm = []
         self.non_unique_count = 0
         self.total_count = 0
         start = time.time()
@@ -126,12 +143,67 @@ class SRMcollider(object):
                 this_min = q3_window_used
                 for c in collisions:
                     if abs( t[0] - c[0] ) <= this_min:
+                        non_unique[ t[1] ] = t[0] - c[0]
+            self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
+            self.non_unique_count += len( non_unique )
+            self.total_count += len( transitions)
+            end = time.time()
+            progressm.update(1)
+        self.total_time = end - start
+
+    def find_clashes(self, db, par, toptrans=False):
+        #make sure we only get unique peptides
+        cursor = db.cursor()
+        if not toptrans: self.pepids = self._get_unique_pepids(par, cursor)
+        else: self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
+        self.allpeps = {}
+        self.allcollisions = []
+        self.q3min_distr = []
+        self.q3all_distr_ppm = []
+        self.q1all_distr = []
+        self.q1min_distr = []
+        self.q3min_distr_ppm = []
+        self.non_unique_count = 0
+        self.count_pair_collisions = {}
+        self.found3good = []
+        self.total_count = 0
+        start = time.time()
+        progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+        for i, pep in enumerate(self.pepids):
+            p_id, q1, q1_charge, ssrcalc = pep
+            non_unique = {}
+            non_unique_q1 = {}
+            non_unique_ppm = {}
+            non_unique_clash = {}
+            all_clashes = {}
+            if not toptrans: transitions = self._get_all_transitions(par, pep, cursor)
+            else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
+            nr_transitions = len( transitions )
+            collisions = self._get_all_collisions(par, pep, cursor)
+            #here we loop through all possible combinations of transitions and
+            #potential collisions and check whether we really have a collision
+            q3_window_used = par.q3_window
+            for t in transitions:
+                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+                this_min = q3_window_used
+                for c in collisions:
+                    self.count_pair_collisions[ p_id ] = 0
+                    if abs( t[0] - c[0] ) <= q3_window_used:
+                        #gets all collisions
+                        coll_key = "%s:%s" % (p_id, c[3])
+                        try: self.count_pair_collisions[ coll_key ] += 1
+                        except KeyError: self.count_pair_collisions[ coll_key ] = 1
+                        self.q1all_distr.append( q1 - c[1])
+                        self.q3all_distr_ppm.append((t[0] - c[0] ) * 10**6 / t[0])
+                    if abs( t[0] - c[0] ) <= this_min:
+                        #gets the nearest collision
                         this_min = abs( t[0] - c[0] )
                         non_unique[ t[1] ] = t[0] - c[0]
                         non_unique_q1[ t[1] ] = q1 - c[1]
                         non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
                         all_clashes[ t[1] ] = c[2]
             self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
+            if len(transitions) - len(non_unique) > 3: self.found3good.append( p_id )
             if len(non_unique) > 0:
                 self.allcollisions.extend( all_clashes.items() )
                 for v in non_unique.values(): self.q3min_distr.append( v )
@@ -156,6 +228,51 @@ class SRMcollider(object):
         cursor.execute( query )
         return cursor.fetchall()
 
+    def _get_unique_pepids_toptransitions(self, par, cursor):
+        query = """
+            select parent_id, %(peptable)s.q1 as q1, q1_charge, ssrcalc 
+            from %(db)s.%(peptable)s
+            inner join
+            ddb.peptide on peptide.id = %(peptable)s.peptide_key
+            inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
+            inner join hroest.yeast_dp_data_light  on
+            yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
+            where genome_occurence = 1
+            and q1_charge = prec_z  
+            %(qadd)s
+            group by parent_id, q1_charge
+            """ % { 'db' : par.peptide_db, 'peptable' : par.peptide_tbl, 'qadd' : par.query_add  }
+        #print query
+        cursor.execute( query )
+        return cursor.fetchall()
+
+
+    def _get_all_transitions_toptransitions(self, par, pep, cursor):
+        p_id, q1, q1_charge, ssrcalc = pep
+        q3_high = par.get_q3_high(q1, q1_charge)
+        q3_low = par.get_q3_low()
+        query1 = """
+        select distinct %(transtable)s.q3, srm_id, rank
+        from %(pep)s
+        inner join %(trans)s
+          on parent_id = parent_key
+          inner join hroest.yeast_dp_data_light  on
+          yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
+        where parent_id = %(parent_id)s
+        and %(transtable)s.q3 > %(q3_low)s and %(transtable)s.q3 < %(q3_high)s         
+        and rank <= 5
+        and prec_z = q1_charge
+        and frg_type = type
+        and frg_z = q3_charge
+        and frg_nr = fragment_number
+        %(query_add)s
+        """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
+               'q3_high' : q3_high, 'query_add' : par.query1_add,
+               'pep' : par.peptide_table, 'trans' : par.transition_table, 
+               'peptable' : par.peptide_tbl, 'transtable' : par.transition_tbl }
+        cursor.execute( query1 )
+        return cursor.fetchall()
+
     def _get_all_transitions(self, par, pep, cursor):
             p_id, q1, q1_charge, ssrcalc = pep
             q3_high = par.get_q3_high(q1, q1_charge)
@@ -178,7 +295,7 @@ class SRMcollider(object):
             q3_high = par.get_q3_high(q1, q1_charge)
             q3_low = par.get_q3_low()
             query2 = """
-            select q3, q1, srm_id
+            select q3, q1, srm_id, peptide_key
             from %(pep)s
             inner join %(trans)s
               on parent_id = parent_key
@@ -195,7 +312,7 @@ class SRMcollider(object):
             cursor.execute( query2 )
             return cursor.fetchall()
 
-    def store_in_file(self):
+    def store_in_file(self, par):
         import pickle
         common_filename = par.get_common_filename()
         try:
