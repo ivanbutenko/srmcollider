@@ -64,7 +64,8 @@ class SRM_parameters(object):
     def get_q3_low(self):
         return self.q3_range[0]
     def get_common_filename(self):
-        common_filename = 'yeast_%s_%s_%d_%d' % (self.do_1vs, self.do_vs1, 
+        common_filename = '%s_%s_%s_%d_%d' % (self.peptide_tbl_identifier, 
+                                              self.do_1vs, self.do_vs1, 
             self.ssrcalc_window*20,  self.q1_window*20)
         if self.ppm:
             common_filename += '_%dppm' % (self.q3_window*20)
@@ -87,6 +88,9 @@ class SRM_parameters(object):
 
     @property
     def peptide_tbl(self): return self.peptide_table.split('.')[1]
+
+    @property
+    def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
 
 def testcase():
     par = SRM_parameters()
@@ -283,7 +287,8 @@ class SRMcollider(object):
             inner join %(trans)s
               on parent_id = parent_key
             where parent_id = %(parent_id)s
-            and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+            and q3 > %(q3_low)s and q3 < %(q3_high)s         
+            %(query_add)s
             """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
                    'q3_high' : q3_high, 'query_add' : par.query1_add,
                    'pep' : par.peptide_table, 'trans' : par.transition_table }
@@ -318,8 +323,10 @@ class SRMcollider(object):
         try:
             pickle.dump( self.q1min_distr, open(common_filename + '_q1min_distr.pkl' , 'w'))
         except Exception: pass
-        pickle.dump( self.q3min_distr, open(common_filename + '_q3min_distr.pkl' , 'w'))
-        pickle.dump( self.q3min_distr_ppm, open(common_filename + '_q3min_distr_ppm.pkl', 'w'))
+        try: pickle.dump( self.q3min_distr, open(common_filename + '_q3min_distr.pkl' , 'w'))
+        except Exception: pass
+        try: pickle.dump( self.q3min_distr_ppm, open(common_filename + '_q3min_distr_ppm.pkl', 'w'))
+        except Exception: pass
         pickle.dump( self.allpeps, open(common_filename + '_allpeps.pkl', 'w'))
         pickle.dump( [self.non_unique_count, self.total_count], open(common_filename + '_count.pkl', 'w'))
 
@@ -383,6 +390,25 @@ class SRMcollider(object):
         #gnu.add_to_body( "set xrange[%s:%s]"  % (-0.1, 0.1) )
         #gnu.add_to_body( "set xrange[%s:%s]"  % (-5, 5) )
         #gnu.draw_boxes()
+
+    def print_q1all(self, par, bars = 50, window = par.q1_window):
+        h, n = numpy.histogram( self.q1all_distr, bars, (-window, window) )
+        shift = window * 1.0 / bars 
+        n = [nn + shift for nn in n]
+        filename = par.get_common_filename() + '_q1all_distr' 
+        gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+          'Q1 difference / Th', 'Number of transitions', keep_data = True )
+
+    def print_q3all_ppm(self, par, bars = 50, window = par.q3_window):
+        if not par.ppm: window = par.q3_window  * 3000
+        h, n = numpy.histogram( self.q3all_distr_ppm, bars, (-window, window) )
+        shift = window * 1.0 / bars 
+        n = [nn + shift for nn in n]
+        filename = par.get_common_filename() + '_q3all_distr_ppm' 
+        gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
+          'Q3 difference / PPM', 'Number of transitions', keep_data = True )
+        os.system( 'epstopdf %(a)s; rm %(a)s' % {'a' : filename + '.eps'})
+        #os.system( 'convert %(a)s.pdf %(a)s.png' % {'a' : filename})
 
     def print_stats(self):
         print "Nonunique / Total transitions : %s / %s = %s" % (
