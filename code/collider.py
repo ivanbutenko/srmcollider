@@ -1,8 +1,7 @@
 #!/usr/bin/python
-import sys 
+import sys, os, time
 sys.path.append( '/home/hroest/msa/code/tppGhost' )
 sys.path.append( '/home/hroest/lib/' )
-import time
 import numpy
 import progress
 import gnuplot
@@ -63,9 +62,12 @@ class SRM_parameters(object):
         return q3_high
     def get_q3_low(self):
         return self.q3_range[0]
+
     def get_common_filename(self):
+        background = self.do_vs1 
+        if not self.do_vs1 and self.dontdo2p2f: background = 'vs3'
         common_filename = '%s_%s_%s_%d_%d' % (self.peptide_tbl_identifier, 
-                                              self.do_1vs, self.do_vs1, 
+            self.do_1vs, background,
             self.ssrcalc_window*20,  self.q1_window*20)
         if self.ppm:
             common_filename += '_%dppm' % (self.q3_window*20)
@@ -135,7 +137,6 @@ class SRMcollider(object):
             non_unique_q1 = {}
             non_unique_ppm = {}
             non_unique_clash = {}
-            all_clashes = {}
             transitions = self._get_all_transitions(par, pep, cursor)
             nr_transitions = len( transitions )
             collisions = self._get_all_collisions(par, pep, cursor)
@@ -191,7 +192,6 @@ class SRMcollider(object):
                 if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
                 this_min = q3_window_used
                 for c in collisions:
-                    self.count_pair_collisions[ p_id ] = 0
                     if abs( t[0] - c[0] ) <= q3_window_used:
                         #gets all collisions
                         coll_key = "%s:%s" % (p_id, c[3])
@@ -250,7 +250,6 @@ class SRMcollider(object):
         cursor.execute( query )
         return cursor.fetchall()
 
-
     def _get_all_transitions_toptransitions(self, par, pep, cursor):
         p_id, q1, q1_charge, ssrcalc = pep
         q3_high = par.get_q3_high(q1, q1_charge)
@@ -299,6 +298,8 @@ class SRMcollider(object):
             p_id, q1, q1_charge, ssrcalc = pep
             q3_high = par.get_q3_high(q1, q1_charge)
             q3_low = par.get_q3_low()
+            #we compare the parent ion against 4 different parent ions
+            #thus we need to take the PEPTIDE key here
             query2 = """
             select q3, q1, srm_id, peptide_key
             from %(pep)s
@@ -326,6 +327,12 @@ class SRMcollider(object):
         try: pickle.dump( self.q3min_distr, open(common_filename + '_q3min_distr.pkl' , 'w'))
         except Exception: pass
         try: pickle.dump( self.q3min_distr_ppm, open(common_filename + '_q3min_distr_ppm.pkl', 'w'))
+        except Exception: pass
+        try: pickle.dump( self.q3all_distr_ppm, open(common_filename + '_q3all_distr_ppm.pkl', 'w'))
+        except Exception: pass
+        try: pickle.dump( self.q1all_distr, open(common_filename + '_q1all_distr.pkl', 'w'))
+        except Exception: pass
+        try: pickle.dump( self.count_pair_collisions, open(common_filename + '_pair_collisions.pkl', 'w'))
         except Exception: pass
         pickle.dump( self.allpeps, open(common_filename + '_allpeps.pkl', 'w'))
         pickle.dump( [self.non_unique_count, self.total_count], open(common_filename + '_count.pkl', 'w'))
@@ -391,15 +398,18 @@ class SRMcollider(object):
         #gnu.add_to_body( "set xrange[%s:%s]"  % (-5, 5) )
         #gnu.draw_boxes()
 
-    def print_q1all(self, par, bars = 50, window = par.q1_window):
+    def print_q1all(self, par, bars = 50):
+        window = par.q1_window
+        filename = par.get_common_filename() + '_q1all_distr' 
         h, n = numpy.histogram( self.q1all_distr, bars, (-window, window) )
         shift = window * 1.0 / bars 
         n = [nn + shift for nn in n]
-        filename = par.get_common_filename() + '_q1all_distr' 
         gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
           'Q1 difference / Th', 'Number of transitions', keep_data = True )
+        os.system( 'epstopdf %(a)s; rm %(a)s' % {'a' : filename + '.eps'})
 
-    def print_q3all_ppm(self, par, bars = 50, window = par.q3_window):
+    def print_q3all_ppm(self, par, bars = 50):
+        window = par.q3_window
         if not par.ppm: window = par.q3_window  * 3000
         h, n = numpy.histogram( self.q3all_distr_ppm, bars, (-window, window) )
         shift = window * 1.0 / bars 
@@ -410,13 +420,13 @@ class SRMcollider(object):
         os.system( 'epstopdf %(a)s; rm %(a)s' % {'a' : filename + '.eps'})
         #os.system( 'convert %(a)s.pdf %(a)s.png' % {'a' : filename})
 
+
     def print_stats(self):
         print "Nonunique / Total transitions : %s / %s = %s" % (
             self.non_unique_count, self.total_count, 
             self.non_unique_count * 1.0 /self.total_count)
-        mydist = [  self.allpeps[ p[0] ] for p in self.pepids]
-        h, n = numpy.histogram( mydist , 100)
-        print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (sum( h[40:60] )* 100.0 / sum( h )))
+        below_1ppm = len( [q3 for q3 in self.q3min_distr_ppm if abs(q3) < 1] ) * 1.0/ len( self.q3min_distr_ppm)
+        print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (below_1ppm*100) )
 
 def print_trans_collisions(par, p_id = 1, q3_low = 300, q3_high = 2000,
     query1_add = 'and q1_charge = 2 and q3_charge = 1'):
