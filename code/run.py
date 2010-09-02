@@ -1,27 +1,40 @@
 #!/usr/bin/python
+# -*- coding: utf-8  -*-
 import MySQLdb
 import time
 import sys 
 sys.path.append( '/home/hroest/srm_clashes/code' )
+sys.path.append( '/home/hroest/lib/' )
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
+cursor = db.cursor()
 import collider
+import hlib
 
 ##Run the testcase
 ###########################################################################
 reload( collider )
 par  = collider.testcase()
 mycollider = collider.SRMcollider()
-mycollider.find_clashes(db, par) 
+mycollider.find_clashes_small(db, par) 
 
 print "I ran the testcase in %ss" % mycollider.total_time
 assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
 assert mycollider.non_unique_count == 26
 assert mycollider.total_count == 12502
 assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
-assert len( mycollider.allcollisions ) == 26
 
+#verify that with toptrans=False we get the same results
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par, toptrans=False) 
 
-mycollider.q1min_distr[:100]
+print "I ran the testcase in %ss" % mycollider.total_time
+assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert mycollider.non_unique_count == 26
+assert mycollider.total_count == 12502
+assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
+assert len( mycollider.q3min_distr ) == 26
+assert len( mycollider.q1min_distr ) == 26
+assert len( mycollider.found3good ) == 978
 
 #Run the collider
 ###########################################################################
@@ -29,13 +42,17 @@ par = SRM_parameters()
 par.q1_window = 0.7 / 2  
 par.q3_window = 1.0 / 2  
 par.ppm = False
+#par.do_1vs = False
+par.transition_table = 'hroest.srmTransitions_yeast'
+par.peptide_table = 'hroest.srmPeptides_yeast'
 par.eval()
 print par.experiment_type
 print par.get_common_filename()
 
 mycollider = collider.SRMcollider()
-mycollider.find_clashes(db, par)
-mycollider.store_in_file()
+mycollider.find_clashes(db, par, toptrans=False)
+#mycollider.find_clashes_small(db, par)
+mycollider.store_in_file(par)
 
 mycollider = collider.SRMcollider()
 directory = '/home/hroest/srm_clashes/results/pedro/'
@@ -70,6 +87,12 @@ cursor.execute("create table %s (parent_key int, unique_transitions double) " % 
 cursor.executemany( "insert into %s values " % restable + "(%s,%s)", 
               mycollider.allpeps.items() )
 
+common_filename = par.get_common_filename()
+restable = 'hroest.srmCollisions_' + common_filename
+cursor.execute("drop table %s" % restable)
+cursor.execute("create table %s (coll_srm1 int, coll_srm2 int) " % restable)
+cursor.executemany( "insert into %s values " % restable + "(%s,%s)", 
+              mycollider.allcollisions )
 
 ###########################################################################
 #
