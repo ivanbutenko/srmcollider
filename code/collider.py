@@ -391,6 +391,47 @@ class SRMcollider(object):
         gnu.draw(plt_cmd, keep_data=True)
         #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
 
+    def print_cumm_unique_all(self, par, cursor):
+        # This is to plot the absolute distribition (transitions per peptide) 
+        # not in percent
+        query = """
+        select parent_key, count(*) as nr_transitions
+        from %(peptable)s
+        inner join %(tratable)s on parent_id = parent_key
+        where 
+        #q1 between 400 and 1200 
+        q3 between 400 and 1200 
+        and q3_charge = 1
+        group by parent_key
+        """ % {'peptable' : par.peptide_table ,
+               'tratable' : par.transition_table,
+                'query_add' : par.query1_add }
+        cursor.execute( query)
+        lines = cursor.fetchall()
+        pep_nr_transitions = {}
+        for l in lines: pep_nr_transitions[ l[0] ] = l[1]
+        self.allpeps_abs = {}
+        for p_id, pep in mycollider.allpeps.items():
+            self.allpeps_abs[ p_id ] = pep * pep_nr_transitions[p_id]
+        #
+        mydist = self.allpeps_abs.values()
+        filename = par.get_common_filename() + "_cum_abs"
+        #def print_cumm_unique(self, par, mydist, filename):
+        h, n = numpy.histogram( mydist, 21, (0,21) )
+        n = [nn for nn in n]
+        h = [hh * 100.0 / len(mydist) for hh in h]
+        cumh = collider.get_cum_dist( h )
+        h.append(100)
+        cumh.append(100)
+        plt_cmd = 'with lines lt -1 lw 2'
+        gnu = gnuplot.Gnuplot.draw_from_data( [cumh,n], plt_cmd, filename + '.eps',
+          'Unique transitions per peptide' , 'Cumulative Occurence / %', 
+          keep_data=True, tmp_csv = filename + '.csv')
+        gnu.add_to_body( "set yrange[0:100]" )
+        gnu.add_to_body( "set mxtics 5" )
+        gnu.draw(plt_cmd, keep_data=True)
+        #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
+
     def print_q3min(self, par):
         h, n = numpy.histogram( self.q3min_distr, 100)
         filename = par.get_common_filename() + '_q3distr' 

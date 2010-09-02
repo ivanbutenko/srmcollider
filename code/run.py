@@ -10,41 +10,15 @@ cursor = db.cursor()
 import collider
 import hlib
 
-##Run the testcase
-###########################################################################
-reload( collider )
-par  = collider.testcase()
-mycollider = collider.SRMcollider()
-mycollider.find_clashes_small(db, par) 
-
-print "I ran the testcase in %ss" % mycollider.total_time
-assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert mycollider.non_unique_count == 26
-assert mycollider.total_count == 12502
-assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
-
-#verify that with toptrans=False we get the same results
-mycollider = collider.SRMcollider()
-mycollider.find_clashes(db, par, toptrans=False) 
-
-print "I ran the testcase in %ss" % mycollider.total_time
-assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert mycollider.non_unique_count == 26
-assert mycollider.total_count == 12502
-assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
-assert len( mycollider.q3min_distr ) == 26
-assert len( mycollider.q1min_distr ) == 26
-assert len( mycollider.found3good ) == 978
-
 #Run the collider
 ###########################################################################
-par = SRM_parameters()
-par.q1_window = 0.7 / 2  
-par.q3_window = 1.0 / 2  
-par.ppm = False
+par = collider.SRM_parameters()
+par.q1_window = 15 / 2.0
+par.q3_window = 5.0 / 2.0
+par.ppm = True
 #par.do_1vs = False
-par.transition_table = 'hroest.srmTransitions_yeast'
-par.peptide_table = 'hroest.srmPeptides_yeast'
+par.transition_table = 'hroest.srmTransitions_yeast_ionseries'
+par.peptide_table = 'hroest.srmPeptides_yeast_ionseries'
 par.eval()
 print par.experiment_type
 print par.get_common_filename()
@@ -65,22 +39,12 @@ mycollider.print_q3min_ppm(par)
 mycollider.print_stats()
 
 
-
-collider.print_trans_collisions(par, p_id = 1, q3_low = 0, q3_high = 5000)
-collider.print_trans_collisions(par, p_id = 49, q3_low = 0, q3_high = 5000)
-collider.print_trans_collisions(par, p_id = 61, q3_low = 0, q3_high = 5000)
-
-#doubly charged parent, and b ion on y6
-collider.print_trans_collisions(par, p_id = 79, q3_low = 0, q3_high = 5000)
-
-
-
-
 ###########################################################################
 #
 # Storage of results
 self = par
 
+common_filename = par.get_common_filename()
 restable = 'hroest.srm_results_' + common_filename
 cursor.execute("drop table %s" % restable)
 cursor.execute("create table %s (parent_key int, unique_transitions double) " % restable)
@@ -95,19 +59,178 @@ cursor.executemany( "insert into %s values " % restable + "(%s,%s)",
               mycollider.allcollisions )
 
 ###########################################################################
-#
-# Analysis and printing
+# find 2 colliding peptides in the 1200 peptides by Pedro
 
-import numpy
+query = """
+select parent_id, q1, q1_charge, ssrcalc
+ from %s
+ inner join
+ ddb.peptide on peptide.id = %s.peptide_key
+ %s
+""" % (par.peptide_table, par.peptide_table, par.query_add )
+cursor.execute( query )
+mypepids =  cursor.fetchall()
+
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par, toptrans=False, pepids=mypepids)
+
+[pep for pep, c in mycollider.allpeps.iteritems() if c < 1.1].__len__()
+
+
+
+newl = []
+for p, c in mycollider.count_pair_collisions.iteritems():
+    parent, peptide = p.split(':')
+    newl.append( [parent, c] )
+
+newl.sort( lambda x,y: -cmp(x[1], y[1]) )
+interesting = [n for n in newl if n[1] > 2]
+
+def get_tbl(id):
+    trpep = collider.get_trans_collisions(par, db, p_id=id, q3_low = 300, q3_high = 5000)
+    latex_res  = ''
+    self = trpep
+    for tr in self.transitions:
+        latex_res += tr.print_latex() + '\n'
+    mytable = r"""
+    \begin{table}[h]
+    \centering
+    \caption[%(c1)s]{\textbf{%(c1)s} %(c2)s}
+    \label{tab:%(label)s}
+    \begin{tabular}{ %(rows)s }
+    %%\maketablespace
+    %(tabletop)s \\
+    %%\toprule
+    %(content)s
+    \end{tabular}
+    \end{table}
+    """ % { 'c1' : 'Analysis for peptide number ' + str(id) + '.', 'c2' : """ 
+          The peptide with sequence \url{%s}, 
+           a q1 mass of at %s and ssrcalc %s was analyzed.
+           """ % (trpep.sequence, trpep.q1, trpep.ssrcalc) , 
+           'label' : 'l' + str(id),
+           'rows' : 'c c |' + 'c'*7,
+           'tabletop' : 'q3 & ion & q3 & ion & q1 & SSRcal & dq3 /1000 & sequence & q3charge',
+           'content' : latex_res
+    }
+    return mytable
+
+#latex table
+reload( collider )
+mystr = ''
+for i in interesting:
+    mystr += get_tbl(int(i[0]) )
+    mystr += '\n'
+
+latex.create_document( mystr )
+
+
+
+###########################################################################
+## cumulative distr. of how much each ppm resolution contributes
+
+
+mycollider = collider.SRMcollider()
+directory = '/home/hroest/srm_clashes/results/pedro/'
+mycollider.load_from_file( par, directory)
 self = mycollider
-mydist = [  self.allpeps[ p[0] ] for p in self.pepids]
-h, n = numpy.histogram( mydist , 100)
-print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (sum( h[40:60] )* 100.0 / sum( h )))
-#exact_zero = len( [m for m in q3min_distr if m == 0.0 ]) * 1.0 
-#perc_exact_zero = exact_zero / len( q3min_distr ) 
-#perc_total_interferences = non_unique_count * 1.0 / total_count
-#print "q3min distr: exact_zero, percentage, percentage interferences, total_coun"
-#print int(exact_zero), perc_exact_zero, perc_total_interferences, total_count
+h, n = numpy.histogram( [abs(q) for q in self.q3min_distr_ppm], 100 )
+#h = [gg*100.0 / len( self.q3min_distr_ppm) for gg in h]
+cumh = collider.get_cum_dist( h )
+filename = par.get_common_filename() + "_q3cum_abs"
+plt_cmd = 'with lines lt -1 lw 2'
+gnu = gnuplot.Gnuplot.draw_from_data( [cumh,n], plt_cmd, filename + '.eps',
+  'Closest difference in Q3 / ppm' , 'Cumulative Occurence / %', 
+  keep_data=True, tmp_csv = filename + '.csv')
+gnu.add_to_body( "set yrange[0:100]" )
+gnu.draw(plt_cmd, keep_data=True)
+
+
+
+len( [q3 for q3 in self.q3min_distr_ppm if abs(q3) < 5 ] ) * 1.0 / len( self.q3min_distr_ppm )
+
+
+###########################################################################
+# number of shared collisions between two peptides
+more_one_coll = [ {} for i in range(10)]
+for p, c in mycollider.count_pair_collisions.iteritems():
+    try:
+        parent, peptide = p.split(':')
+        if c > 0: more_one_coll[0][ parent ] = ''
+        if c > 1: more_one_coll[1][ parent ] = ''
+        if c > 2: more_one_coll[2][ parent ] = ''
+        if c > 3: more_one_coll[3][ parent ] = ''
+        if c > 4: more_one_coll[4][ parent ] = ''
+        if c > 5: more_one_coll[5][ parent ] = ''
+        if c > 6: more_one_coll[6][ parent ] = ''
+    except AttributeError: pass
+
+
+more_one_coll_len = [ len(more) for more in more_one_coll ]
+more_one_coll_len 
+
+for myc in range(10):
+    number  = prepare_int(more_one_coll_len[myc], 4 )
+    print get_latex_row( [myc + 1, number ] )
+
+
+total = len(mycollider.count_pair_collisions) - 134029
+for myc in range(10):
+    mylen = len([p for p, c in mycollider.count_pair_collisions.iteritems() if c == myc] )
+    mylen_latex = prepare_int( mylen, 7) 
+    prct_latex = prepare_float( mylen * 100.0 / total, 2, 3)
+    print get_latex_row( [myc, mylen_latex, prct_latex ] )
+
+
+
+
+
+###########################################################################
+## plot all Q1, Q3 clashes, not just closest
+
+mycollider.print_q1all(par)
+mycollider.print_q3all_ppm(par)
+
+###########################################################################
+### some code to calculate where we were without RT information 
+##NO rt information
+#
+
+query = """
+select q1, q3 
+from %(peptable)s
+inner join %(tratable)s on parent_id = parent_key
+where 
+q1 between 400 and 1200 
+and q3 between 400 and 1200 
+""" % {'peptable' : par.peptide_table ,
+       'tratable' : par.transition_table }
+cursor.execute( query)
+
+lines = cursor.fetchall()
+mybins = [ [0 for i in range(0, 1200) ] for i in range(0, 1200 / 0.7+ 1 ) ]
+for l in lines:
+    q1 = int( numpy.floor( l[0]/ 0.7 ))
+    q3 = int( numpy.floor( l[1] ))
+    mybins[q1][q3] += 1
+
+
+total = 0
+nr_bins = 0
+mymax = 0
+single_spots = 0
+mybest = (0,0)
+for out in range(400, 1200/0.7+1):
+    for inn in range(400, 1200):
+        total += mybins[out][inn]
+        if mybins[out][inn] > mymax:
+            mymax = mybins[out][inn]
+            mybest = (out, inn)
+        nr_bins += 1
+        if mybins[out][inn] == 1: single_spots += 1
+
+avg = 1.0* total / nr_bins
+unique_pct = single_spots * 1.0 / total
 
 
 ###########################################################################
