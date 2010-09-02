@@ -24,6 +24,7 @@ class SRM_parameters(object):
         self.do_1vs = True #check only one charge state?
         self.do_vs1 = False #background only one charge state?
         self.dontdo2p2f = True #do not look at 2+ parent / 2+ fragment ions
+        self.considerIsotopes = False #do not consider the C13 isotopes
         self.ppm = True #measure q3 in ppm
         self.transition_table = 'hroest.srmTransitions_yeast'
         self.peptide_table = 'hroest.srmPeptides_yeast'
@@ -33,16 +34,20 @@ class SRM_parameters(object):
         self.q3_window = 10.0 / 2.0
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
     def eval(self):
-        self.query_add = ""
+        #query will get all parent ions to consider
+        #query1 will get all interesting transitions
+        #query2 will get all colliding transitions
+        self.query_add = "and isotope_nr = 0 "
         self.query2_add = ""
         self.ppm_string = "Th"
         if self.do_1vs :
-            self.query_add = "and q1_charge = 2"
+            self.query_add += "and q1_charge = 2 "
             self.query1_add = self.do_1_only
         if self.do_vs1 : 
-            self.query2_add = self.do_1_only
+            self.query2_add += self.do_1_only
         elif self.dontdo2p2f:
-            self.query2_add = "and not (q1_charge = 2 and q3_charge = 2)"
+            self.query2_add += "and not (q1_charge = 2 and q3_charge = 2) "
+        if not self.considerIsotopes: self.query2_add += "and isotope_nr = 0"
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
@@ -99,10 +104,11 @@ def testcase():
     par.q1_window = 0.7 / 2
     par.q3_window = 1.0 / 2
     par.ppm = False
-    par.transition_table = 'hroest.srmTransitions_test'
-    par.peptide_table = 'hroest.srmPeptides_test'
+    par.transition_table = 'hroest.srmTransitions_test_ionseries'
+    par.peptide_table = 'hroest.srmPeptides_test_ionseries'
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
+    par.considerIsotopes = False #do not consider the C13 isotopes
     par.do_1vs = True #check only one charge state?
     par.do_vs1 = False #background only one charge state?
     par.q3_range = [400, 1200]
@@ -259,7 +265,7 @@ class SRMcollider(object):
         select distinct %(transtable)s.q3, srm_id, rank
         from %(pep)s
         inner join %(trans)s
-          on parent_id = parent_key
+          on %(pep)s.peptide_key = %(trans)s.peptide_key
           inner join hroest.yeast_dp_data_light  on
           yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
         where parent_id = %(parent_id)s
@@ -285,7 +291,7 @@ class SRMcollider(object):
             select q3, srm_id
             from %(pep)s
             inner join %(trans)s
-              on parent_id = parent_key
+              on %(pep)s.peptide_key = %(trans)s.peptide_key
             where parent_id = %(parent_id)s
             and q3 > %(q3_low)s and q3 < %(q3_high)s         
             %(query_add)s
@@ -302,10 +308,10 @@ class SRMcollider(object):
             #we compare the parent ion against 4 different parent ions
             #thus we need to take the PEPTIDE key here
             query2 = """
-            select q3, q1, srm_id, peptide_key
+            select q3, q1, srm_id, %(pep)s.peptide_key
             from %(pep)s
             inner join %(trans)s
-              on parent_id = parent_key
+              on %(pep)s.peptide_key = %(trans)s.peptide_key
             where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
                 and ssrcalc < %(ssrcalc)s + %(ssr_window)s
             and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
@@ -447,8 +453,8 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type
     from %(pep)s
     inner join %(trans)s
-      on parent_id = parent_key
-    inner join ddb.peptide on peptide_key = peptide.id
+      on %(pep)s.peptide_key = %(trans)s.peptide_key
+    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
     """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
@@ -467,8 +473,8 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on parent_id = parent_key
-    inner join ddb.peptide on peptide_key = peptide.id
+      on %(pep)s.peptide_key = %(trans)s.peptide_key
+    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
     and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
@@ -523,7 +529,6 @@ class TransitionPeptide(object):
         prt = 'Analysing peptide %s \\\\ With sequence %s, q1 at %s and ssrcalc %s'
         return prt % (self.p_id, self.sequence, self.q1, self.ssrcalc) 
 
-
 class Transition(object):
     def __init__(self):
         self.interference = None
@@ -563,7 +568,6 @@ class Transition(object):
         self.ssr    = ssr   
         self.seq    = seq   
 
-
 def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     query1_add = 'and q1_charge = 2 and q3_charge = 1'):
     trpep = TransitionPeptide()
@@ -576,8 +580,8 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on parent_id = parent_key
-    inner join ddb.peptide on peptide_key = peptide.id
+      on %(pep)s.peptide_key = %(trans)s.peptide_key
+    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
     """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
@@ -595,8 +599,8 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on parent_id = parent_key
-    inner join ddb.peptide on peptide_key = peptide.id
+      on %(pep)s.peptide_key = %(trans)s.peptide_key
+    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
     and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
@@ -664,13 +668,14 @@ def insert_peptide_in_db(self, db, peptide_table):
     c = db.cursor()
     peptide = self.ass_peptide
     #insert peptide into db
-    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence"
-    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s')" % (
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s)" % (
         peptide_table,
         vals, 
         peptide.id, peptide.charge, 
         get_actual_mass(self), peptide.ssr_calc, 
-        peptide.get_modified_sequence()
+        peptide.get_modified_sequence(),
+        0 #we only have the 0th isotope (0 C13 atoms)
     )
     c.execute(q)
     peptide.parent_id = db.insert_id()
@@ -709,17 +714,21 @@ def insert_in_db(self, db, fragment_charge, transition_table):
 def fast_insert_in_db(self, db, fragment_charge, transition_table):
     c = db.cursor()
     peptide = self.ass_peptide
-    parent_id = peptide.parent_id
-    vals = "type, fragment_number, parent_key, q3_charge, q3 "
+    peptide_id = peptide.id
+    vals = "type, fragment_number, peptide_key, q3_charge, q3 "
     q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
     ch = fragment_charge
     tr = len(self.y_series)
     charged_y =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
     charged_b =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
-    many = [ ['y', i+1, parent_id, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
-    manyb = [ ['b', i+1, parent_id, ch, q3] for i, q3 in enumerate(charged_b) ]
+    many = [ ['y', i+1, peptide_id, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
+    manyb = [ ['b', i+1, peptide_id, ch, q3] for i, q3 in enumerate(charged_b) ]
     many.extend( manyb )
     c.executemany( q, many)
+    #
+    #here we could recover the inserted ids but since they map to several 
+    #peptides, this is not helpful
+    return
     first_id = db.insert_id()
     self.fragment_ids[ ch ] = {
     'y' : [i for i in range(first_id, first_id + len(charged_y )) ] , 
@@ -874,6 +883,8 @@ def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic,
 def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
     #reads srmPeptide and srmTransitions in order to store the srm_ids of the 
     #fragments. Speed ~ 300 / s
+    assert False
+    #here,   on parent_id = parent_key doesnt work any more
     qq = """select 
     q3_charge, type, srm_id
     from %s 

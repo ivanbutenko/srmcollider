@@ -11,9 +11,9 @@ import sys
 sys.path.append( '/home/hroest/lib/' )
 sys.path.append( '/home/hroest/srm_clashes/code' ) #Collider
 sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
-sys.path.append( '/home/hroest/msa/code' ) #utils
+sys.path.append( '/home/hroest/lib' ) #utils
 import time
-from utils_h import utils
+from hlib import utils
 #import pipeline 
 #db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
@@ -59,8 +59,8 @@ print "executed the query"
 rows = t.c.fetchall()
 #1000 entries / 9 s with fast (executemany), 10.5 with index
 #1000 entries / 31 s with normal (execute), 34 with index
-transition_table = 'hroest.srmTransitions_yeast_2'
-peptide_table = 'hroest.srmPeptides_yeast_2'
+transition_table = 'hroest.srmTransitions_test_ionseries'
+peptide_table = 'hroest.srmPeptides_test_ionseries'
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -68,6 +68,7 @@ progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 start = time.time()
 for i,row in enumerate(rows):
     progressm.update(1)
+    #if i >= 1000: break #####FOR TESTING ONLY
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = collider.get_peptide_from_table(t, row)
         peptide.charge = mycharge
@@ -82,11 +83,10 @@ for i,row in enumerate(rows):
         if insert_db:
             #insert peptide into db
             collider.insert_peptide_in_db(S, db, peptide_table)
-            #insert fragment charge 1 and 2 into database
-            collider.fast_insert_in_db( S, db, 1, transition_table)
-            collider.fast_insert_in_db( S, db, 2, transition_table)
         elif read_from_db:
             #instead of inserting, we read the database
+            assert False
+            #not implemented with new table layout
             collider.read_fragment_ids(S, tmp_c, peptide, peptide_table, transition_table)
         #insert peptide into mass_bins hash
         peptide.spectrum = S
@@ -95,9 +95,41 @@ for i,row in enumerate(rows):
         mass_bins[ bin ].append( peptide )
         rt_bins[ int(peptide.ssr_calc) ].append( peptide )
         end = time.time()
+    #we want to do insert the fragments only once per peptide
+    if insert_db:
+        #insert fragment charge 1 and 2 into database
+        collider.fast_insert_in_db( S, db, 1, transition_table)
+        collider.fast_insert_in_db( S, db, 2, transition_table)
 
 #rr = [r for r in rows if r[-1] == 9201171]
 #rr = [r for r in rows if r[-1] == 9255505]
+
+
+
+#A2 create the additional parent ions for the isotope patterns
+vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr"
+query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
+cursor.execute( query )
+allpeptides =  cursor.fetchall()
+prepared = []
+for p in allpeptides:
+    q1_charge = p[2]
+    for i in range(1,4):
+        prepared.append( [p[1], p[2], p[3] + (R.mass_diffC13 * i* 1.0) / q1_charge,
+                              p[4], p[5], i] )
+
+q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
+     " VALUES (" + "%s," *5 + "%s)"
+c.executemany( q, prepared)
+
+
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+
 
 ###################################
 # B) store the collisions

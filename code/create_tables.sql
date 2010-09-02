@@ -15,23 +15,28 @@ create table hroest.srmPeptides_test(
     q1_charge TINYINT,
     q1 DOUBLE,
     modified_sequence VARCHAR(255),
+    isotope_nr TINYINT,
     ssrcalc DOUBLE
 );
 alter table hroest.srmPeptides_test add index(peptide_key);
 alter table hroest.srmPeptides_test add index(q1);
 alter table hroest.srmPeptides_test add index(ssrcalc);
 
-#drop table hroest.srmTransitions_test;
+
+#-- delete all isotopes
+#-- delete from hroest.srmPeptides_test where isotope_nr > 0;
+
+drop table hroest.srmTransitions_test;
 truncate table hroest.srmTransitions_test;
 create table hroest.srmTransitions_test(
     srm_id INT PRIMARY KEY AUTO_INCREMENT,
-    parent_key INT,
+    peptide_key INT,
     q3_charge TINYINT ,
     q3 DOUBLE,
     type CHAR(1),
     fragment_number TINYINT
 );
-alter table hroest.srmTransitions_test add index(parent_key);
+alter table hroest.srmTransitions_test add index(peptide_key);
 alter table hroest.srmTransitions_test add index(q3);
 
 #-- create a table that has bins in MS1 dimenstion of size 0.7 Da and in 
