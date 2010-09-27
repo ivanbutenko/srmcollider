@@ -33,3 +33,55 @@ pdf(file=paste(result_dir,"q1_q3_hexbins_1200_small.pdf", sep="") )
 plot( hxbinobj , xlab="", ylab="")
 dev.off()
 
+
+
+
+###########################################################################
+###########################################################################
+# plot the Q1 / RT space
+#nice colourfull 2D histogram
+df <- dbGetQuery(dbh, "
+select ssrcalc, q1
+from hroest.srmPeptides_yeast_allCAM 
+where
+q1 between 400 and 1500 
+and ssrcalc between 0 and 80
+")
+
+
+#first calculate...
+library(gplots)
+ybins = round( (1500 - 400) / 15 ) 
+q1rthist = hist2d(df, same.scale=FALSE, nbins=c(80,  ybins), 
+    col=gray((4:0)/4), 
+    xlab='SSRCalc', ylab ='Q1 (m/z)', 
+    main='RT-Q1 Histogram, 15 Da bins ', labels=TRUE)
+
+
+#then draw...
+pdf(file=paste(result_dir,"q1_rt_hist_15Da.pdf", sep="") )
+image( q1rthist$x,q1rthist$y, q1rthist$counts , col=rainbow(50) ,
+    xlab='SSRCalc', ylab ='Q1 (m/z)', 
+    main='RT-Q1 Histogram, 15 Da bins ' )
+dev.off()
+
+pdf(file=paste(result_dir,"q1_rt_hist_15Da_gray.pdf", sep="") )
+image( q1rthist$x,q1rthist$y, q1rthist$counts , 
+    xlab='SSRCalc', ylab ='Q1 (m/z)', 
+    main='RT-Q1 Histogram, 15 Da bins ',
+col=gray((50:0)/50) )
+dev.off()
+
+#with legend but countours
+h2d = q1rthist
+pdf(file=paste(result_dir,"q1_rt_hist_15Da_cont.pdf", sep="") )
+filled.contour( h2d$x, h2d$y, h2d$counts, nlevels=50,
+    xlab='SSRCalc', ylab ='Q1 (m/z)', 
+    main='RT-Q1 Histogram, 15 Da bins ', 
+    col=rainbow(50) 
+    )
+dev.off()
+
+
+
+
