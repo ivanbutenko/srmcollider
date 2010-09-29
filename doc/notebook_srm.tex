@@ -561,4 +561,56 @@ Minum number of Collisions & Number of Peptides \\
 \end{table}
 
 
+
+\clearpage
+\section{Retention time validation}
+
+608 peptides were measured in SRM mode in 27 runs, each run contained 11
+standard peptides that span the whole RT range. These were used to normalize
+the RT values.  So in total 184528 interactions were considered.
+
+\begin{figure}
+\includegraphics[width=\textwidth]{/home/hroest/srm_clashes/results/rtvalid/Rsquared.pdf}
+\caption{ \textbf{Rsquared values for the 11 RT peptides in 27 MS runs.}
+All against all comparison of 27 MS runs. From each run, the retention time of the 11 RT standard peptides were correlated against the retention times of the 11 peptides in a different run. The resulting Rsquared value from the correlation was recorded and is plotted. In total 351 correlation analyses were performed.  }
+\label{fig:Rsquared}
+\end{figure}
+
+
+
+\begin{figure}
+\includegraphics[width=\textwidth]{/home/hroest/srm_clashes/results/rtvalid/SSRCalc_ROC.pdf}
+\caption{ \textbf{ROC curve for SSRCalc predictions.}
+A certain window in retention time was chosen (e.g. 1 minute) and then for all
+values of SSRCalc between 0 and 10 a window using this value was chosen. With
+this window, TP were peptides that fell into the SSRCalc window as well as the
+real RT window. FN were peptides that were in the original RT window but not in
+the SSRCalc window. \\
+The 5 curves show different RT windows with the corresponding AUC (area under
+the curve) while a random classification is shown in green.}
+\label{fig:SSRCalcROC}
+\end{figure}
+
+
+\begin{figure}
+
+\center
+\subfloat[1][]{\includegraphics[width=0.4\textwidth]{/home/hroest/srm_clashes/results/rtvalid/boxplot_intersect.pdf}} 
+\subfloat[1][]{\includegraphics[width=0.4\textwidth]{/home/hroest/srm_clashes/results/rtvalid/boxplot_m.pdf}}  \\
+\subfloat[1][]{\includegraphics[width=0.4\textwidth]{/home/hroest/srm_clashes/results/rtvalid/corr_corrected.pdf}} 
+\subfloat[1][]{\includegraphics[width=0.4\textwidth]{/home/hroest/srm_clashes/results/rtvalid/corr_uncorrected.pdf}} \\
+
+\caption{ \textbf{Correlation plots.}
+a) and b) shows the spread of the regression variables m and c when fitting the 27 runs. c) and d) show the correlation of SSRCalc to rention time or the correlation of the calculated differences, respectively. }
+\label{fig:400ra.comp}
+\end{figure}
+
+
+\begin{figure}
+\includegraphics[width=\textwidth]{/home/hroest/srm_clashes/results/rtvalid/difference_histogram.pdf}
+\caption{ \textbf{Difference between retention time and SSRCalc}
+Histogram showing the deviation of the real difference in retention time and the predicted difference in retention time by SSRCalc. }
+\label{fig:DiffHist}
+\end{figure}
+
 \end{document}

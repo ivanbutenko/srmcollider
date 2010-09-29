@@ -2,6 +2,11 @@
 *.csv
 *.pdf
 *.png
+*.pyc
+*.log
+*.out
+*.aux
+*.toc
 code/to_delete/*
 code/svn_collider/*
 results
