@@ -1,0 +1,163 @@
+\include{header}
+
+\usepackage{gensymb}
+\usepackage{hyphenat}
+\usepackage{subfig}
+
+%\setcounter{tocdepth}{3}
+\begin{document}
+
+\author{Hannes Röst}
+\title{Lab Notebook}
+\maketitle
+
+\tableofcontents
+
+\section{Human}
+
+\subsection{Figures}
+
+
+For all figures:
+Q3 range = 1.0 Da
+On the left side, the distribution by peptide length is shown, on the right side the overall distribution of percent unique transitions.
+From top to bottom: 
+\begin{itemize}
+\item Massrange for Q3 300-1500 Da, Q1 window 0.2 Da
+\item Massrange for Q3 0-10000  Da, Q1 window 0.7 Da
+\item Massrange for Q3 300-1500 Da, Q1 window 0.7 Da
+\end{itemize}
+
+\begin{figure}
+
+\subfloat[][1]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_20210_range300to1500_lendist.pdf}}
+\subfloat[][2]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_20210_range300to1500.pdf}}\\
+\subfloat[][3]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_20710_range0to10000_lendist.pdf}}
+\subfloat[][4]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_20710_range0to10000.pdf}}\\
+\subfloat[][5]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_20710_range300to1500_lendist.pdf}}
+\subfloat[][6]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_20710_range300to1500.pdf}}
+
+\label{label1}
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units.
+}
+\end{figure}
+
+\begin{figure}
+\subfloat[][1]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_40210_range300to1500_lendist.pdf}}
+\subfloat[][2]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_40210_range300to1500.pdf}}\\
+\subfloat[][3]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_40710_range0to10000_lendist.pdf}}
+\subfloat[][4]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_40710_range0to10000.pdf}}\\
+\subfloat[][5]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_40710_range300to1500_lendist.pdf}}
+\subfloat[][6]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_False_40710_range300to1500.pdf}}
+
+\label{label2}
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 4 arbitrary units.
+}
+\end{figure}
+
+\begin{figure}
+
+\subfloat[][1]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_20210_range300to1500_lendist.pdf}}
+\subfloat[][2]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_20210_range300to1500.pdf}}\\
+\subfloat[][3]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_20710_range0to10000_lendist.pdf}}
+\subfloat[][4]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_20710_range0to10000.pdf}}\\
+\subfloat[][5]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_20710_range300to1500_lendist.pdf}}
+\subfloat[][6]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_20710_range300to1500.pdf}}\\
+
+\label{label3}
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent and 1+ fragment ions.
+SSRCalcRange was 2 arbitrary units.
+}
+\end{figure}
+
+\begin{figure}
+\subfloat[][1]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_40210_range300to1500_lendist.pdf}}
+\subfloat[][2]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_40210_range300to1500.pdf}}\\
+\subfloat[][3]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_40710_range0to10000_lendist.pdf}}
+\subfloat[][4]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_40710_range0to10000.pdf}}\\
+\subfloat[][5]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_40710_range300to1500_lendist.pdf}}
+\subfloat[][6]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/True_True_40710_range300to1500.pdf}}\\
+
+\label{label4}
+\caption{
+Searched 2+ parent and 1+ fragment ion against a background of 2+ parent and 1+ fragment ions.
+SSRCalcRange was 4 arbitrary units.
+}
+\end{figure}
+
+
+\subsection{Conclusions}
+Lars suggests to take the N best peptides (instead of spectra). I will use
+more spectra and see what happens.
+
+
+
+
+\section{Yeast}
+
+\subsection{Figures}
+
+
+For all figures:
+Q3 range = 1.0 Da
+On the left side, the distribution by peptide length is shown, on the right side the overall distribution of percent unique transitions.
+From top to bottom: 
+\begin{itemize}
+\item Massrange for Q3 300-1500 Da, Q1 window 0.2 Da
+\item Massrange for Q3 0-10000  Da, Q1 window 0.7 Da
+\item Massrange for Q3 300-1500 Da, Q1 window 0.7 Da
+\end{itemize}
+
+
+
+\begin{figure}
+
+\subfloat[][1]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20210_range300to1500_lendist.pdf}}
+\subfloat[][2]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20210_range300to1500.pdf}}
+%\subfloat[][3]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20710_range0to10000_lendist.pdf}}
+%\subfloat[][4]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20710_range0to10000.pdf}}\\
+%\subfloat[][5]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20710_range300to1500_lendist.pdf}}
+%\subfloat[][6]{\includegraphics[width=0.35\textwidth, angle=-90]{/home/hroest/srm_clashes/results/yeast/yeast_True_False_20710_range300to1500.pdf}}
+
+\label{y_true_false}
+\caption{Yeast: Searched 2+ parent and 1+ fragment ion against a background of 2+ parent (1+,2+ fragment) and 3+ parent (1+,2+ fragment).
+SSRCalcRange was 2 arbitrary units.
+}
+\end{figure}
+
+\begin{figure}
+\subfloat{\includegraphics{/home/hroest/srm_clashes/results/yeast/q1_q3_hexbins_1200_small_bigfile.png}}
+\caption{
+\textbf{Two dimensional distribution of SRM-transitions in the tryptic
+yeast peptidome (Q1/Q3).}
+On the x-axis is the parent ion mass (Q1 mass) and
+on the y axis the fragment ion mass (Q3 mass). Doubly and triply charged
+parent ions and singly and doubly charged fragment ions were considered.
+We see that there are distinct areas in the Q1-Q3 space, some of which are highly
+populated and thus might be a bad choice for an SRM measurement. 
+The ``streaks'' come from the y\textsubscript{n} ions (the last y ion).
+}
+%
+\label{y_q1q3}
+
+\end{figure}
+
+As can be seen in Figure~\ref{y_q1q3} there are ``streaks'' in the q1/q3
+distribution. They are paired since they result from a loss of arginine
+(174 Da)
+or lysine (146 Da) and we thus see a difference between them of 28 Da
+(singly charged fragment ions) and 14 Da respectively. 
+From bottom to top we see the lines for 
+\begin{itemize}
+\item 2+ parent / 2+ fragment
+\item 3+ parent / 2+ fragment
+\item 2+ parent / 1+ fragment
+\item 3+ parent / 1+ fragment
+\end{itemize}
+
+\end{document}
