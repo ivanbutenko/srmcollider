@@ -164,6 +164,7 @@ class SRMcollider(object):
 
     def find_clashes(self, db, par, toptrans=False, pepids=None):
         #make sure we only get unique peptides
+        MAX_UIS = 10
         cursor = db.cursor()
         if pepids is not None: self.pepids = pepids
         elif not toptrans: self.pepids = self._get_unique_pepids(par, cursor)
@@ -179,19 +180,26 @@ class SRMcollider(object):
         self.count_pair_collisions = {}
         self.found3good = []
         self.total_count = 0
+        self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         for i, pep in enumerate(self.pepids):
-            p_id, q1, q1_charge, ssrcalc = pep
             non_unique = {}
             non_unique_q1 = {}
             non_unique_ppm = {}
             non_unique_clash = {}
             all_clashes = {}
+            non_uis_list = [set() for i in range(MAX_UIS+1)]
+            collisions_per_peptide = {}
+            #END per loop variables
             if not toptrans: transitions = self._get_all_transitions(par, pep, cursor)
             else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
             nr_transitions = len( transitions )
             collisions = self._get_all_collisions(par, pep, cursor)
+            #collisions
+            #q3, q1, srm_id, peptide_key
+            #transitions
+            #q3, srm_id
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
             q3_window_used = par.q3_window
@@ -202,6 +210,11 @@ class SRMcollider(object):
                     if abs( t[0] - c[0] ) <= q3_window_used:
                         #gets all collisions
                         coll_key = "%s:%s" % (p_id, c[3])
+                        if collisions_per_peptide.has_key(c[3]):
+                            if not t[1] in collisions_per_peptide[c[3]]:
+                                collisions_per_peptide[c[3]].append( t[1] )
+                        else: collisions_per_peptide[c[3]] = [ t[1] ] 
+                        print coll_key
                         try: self.count_pair_collisions[ coll_key ] += 1
                         except KeyError: self.count_pair_collisions[ coll_key ] = 1
                         self.q1all_distr.append( q1 - c[1])
@@ -213,6 +226,19 @@ class SRMcollider(object):
                         non_unique_q1[ t[1] ] = q1 - c[1]
                         non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
                         all_clashes[ t[1] ] = c[2]
+            #here we calculate the UIS for this peptide with the given RT-range
+            for pepc in collisions_per_peptide.values():
+                for i in range(1,MAX_UIS+1):
+                    get_non_uis(pepc, non_uis_list[i], i)
+            #for i in range(1,MAX_UIS+1): print len(non_uis_list[i]), choose(nr_transitions, i)
+            for i in range(1,MAX_UIS+1): 
+                self.UIS_redprob[i] += len(non_uis_list[i]) / choose(nr_transitions, i)
+            #we could actually calculate the UIS combinations 
+            #from the non-UIS combinations
+            if False:
+                srm_ids = [t[1] for t in transitions]
+                get_uis(srm_ids, non_uis_list[2], 2)
+                len(get_uis(srm_ids, non_uis_list[2], 2))
             self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
             if len(transitions) - len(non_unique) > 3: self.found3good.append( p_id )
             if len(non_unique) > 0:
@@ -951,3 +977,55 @@ def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
         if r[1] == 'b' : tmp =0
         else: tmp = 1
         self.fragment_ids[ r[0] ][tmp].append( r[2] )
+
+
+###UIS Code
+def get_non_uis(pepc, non_uis, order):
+    if len( pepc ) >= order: 
+        #TODO: use itertools in 2.6
+        non_uis.update( [tuple(sorted(p)) for p in permutations(pepc, order)] )
+
+def test_get_non_uis():
+    test = set()
+    get_non_uis( [1,2,3], test,2 )
+    assert test == set([(1, 2), (1, 3), (2, 3)])
+    test = set()
+    get_non_uis( [1,2,3,4], test,2 )
+    assert test == set([(1, 2), (1, 3), (1, 4), (2, 3), (3, 4), (2, 4)])
+
+def choose(i,r):
+    return reduce( lambda x,y: x*y, range(1,i+1) ) * 1.0 / ( 
+        reduce( lambda x,y: x*y, range(1,r+1) ) * 
+        reduce( lambda x,y: x*y, range(1,i-r+1) ) ) 
+
+def get_uis(srm_ids, non_uis, order):
+    all = set()
+    all.update( [tuple(sorted(p)) for p in permutations(srm_ids, order)] )
+    #for perm in permutations(srm_ids, order):
+    #    all.append( mystr % tuple(perm) )
+    return set(all) - set(non_uis) 
+
+def permutations(iterable, r=None):
+    # permutations('ABCD', 2) --> AB AC AD BA BC BD CA CB CD DA DB DC
+    # permutations(range(3)) --> 012 021 102 120 201 210
+    pool = tuple(iterable)
+    n = len(pool)
+    if r is None: r = n 
+    else: r=r
+    indices = range(n)
+    cycles = range(n, n-r, -1)
+    yield tuple(pool[i] for i in indices[:r])
+    while n:
+        for i in reversed(range(r)):
+            cycles[i] -= 1
+            if cycles[i] == 0:
+                indices[i:] = indices[i+1:] + indices[i:i+1]
+                cycles[i] = n - i
+            else:
+                j = cycles[i]
+                indices[i], indices[-j] = indices[-j], indices[i]
+                yield tuple(pool[i] for i in indices[:r])
+                break
+        else:
+            return
+
