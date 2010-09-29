@@ -228,7 +228,7 @@ class SRMcollider(object):
 
     def _get_unique_pepids(self, par, cursor):
         query = """
-        select parent_id, q1, q1_charge, ssrcalc
+        select parent_id, q1, q1_charge, ssrcalc, peptide.id
          from %s
          inner join
          ddb.peptide on peptide.id = %s.peptide_key
@@ -237,7 +237,17 @@ class SRMcollider(object):
          %s
         """ % (par.peptide_table, par.peptide_table, par.query_add )
         cursor.execute( query )
-        return cursor.fetchall()
+        res = cursor.fetchall()
+        return [
+            {
+                'parent_id' :  r[0],
+                'q1' :         r[1],
+                'q1_charge' :  r[2],
+                'ssrcalc' :    r[3],
+                'peptide_key' :r[4]
+            }
+            for r in res
+        ]
 
     def _get_unique_pepids_toptransitions(self, par, cursor):
         query = """
@@ -284,8 +294,7 @@ class SRMcollider(object):
         return cursor.fetchall()
 
     def _get_all_transitions(self, par, pep, cursor):
-            p_id, q1, q1_charge, ssrcalc = pep
-            q3_high = par.get_q3_high(q1, q1_charge)
+            q3_high = par.get_q3_high(q1, pep['q1_charge'])
             q3_low = par.get_q3_low()
             query1 = """
             select q3, srm_id
@@ -295,15 +304,14 @@ class SRMcollider(object):
             where parent_id = %(parent_id)s
             and q3 > %(q3_low)s and q3 < %(q3_high)s         
             %(query_add)s
-            """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
+            """ % { 'parent_id' : pep['parent_id'], 'q3_low' : q3_low,
                    'q3_high' : q3_high, 'query_add' : par.query1_add,
                    'pep' : par.peptide_table, 'trans' : par.transition_table }
             cursor.execute( query1 )
             return cursor.fetchall()
 
     def _get_all_collisions(self, par, pep, cursor):
-            p_id, q1, q1_charge, ssrcalc = pep
-            q3_high = par.get_q3_high(q1, q1_charge)
+            q3_high = par.get_q3_high(q1, pep['q1_charge'])
             q3_low = par.get_q3_low()
             #we compare the parent ion against 4 different parent ions
             #thus we need to take the PEPTIDE key here
@@ -315,10 +323,11 @@ class SRMcollider(object):
             where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
                 and ssrcalc < %(ssrcalc)s + %(ssr_window)s
             and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-            and parent_id != %(parent_id)d
+            and %(pep)s.peptide_key != %(peptide_key)d
             and q3 > %(q3_low)s and q3 < %(q3_high)s
             %(query_add)s
-            """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
+            """ % { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'], 
+                    'peptide_key' : pep['peptide_key'],
                    'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
                    'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                    'pep' : par.peptide_table, 'trans' : par.transition_table }
@@ -491,7 +500,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     non_unique_ppm = {}
     non_unique_clash = {}
     query1 = """
-    select q3, srm_id, q1, ssrcalc, sequence, type
+    select q3, srm_id, q1, ssrcalc, sequence, type, %(pep)s.peptide_key
     from %(pep)s
     inner join %(trans)s
       on %(pep)s.peptide_key = %(trans)s.peptide_key
@@ -506,6 +515,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     q1 = transitions[0][2]
     ssrcalc = transitions[0][3]
     sequence = transitions[0][4]
+    peptide_key = transitions[0][6]
     prt = '\nAnalysing 2+ fragment ions of peptide nr %s\nWith sequence %s, q1 at %s and ssrcalc %s\n'
     res_str += prt % (p_id, sequence, q1, ssrcalc) 
     res_str += 'q3\tion      q3\tion q1   SSRcal dq3   sequence   q3charge\n'
@@ -519,10 +529,10 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
     and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-    and parent_id != %(parent_id)d
+    and %(pep)s.peptide_key != %(peptide_key)d
     and q3 > %(q3_low)s and q3 < %(q3_high)s
     %(query_add)s
-    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
+    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'peptide_key' : peptide_key,
            'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
            'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
            'pep' : par.peptide_table, 'trans' : par.transition_table }
