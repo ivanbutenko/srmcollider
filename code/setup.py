@@ -82,7 +82,7 @@ for i,row in enumerate(rows):
         S.fragment_ids = {}
         if insert_db:
             #insert peptide into db
-            collider.insert_peptide_in_db(S, db, peptide_table)
+            collider.insert_peptide_in_db(S, db, peptide_table, transition_group=i)
         elif read_from_db:
             #instead of inserting, we read the database
             assert False
@@ -95,11 +95,11 @@ for i,row in enumerate(rows):
         mass_bins[ bin ].append( peptide )
         rt_bins[ int(peptide.ssr_calc) ].append( peptide )
         end = time.time()
-    #we want to do insert the fragments only once per peptide
+    #we want to insert the fragments only once per peptide
     if insert_db:
         #insert fragment charge 1 and 2 into database
-        collider.fast_insert_in_db( S, db, 1, transition_table)
-        collider.fast_insert_in_db( S, db, 2, transition_table)
+        collider.fast_insert_in_db( S, db, 1, transition_table, transition_group=i)
+        collider.fast_insert_in_db( S, db, 2, transition_table, transition_group=i)
 
 #rr = [r for r in rows if r[-1] == 9201171]
 #rr = [r for r in rows if r[-1] == 9255505]
@@ -107,6 +107,7 @@ for i,row in enumerate(rows):
 
 
 #A2 create the additional parent ions for the isotope patterns
+cursor = c
 vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr"
 query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
 cursor.execute( query )
