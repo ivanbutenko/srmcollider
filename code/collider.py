@@ -301,7 +301,7 @@ class SRMcollider(object):
         select distinct %(transtable)s.q3, srm_id, rank
         from %(pep)s
         inner join %(trans)s
-          on %(pep)s.peptide_key = %(trans)s.peptide_key
+          on %(pep)s.transitions_group = %(trans)s.group_id
           inner join hroest.yeast_dp_data_light  on
           yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
         where parent_id = %(parent_id)s
@@ -326,7 +326,7 @@ class SRMcollider(object):
             select q3, srm_id
             from %(pep)s
             inner join %(trans)s
-              on %(pep)s.peptide_key = %(trans)s.peptide_key
+              on %(pep)s.transitions_group = %(trans)s.group_id
             where parent_id = %(parent_id)s
             and q3 > %(q3_low)s and q3 < %(q3_high)s         
             %(query_add)s
@@ -345,7 +345,7 @@ class SRMcollider(object):
             select q3, q1, srm_id, %(pep)s.peptide_key
             from %(pep)s
             inner join %(trans)s
-              on %(pep)s.peptide_key = %(trans)s.peptide_key
+              on %(pep)s.transitions_group = %(trans)s.group_id
             where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
                 and ssrcalc < %(ssrcalc)s + %(ssr_window)s
             and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
@@ -529,7 +529,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, %(pep)s.peptide_key
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transitions_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
@@ -550,7 +550,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transitions_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
@@ -657,7 +657,7 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transitions_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
@@ -676,7 +676,7 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transitions_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
@@ -741,18 +741,19 @@ def get_peptide_from_table(t, row):
     peptide.non_unique = {}
     return peptide
 
-def insert_peptide_in_db(self, db, peptide_table):
+def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c = db.cursor()
     peptide = self.ass_peptide
     #insert peptide into db
-    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr"
-    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s)" % (
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
         peptide_table,
         vals, 
         peptide.id, peptide.charge, 
         get_actual_mass(self), peptide.ssr_calc, 
         peptide.get_modified_sequence(),
-        0 #we only have the 0th isotope (0 C13 atoms)
+        0, #we only have the 0th isotope (0 C13 atoms)
+        transition_group
     )
     c.execute(q)
     peptide.parent_id = db.insert_id()
@@ -788,18 +789,16 @@ def insert_in_db(self, db, fragment_charge, transition_table):
         c.execute(q)
         self.fragment_ids[ch][1].append( db.insert_id()  )
 
-def fast_insert_in_db(self, db, fragment_charge, transition_table):
+def fast_insert_in_db(self, db, fragment_charge, transition_table, transition_group):
     c = db.cursor()
-    peptide = self.ass_peptide
-    peptide_id = peptide.id
-    vals = "type, fragment_number, peptide_key, q3_charge, q3 "
+    vals = "type, fragment_number, group_id, q3_charge, q3 "
     q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
     ch = fragment_charge
     tr = len(self.y_series)
     charged_y =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
     charged_b =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
-    many = [ ['y', i+1, peptide_id, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
-    manyb = [ ['b', i+1, peptide_id, ch, q3] for i, q3 in enumerate(charged_b) ]
+    many = [ ['y', i+1, transition_group, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
+    manyb = [ ['b', i+1, transition_group, ch, q3] for i, q3 in enumerate(charged_b) ]
     many.extend( manyb )
     c.executemany( q, many)
     #

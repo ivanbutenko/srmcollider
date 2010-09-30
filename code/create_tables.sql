@@ -7,20 +7,22 @@
 
 #-- old table == srmClashes (non-normalized; contains ALL transitions)
 
-#drop table hroest.srmPeptides_test;
+drop table hroest.srmPeptides_test;
 truncate table hroest.srmPeptides_test;
 create table hroest.srmPeptides_test(
     parent_id INT PRIMARY KEY AUTO_INCREMENT,
     peptide_key INT,
+    modified_sequence VARCHAR(255),
     q1_charge TINYINT,
     q1 DOUBLE,
-    modified_sequence VARCHAR(255),
+    ssrcalc DOUBLE,
     isotope_nr TINYINT,
-    ssrcalc DOUBLE
+    transition_group INT
 );
 alter table hroest.srmPeptides_test add index(peptide_key);
 alter table hroest.srmPeptides_test add index(q1);
 alter table hroest.srmPeptides_test add index(ssrcalc);
+alter table hroest.srmPeptides_test add index(transition_group);
 
 
 #-- delete all isotopes
@@ -30,13 +32,13 @@ drop table hroest.srmTransitions_test;
 truncate table hroest.srmTransitions_test;
 create table hroest.srmTransitions_test(
     srm_id INT PRIMARY KEY AUTO_INCREMENT,
-    peptide_key INT,
+    group_id INT,
     q3_charge TINYINT ,
     q3 DOUBLE,
-    type CHAR(1),
+    type VARCHAR(8),
     fragment_number TINYINT
 );
-alter table hroest.srmTransitions_test add index(peptide_key);
+alter table hroest.srmTransitions_test add index(group_id);
 alter table hroest.srmTransitions_test add index(q3);
 
 #-- create a table that has bins in MS1 dimenstion of size 0.7 Da and in 
