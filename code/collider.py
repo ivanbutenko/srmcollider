@@ -32,6 +32,7 @@ class SRM_parameters(object):
         self.ssrcalc_window = 2.0 / 2
         self.q1_window = 25.0 / 2.0
         self.q3_window = 10.0 / 2.0
+        self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
     def eval(self):
         #query will get all parent ions to consider
@@ -53,11 +54,12 @@ class SRM_parameters(object):
         check all four charge states [%s] vs all four charge states [%s] with
         thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s
         Da for the q3 transitions.  Ignore 2+ parent / 2+ fragment ions %s, 
-        selecting from %s and %s.""" % ( 
+        selecting from %s and %s.
+        Consider Isotopes: %s""" % ( 
             not self.do_1vs, not self.do_vs1,
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
           self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
-          self.peptide_table, self.transition_table)
+          self.peptide_table, self.transition_table, self.considerIsotopes)
     def get_q3_high(self, q1, q1_charge):
         q3_high = self.q3_range[1]
         if q3_high < 0: 
@@ -138,13 +140,15 @@ class SRMcollider(object):
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         for i, pep in enumerate(self.pepids):
-            p_id, q1, q1_charge, ssrcalc = pep
+            p_id = pep['parent_id']
+            q1 = pep['q1']
             non_unique = {}
             non_unique_q1 = {}
             non_unique_ppm = {}
             non_unique_clash = {}
             transitions = self._get_all_transitions(par, pep, cursor)
             nr_transitions = len( transitions )
+            if nr_transitions == 0: continue #no transitions in this window
             collisions = self._get_all_collisions(par, pep, cursor)
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
@@ -164,7 +168,7 @@ class SRMcollider(object):
 
     def find_clashes(self, db, par, toptrans=False, pepids=None):
         #make sure we only get unique peptides
-        MAX_UIS = 5
+        MAX_UIS = par.max_uis
         cursor = db.cursor()
         if pepids is not None: self.pepids = pepids
         elif not toptrans: self.pepids = self._get_unique_pepids(par, cursor)
@@ -198,6 +202,7 @@ class SRMcollider(object):
             if not toptrans: transitions = self._get_all_transitions(par, pep, cursor)
             else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
             nr_transitions = len( transitions )
+            if nr_transitions == 0: continue #no transitions in this window
             collisions = self._get_all_collisions(par, pep, cursor)
             #collisions
             #q3, q1, srm_id, peptide_key
@@ -313,7 +318,7 @@ class SRMcollider(object):
         select distinct %(transtable)s.q3, srm_id, rank
         from %(pep)s
         inner join %(trans)s
-          on %(pep)s.transitions_group = %(trans)s.group_id
+          on %(pep)s.transition_group = %(trans)s.group_id
           inner join hroest.yeast_dp_data_light  on
           yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
         where parent_id = %(parent_id)s
@@ -338,7 +343,7 @@ class SRMcollider(object):
             select q3, srm_id
             from %(pep)s
             inner join %(trans)s
-              on %(pep)s.transitions_group = %(trans)s.group_id
+              on %(pep)s.transition_group = %(trans)s.group_id
             where parent_id = %(parent_id)s
             and q3 > %(q3_low)s and q3 < %(q3_high)s         
             %(query_add)s
@@ -357,7 +362,7 @@ class SRMcollider(object):
             select q3, q1, srm_id, %(pep)s.peptide_key
             from %(pep)s
             inner join %(trans)s
-              on %(pep)s.transitions_group = %(trans)s.group_id
+              on %(pep)s.transition_group = %(trans)s.group_id
             where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
                 and ssrcalc < %(ssrcalc)s + %(ssr_window)s
             and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
@@ -541,7 +546,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, %(pep)s.peptide_key
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.transitions_group = %(trans)s.group_id
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
@@ -562,7 +567,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.transitions_group = %(trans)s.group_id
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
@@ -669,7 +674,7 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.transitions_group = %(trans)s.group_id
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
@@ -688,7 +693,7 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.transitions_group = %(trans)s.group_id
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
