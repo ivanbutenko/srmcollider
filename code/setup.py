@@ -107,20 +107,21 @@ for i,row in enumerate(rows):
 
 
 #A2 create the additional parent ions for the isotope patterns
+PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
 cursor = c
-vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr"
+vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
 query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
 cursor.execute( query )
 allpeptides =  cursor.fetchall()
 prepared = []
 for p in allpeptides:
     q1_charge = p[2]
-    for i in range(1,4):
+    for i in range(1,1+PATTERNS_UP_TO):
         prepared.append( [p[1], p[2], p[3] + (R.mass_diffC13 * i* 1.0) / q1_charge,
-                              p[4], p[5], i] )
+                              p[4], p[5], i, p[7]] )
 
 q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
-     " VALUES (" + "%s," *5 + "%s)"
+     " VALUES (" + "%s," *6 + "%s)"
 c.executemany( q, prepared)
 
 
