@@ -32,6 +32,7 @@ class SRM_parameters(object):
         self.ssrcalc_window = 2.0 / 2
         self.q1_window = 25.0 / 2.0
         self.q3_window = 10.0 / 2.0
+        self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
     def eval(self):
         #query will get all parent ions to consider
@@ -53,11 +54,12 @@ class SRM_parameters(object):
         check all four charge states [%s] vs all four charge states [%s] with
         thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s
         Da for the q3 transitions.  Ignore 2+ parent / 2+ fragment ions %s, 
-        selecting from %s and %s.""" % ( 
+        selecting from %s and %s.
+        Consider Isotopes: %s""" % ( 
             not self.do_1vs, not self.do_vs1,
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
           self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
-          self.peptide_table, self.transition_table)
+          self.peptide_table, self.transition_table, self.considerIsotopes)
     def get_q3_high(self, q1, q1_charge):
         q3_high = self.q3_range[1]
         if q3_high < 0: 
@@ -138,13 +140,15 @@ class SRMcollider(object):
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         for i, pep in enumerate(self.pepids):
-            p_id, q1, q1_charge, ssrcalc = pep
+            p_id = pep['parent_id']
+            q1 = pep['q1']
             non_unique = {}
             non_unique_q1 = {}
             non_unique_ppm = {}
             non_unique_clash = {}
             transitions = self._get_all_transitions(par, pep, cursor)
             nr_transitions = len( transitions )
+            if nr_transitions == 0: continue #no transitions in this window
             collisions = self._get_all_collisions(par, pep, cursor)
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
@@ -164,7 +168,7 @@ class SRMcollider(object):
 
     def find_clashes(self, db, par, toptrans=False, pepids=None):
         #make sure we only get unique peptides
-        MAX_UIS = 10
+        MAX_UIS = par.max_uis
         cursor = db.cursor()
         if pepids is not None: self.pepids = pepids
         elif not toptrans: self.pepids = self._get_unique_pepids(par, cursor)
@@ -180,10 +184,13 @@ class SRMcollider(object):
         self.count_pair_collisions = {}
         self.found3good = []
         self.total_count = 0
+        self.colliding_peptides = {}
         self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         for i, pep in enumerate(self.pepids):
+            p_id = pep['parent_id']
+            q1 = pep['q1']
             non_unique = {}
             non_unique_q1 = {}
             non_unique_ppm = {}
@@ -195,6 +202,7 @@ class SRMcollider(object):
             if not toptrans: transitions = self._get_all_transitions(par, pep, cursor)
             else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
             nr_transitions = len( transitions )
+            if nr_transitions == 0: continue #no transitions in this window
             collisions = self._get_all_collisions(par, pep, cursor)
             #collisions
             #q3, q1, srm_id, peptide_key
@@ -214,7 +222,7 @@ class SRMcollider(object):
                             if not t[1] in collisions_per_peptide[c[3]]:
                                 collisions_per_peptide[c[3]].append( t[1] )
                         else: collisions_per_peptide[c[3]] = [ t[1] ] 
-                        print coll_key
+                        #print coll_key
                         try: self.count_pair_collisions[ coll_key ] += 1
                         except KeyError: self.count_pair_collisions[ coll_key ] = 1
                         self.q1all_distr.append( q1 - c[1])
@@ -231,7 +239,7 @@ class SRMcollider(object):
                 for i in range(1,MAX_UIS+1):
                     get_non_uis(pepc, non_uis_list[i], i)
             #for i in range(1,MAX_UIS+1): print len(non_uis_list[i]), choose(nr_transitions, i)
-            for i in range(1,MAX_UIS+1): 
+            for i in range(1,min(MAX_UIS+1, nr_transitions+1)): 
                 self.UIS_redprob[i] += len(non_uis_list[i]) / choose(nr_transitions, i)
             #we could actually calculate the UIS combinations 
             #from the non-UIS combinations
@@ -239,6 +247,8 @@ class SRMcollider(object):
                 srm_ids = [t[1] for t in transitions]
                 get_uis(srm_ids, non_uis_list[2], 2)
                 len(get_uis(srm_ids, non_uis_list[2], 2))
+            #number of colliding peptides
+            self.colliding_peptides[ p_id ] = len( collisions_per_peptide )
             self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
             if len(transitions) - len(non_unique) > 3: self.found3good.append( p_id )
             if len(non_unique) > 0:
@@ -252,7 +262,7 @@ class SRMcollider(object):
             progressm.update(1)
         self.total_time = end - start
 
-    def _get_unique_pepids(self, par, cursor):
+    def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide.id
          from %s
@@ -262,6 +272,14 @@ class SRMcollider(object):
          where genome_occurence = 1
          %s
         """ % (par.peptide_table, par.peptide_table, par.query_add )
+        if ignore_genomeoccurence:
+            query = """
+            select parent_id, q1, q1_charge, ssrcalc, peptide.id
+             from %s
+             inner join
+             ddb.peptide on peptide.id = %s.peptide_key
+             %s
+            """ % (par.peptide_table, par.peptide_table, par.query_add )
         cursor.execute( query )
         res = cursor.fetchall()
         return [
@@ -294,14 +312,13 @@ class SRMcollider(object):
         return cursor.fetchall()
 
     def _get_all_transitions_toptransitions(self, par, pep, cursor):
-        p_id, q1, q1_charge, ssrcalc = pep
-        q3_high = par.get_q3_high(q1, q1_charge)
+        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
         q3_low = par.get_q3_low()
         query1 = """
         select distinct %(transtable)s.q3, srm_id, rank
         from %(pep)s
         inner join %(trans)s
-          on %(pep)s.peptide_key = %(trans)s.peptide_key
+          on %(pep)s.transition_group = %(trans)s.group_id
           inner join hroest.yeast_dp_data_light  on
           yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
         where parent_id = %(parent_id)s
@@ -320,13 +337,13 @@ class SRMcollider(object):
         return cursor.fetchall()
 
     def _get_all_transitions(self, par, pep, cursor):
-            q3_high = par.get_q3_high(q1, pep['q1_charge'])
+            q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
             q3_low = par.get_q3_low()
             query1 = """
             select q3, srm_id
             from %(pep)s
             inner join %(trans)s
-              on %(pep)s.peptide_key = %(trans)s.peptide_key
+              on %(pep)s.transition_group = %(trans)s.group_id
             where parent_id = %(parent_id)s
             and q3 > %(q3_low)s and q3 < %(q3_high)s         
             %(query_add)s
@@ -337,7 +354,7 @@ class SRMcollider(object):
             return cursor.fetchall()
 
     def _get_all_collisions(self, par, pep, cursor):
-            q3_high = par.get_q3_high(q1, pep['q1_charge'])
+            q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
             q3_low = par.get_q3_low()
             #we compare the parent ion against 4 different parent ions
             #thus we need to take the PEPTIDE key here
@@ -345,7 +362,7 @@ class SRMcollider(object):
             select q3, q1, srm_id, %(pep)s.peptide_key
             from %(pep)s
             inner join %(trans)s
-              on %(pep)s.peptide_key = %(trans)s.peptide_key
+              on %(pep)s.transition_group = %(trans)s.group_id
             where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
                 and ssrcalc < %(ssrcalc)s + %(ssr_window)s
             and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
@@ -529,7 +546,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, %(pep)s.peptide_key
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
@@ -550,7 +567,7 @@ def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
@@ -657,7 +674,7 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, srm_id, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where parent_id = %(parent_id)s
     and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
@@ -676,7 +693,7 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
     from %(pep)s
     inner join %(trans)s
-      on %(pep)s.peptide_key = %(trans)s.peptide_key
+      on %(pep)s.transition_group = %(trans)s.group_id
     inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
     where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
         and ssrcalc < %(ssrcalc)s + %(ssr_window)s
@@ -741,18 +758,19 @@ def get_peptide_from_table(t, row):
     peptide.non_unique = {}
     return peptide
 
-def insert_peptide_in_db(self, db, peptide_table):
+def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c = db.cursor()
     peptide = self.ass_peptide
     #insert peptide into db
-    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr"
-    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s)" % (
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
         peptide_table,
         vals, 
         peptide.id, peptide.charge, 
         get_actual_mass(self), peptide.ssr_calc, 
         peptide.get_modified_sequence(),
-        0 #we only have the 0th isotope (0 C13 atoms)
+        0, #we only have the 0th isotope (0 C13 atoms)
+        transition_group
     )
     c.execute(q)
     peptide.parent_id = db.insert_id()
@@ -788,18 +806,16 @@ def insert_in_db(self, db, fragment_charge, transition_table):
         c.execute(q)
         self.fragment_ids[ch][1].append( db.insert_id()  )
 
-def fast_insert_in_db(self, db, fragment_charge, transition_table):
+def fast_insert_in_db(self, db, fragment_charge, transition_table, transition_group):
     c = db.cursor()
-    peptide = self.ass_peptide
-    peptide_id = peptide.id
-    vals = "type, fragment_number, peptide_key, q3_charge, q3 "
+    vals = "type, fragment_number, group_id, q3_charge, q3 "
     q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
     ch = fragment_charge
     tr = len(self.y_series)
     charged_y =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.y_series ]
     charged_b =  [ ( pred + (ch -1)*self.mass_H)/ch for pred in self.b_series ]
-    many = [ ['y', i+1, peptide_id, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
-    manyb = [ ['b', i+1, peptide_id, ch, q3] for i, q3 in enumerate(charged_b) ]
+    many = [ ['y', i+1, transition_group, ch, q3] for i, q3 in enumerate(reversed(charged_y))] 
+    manyb = [ ['b', i+1, transition_group, ch, q3] for i, q3 in enumerate(charged_b) ]
     many.extend( manyb )
     c.executemany( q, many)
     #
@@ -994,6 +1010,10 @@ def test_get_non_uis():
     assert test == set([(1, 2), (1, 3), (1, 4), (2, 3), (3, 4), (2, 4)])
 
 def choose(i,r):
+    assert i > 0
+    assert r > 0
+    assert i >= r
+    if r == i: return 1
     return reduce( lambda x,y: x*y, range(1,i+1) ) * 1.0 / ( 
         reduce( lambda x,y: x*y, range(1,r+1) ) * 
         reduce( lambda x,y: x*y, range(1,i-r+1) ) ) 
@@ -1008,6 +1028,7 @@ def get_uis(srm_ids, non_uis, order):
 def permutations(iterable, r=None):
     # permutations('ABCD', 2) --> AB AC AD BA BC BD CA CB CD DA DB DC
     # permutations(range(3)) --> 012 021 102 120 201 210
+    #print iterable, r
     pool = tuple(iterable)
     n = len(pool)
     if r is None: r = n 

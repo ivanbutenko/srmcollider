@@ -13,18 +13,22 @@ import hlib
 #Run the collider
 ###########################################################################
 par = collider.SRM_parameters()
-par.q1_window = 15 / 2.0
-par.q3_window = 5.0 / 2.0
-par.ppm = True
+par.q1_window = 0.7 / 2.0
+par.q3_window = 0.7 / 2.0
+par.ssrcalc_window = 8 / 2.0 #12 = 90%TPR, 8 = 80%TPR
+par.ppm = False
+par.considerIsotopes = True
 #par.do_1vs = False
-par.transition_table = 'hroest.srmTransitions_yeast_ionseries'
-par.peptide_table = 'hroest.srmPeptides_yeast_ionseries'
+par.transition_table = 'hroest.srmTransitions_yeast_1200'
+par.peptide_table = 'hroest.srmPeptides_yeast_1200'
 par.eval()
 print par.experiment_type
 print par.get_common_filename()
 
+reload( collider )
 mycollider = collider.SRMcollider()
-mycollider.find_clashes(db, par, toptrans=False)
+pepids = mycollider._get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
+mycollider.find_clashes(db, par, toptrans=False, pepids=pepids)
 #mycollider.find_clashes_small(db, par)
 mycollider.store_in_file(par)
 
@@ -74,7 +78,107 @@ mypepids =  cursor.fetchall()
 mycollider = collider.SRMcollider()
 mycollider.find_clashes(db, par, toptrans=False, pepids=mypepids)
 
-[pep for pep, c in mycollider.allpeps.iteritems() if c < 1.1].__len__()
+[pep for pep, c in mycollider.allpeps.iteritems() if c < 0.7].__len__()
+
+#all peptides with more than 3 collisions
+interest2 = [pep for pep, c in mycollider.colliding_peptides.iteritems() if c > 3]
+interest_pep2 = [pep for pep in pepids if pep['parent_id'] in interest2]
+
+#all peptides with less than 70% unique transitions
+interest = [pep for pep, c in mycollider.allpeps.iteritems() if c < 0.7]
+interest = [pep for pep in interest if pep not in interest2]
+interest_pep = [pep for pep in pepids if pep['parent_id'] in interest]
+
+
+
+
+
+MAX_UIS = 10
+self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
+
+
+pep = interest_pep[0]
+
+
+metatext = ''
+for pep in interest_pep:
+    transitions = self._get_all_transitions(par, pep, cursor)
+    nr_transitions = len( transitions )
+    collisions = self._get_all_collisions(par, pep, cursor)
+    collisions_per_peptide = {}
+    q3_window_used = par.q3_window
+    for t in transitions:
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    mylist = flatten_list( collisions_per_peptide.values() )
+    non_uids = get_all_non_uis(self, pep, par, cursor, 2)
+    len( collisions_per_peptide), mylist , non_uids
+    #collisions_per_peptide.values() 
+    cursor.execute( "select sequence from ddb.peptide where id =%s" % pep['peptide_key'])
+    seq = cursor.fetchall()[0][0]
+    text = """Peptide %s\nQ1: %s, SSRCalc %s\nTo Check:\n""" % (seq, pep['q1'], pep['ssrcalc'])
+    for collpep, coll in collisions_per_peptide.iteritems():
+        cursor.execute( "select q3 from hroest.srmTransitions_yeast_1200 where srm_id =%s" % coll[0] )
+        q3 = cursor.fetchall()[0][0]
+        cursor.execute( "select sequence from ddb.peptide where id =%s" % collpep )
+        sequence = cursor.fetchall()[0][0]
+        text += "%s %s \t\t %s\n" % (pep['q1'], q3, sequence)
+    text += "We cannot use these combinations at the same time (not UIS):\n" 
+    for pair in non_uids:
+        for coll in pair:
+            cursor.execute( "select q3 from hroest.srmTransitions_yeast_1200 where srm_id =%s" % coll )
+            text += "%s %s \t===\t" % (pep['q1'], cursor.fetchall()[0][0])
+        text += "\n"
+    print text
+    metatext += text + '\n' * 3
+
+
+
+open('less70pct_unique.txt', 'w').write( metatext)
+open('more3coll.txt', 'w').write( metatext)
+
+collider.permutations
+
+def flatten_list(l):
+    return [item for sublist in l for item in sublist]
+
+get_all_non_uis(self, pep, par, cursor, 2)
+
+
+
+
+
+
+
+
+def get_all_non_uis(self, pep, par, cursor, order, ssrcalc_window = 100000):
+    old_win = par.ssrcalc_window
+    par.ssrcalc_window = ssrcalc_window
+    transitions = self._get_all_transitions(par, pep, cursor)
+    nr_transitions = len( transitions )
+    collisions = self._get_all_collisions(par, pep, cursor)
+    q3_window_used = par.q3_window
+    collisions_per_peptide = {}
+    for t in transitions:
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    #here we calculate the UIS for this peptide with the given RT-range
+    reslist = set()
+    for pepc in collisions_per_peptide.values():
+        collider.get_non_uis(pepc, reslist, order)
+    par.ssrcalc_window = old_win 
+    return reslist
+
 
 
 
