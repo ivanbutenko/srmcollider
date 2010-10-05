@@ -70,6 +70,11 @@ class SRM_parameters(object):
     def get_q3_low(self):
         return self.q3_range[0]
 
+    def get_q3_window(self, q3):
+        if self.ppm:
+            return [q3 - self.q3_window * 10**(-6) *q3, q3 + self.q3_window * 10**(-6) * q3]
+        else: return [q3 - self.q3_window, q3 + self.q3_window]
+
     def get_common_filename(self):
         background = self.do_vs1 
         if not self.do_vs1 and self.dontdo2p2f: background = 'vs3'
@@ -106,8 +111,8 @@ def testcase():
     par.q1_window = 0.7 / 2
     par.q3_window = 1.0 / 2
     par.ppm = False
-    par.transition_table = 'hroest.srmTransitions_test_ionseries'
-    par.peptide_table = 'hroest.srmPeptides_test_ionseries'
+    par.transition_table = 'hroest.srmTransitions_test'
+    par.peptide_table = 'hroest.srmPeptides_test'
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
     par.considerIsotopes = False #do not consider the C13 isotopes
@@ -130,7 +135,7 @@ def get_cum_dist(original):
 
 class SRMcollider(object):
 
-    def find_clashes_small(self, db, par):
+    def find_clashes_small(self, db, par, use_per_transition=False):
         #make sure we only get unique peptides
         cursor = db.cursor()
         self.pepids = self._get_unique_pepids(par, cursor)
@@ -149,7 +154,8 @@ class SRMcollider(object):
             transitions = self._get_all_transitions(par, pep, cursor)
             nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
-            collisions = self._get_all_collisions(par, pep, cursor)
+            if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
+            else: collisions = self._get_all_collisions(par, pep, cursor)
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
             q3_window_used = par.q3_window
@@ -166,7 +172,8 @@ class SRMcollider(object):
             progressm.update(1)
         self.total_time = end - start
 
-    def find_clashes(self, db, par, toptrans=False, pepids=None):
+    def find_clashes(self, db, par, toptrans=False, pepids=None, 
+                     use_per_transition=False):
         #make sure we only get unique peptides
         MAX_UIS = par.max_uis
         cursor = db.cursor()
@@ -203,7 +210,8 @@ class SRMcollider(object):
             else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
             nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
-            collisions = self._get_all_collisions(par, pep, cursor)
+            if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
+            else: collisions = self._get_all_collisions(par, pep, cursor)
             #collisions
             #q3, q1, srm_id, peptide_key
             #transitions
@@ -353,6 +361,12 @@ class SRMcollider(object):
             cursor.execute( query1 )
             return cursor.fetchall()
 
+    def _get_all_collisions_per_transition(self, par, pep, transitions, cursor):
+        collisions = []
+        for q3, id in transitions:
+            collisions.extend( self._get_collisions_per_transition(par, pep, q3, cursor) )
+        return  collisions
+
     def _get_all_collisions(self, par, pep, cursor):
             q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
             q3_low = par.get_q3_low()
@@ -376,6 +390,29 @@ class SRMcollider(object):
                    'pep' : par.peptide_table, 'trans' : par.transition_table }
             cursor.execute( query2 )
             return cursor.fetchall()
+
+    def _get_collisions_per_transition(self, par, pep, q3, cursor):
+        q3_low, q3_high = par.get_q3_window(q3)
+        #we compare the parent ion against 4 different parent ions
+        #thus we need to take the PEPTIDE key here
+        query2 = """
+        select q3, q1, srm_id, %(pep)s.peptide_key
+        from %(pep)s
+        inner join %(trans)s
+          on %(pep)s.transition_group = %(trans)s.group_id
+        where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+            and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+        and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+        and %(pep)s.peptide_key != %(peptide_key)d
+        and q3 > %(q3_low)s and q3 < %(q3_high)s
+        %(query_add)s
+        """ % { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'], 
+                'peptide_key' : pep['peptide_key'],
+               'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
+               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+               'pep' : par.peptide_table, 'trans' : par.transition_table }
+        cursor.execute( query2 )
+        return cursor.fetchall()
 
     def store_object(self, par):
         import pickle
