@@ -43,6 +43,47 @@ mycollider.print_q3min_ppm(par)
 mycollider.print_stats()
 
 
+
+##Run the testcase
+###########################################################################
+reload( collider )
+par  = collider.testcase()
+mycollider = collider.SRMcollider()
+mycollider.find_clashes_small(db, par) 
+print "I ran the testcase in %ss" % mycollider.total_time
+assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert mycollider.non_unique_count == 26
+assert mycollider.total_count == 12502
+assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
+simple_allpeps = mycollider.allpeps
+
+#verify that with toptrans=False we get the same results
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par, toptrans=False) 
+print "I ran the testcase in %ss" % mycollider.total_time
+assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert mycollider.non_unique_count == 26
+assert mycollider.total_count == 12502
+assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
+assert len( mycollider.q3min_distr ) == 26
+assert len( mycollider.q1min_distr ) == 26
+assert len( mycollider.found3good ) == 978 
+for key in mycollider.allpeps: 
+    assert mycollider.allpeps[ key ] - simple_allpeps[ key ] < 10**(-8)
+
+reload( collider )
+par  = collider.testcase()
+mycollider = collider.SRMcollider()
+mycollider.find_clashes_small(db, par,use_per_transition=True ) 
+print "I ran the testcase in %ss" % mycollider.total_time
+assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
+assert mycollider.non_unique_count == 26
+assert mycollider.total_count == 12502
+assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
+for key in mycollider.allpeps: 
+    assert mycollider.allpeps[ key ] - simple_allpeps[ key ] < 10**(-8)
+
+
 ###########################################################################
 #
 # Storage of results

@@ -30,10 +30,12 @@ import collider
 exp_key = 3061  #human (800 - 5000 Da)
 #exp_key = 3130  #human (all)
 exp_key = 3120  #yeast
-exp_key = 3131  #yeast (all)
+#exp_key = 3131  #yeast (all)
+#exp_key = 3352  #yeast, 1200 peptides
 all_peptide_query  = """
 select distinct peptide.sequence, molecular_weight, ssrcalc,
-genome_occurence, peptide.id as peptide_key
+genome_occurence, 
+peptide.id as peptide_key
 from peptide 
 inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
@@ -50,7 +52,7 @@ and length( peptide.sequence ) > 1
 #read in the data from DB and put into bins
 # 75 peptides/sec
 insert_db = True
-modify_cysteins = True
+modify_cysteins = False
 read_from_db = False
 c.execute( 'use ddb;' )
 t = utils.db_table( c2 )
@@ -59,8 +61,8 @@ print "executed the query"
 rows = t.c.fetchall()
 #1000 entries / 9 s with fast (executemany), 10.5 with index
 #1000 entries / 31 s with normal (execute), 34 with index
-transition_table = 'hroest.srmTransitions_test_ionseries'
-peptide_table = 'hroest.srmPeptides_test_ionseries'
+transition_table = 'hroest.srmTransitions_test'
+peptide_table = 'hroest.srmPeptides_test'
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -68,7 +70,7 @@ progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 start = time.time()
 for i,row in enumerate(rows):
     progressm.update(1)
-    #if i >= 1000: break #####FOR TESTING ONLY
+    if i >= 1000: break #####FOR TESTING ONLY
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = collider.get_peptide_from_table(t, row)
         peptide.charge = mycharge
@@ -101,11 +103,6 @@ for i,row in enumerate(rows):
         collider.fast_insert_in_db( S, db, 1, transition_table, transition_group=i)
         collider.fast_insert_in_db( S, db, 2, transition_table, transition_group=i)
 
-#rr = [r for r in rows if r[-1] == 9201171]
-#rr = [r for r in rows if r[-1] == 9255505]
-
-
-
 #A2 create the additional parent ions for the isotope patterns
 PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
 cursor = c
@@ -123,6 +120,8 @@ for p in allpeptides:
 q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
      " VALUES (" + "%s," *6 + "%s)"
 c.executemany( q, prepared)
+
+
 
 
 ###########################################################################
