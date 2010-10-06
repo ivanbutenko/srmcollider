@@ -1,0 +1,18 @@
+body {  
+  /*
+   * create a dark brown background
+  */
+  background-color: #8B542B;
+} 
+
+div.whole {
+    /*
+     * and a light brown middle piece
+    */
+    background: #EADEAA;
+
+}
+
+div.header {
+    background: #D57830;
+}

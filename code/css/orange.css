@@ -1,0 +1,14 @@
+body {  
+  /*
+   * create a dark background
+  */
+    background: #FF7640;
+} 
+
+div.whole {
+    /*
+     * and a light middle piece
+    */
+    background: #FF9B73;
+
+}
