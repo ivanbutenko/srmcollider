@@ -1,0 +1,110 @@
+body {  
+  background-color: #fff; 
+  color: #801313; 
+  font-family: sans-serif; 
+  font-size:   13px; 
+  line-height: 18px; 
+  text-align: center;
+  /*
+  max-width : 1000px;
+  */
+} 
+
+div.whole {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 5em;
+    padding: 20px;
+    max-width : 600px;
+
+    border-width: 1px;
+    border-color: #555;
+    border-style: solid;
+
+    /*
+    background: #FFDDBB;
+    first generation, too light
+    */
+    background: #F0D0BA;
+}
+
+div.main.textarea {
+    /*
+    height : 600px;
+    */
+}
+
+
+div.header {
+    font-size: 25px;
+    margin-bottom: 80px;
+}
+div.version {
+    float: right;
+    font-size: 11px;
+    text-align: right;
+    z-index: 10;
+}
+
+div.main {
+    text-align: left;
+}
+
+
+
+/*
+ *
+ *   Only for input
+*/
+
+p.input_field {
+}
+.number_input{
+    width: 150px;
+    /*
+    text-align: center;
+    */
+}
+label.mylabel{
+    width : 300px;
+    float: left;
+}
+
+textarea#pep_input {
+    width: 100%;
+    /*
+    font-size: 22px;
+    */
+
+}
+
+
+/*
+ *
+ * Only for results
+*/
+div.toc{
+
+    border-width: 1px;
+    border-color: #555;
+    border-style: solid;
+    margin: 50px;
+
+}
+
+h2 {
+    margin-top: 2.5em;
+}
+
+div.pep_property p {
+    margin: 0px;
+}
+
+table.tr_table {
+  font-size:15px; 
+  width: 50%;
+}
+
+table.col_table {
+  font-size:11px; 
+}

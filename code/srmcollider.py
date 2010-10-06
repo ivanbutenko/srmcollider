@@ -1,141 +1,262 @@
 #!/usr/bin/python
 
-import MySQLdb
+import cgitb; cgitb.enable()
+
+import MySQLdb, time
 import sys 
-sys.path.append( '/home/hroest/msa/code' )
+sys.path.append( '/home/hroest/projects/msa/code' )
+sys.path.append( '/home/hroest/projects/srm_clashes/code' )
 from utils_h import utils
 #db = MySQLdb.connect(read_default_file=".my.cnf")
 #db = MySQLdb.connect("orl.ethz.ch", "hroest", "", db="hroest")
 db = MySQLdb.connect("orl.ethz.ch", "srmcollider", "srmcollider", db="hroest")
 c = db.cursor()
 c2 = db.cursor()
+import collider
 
-def get_collisions( q1, q3, ssrcalc, q1_window, q3_window, ssrcalc_window, 
-                   exp_key, db):
-    select_temp = """
-    select * from hroest.srmClashes 
-    inner join ddb.peptide on peptide.id = srmClashes.peptide_key
-    where q1 between %s and %s
-    and q3 between %s and %s
-    and ssrcalc between %s and %s
-    and srmClashes.experiment_key = %s
-    ;
-    """
-    q1_low      =  q1 - q1_window /2.0
-    q1_high     =  q1 + q1_window /2.0
-    q3_low      =  q3 - q3_window /2.0   
-    q3_high     =  q3 + q3_window /2.0
-    ssrcalc_low =  ssrcalc - ssrcalc_window /2.0 
-    ssrcalc_high=  ssrcalc + ssrcalc_window /2.0   
-    ##q1_low      =   518
-    ##q1_high     =   519
-    ##q3_low      =   740
-    ##q3_high     =   760
-    ##ssrcalc_low =   20
-    ##ssrcalc_high=   25
-    c2 = db.cursor()
-    t = utils.db_table( c2 )
-    t.read( select_temp, [q1_low, q1_high, q3_low, q3_high, 
-                            ssrcalc_low, ssrcalc_high, exp_key])
-    #TODO implement
-    #res = t.fetchall()
-    res = []
-    while True:
-        r = t.fetchone()
-        if r == None: break
-        res.append( r)
-    return t, res
+#myCSVFile = '/nas/www/html/hroest/srmcollider.csv'
+myCSVFile = '/var/www/documents/srmcollider.csv'
+myUIS_CSVFile = '/var/www/documents/uis_srmcollider.csv'
+myUIS_CSVFile_rel = '/../documents/uis_srmcollider.csv'
+myCSVFile_rel = '/../documents/srmcollider.csv'
+
+#def get_collisions( q1, q3, ssrcalc, q1_window, q3_window, ssrcalc_window, 
+#                   exp_key, db):
+#    select_temp = """
+#    select * from hroest.srmClashes 
+#    inner join ddb.peptide on peptide.id = srmClashes.peptide_key
+#    where q1 between %s and %s
+#    and q3 between %s and %s
+#    and ssrcalc between %s and %s
+#    and srmClashes.experiment_key = %s
+#    ;
+#    """
+#    q1_low      =  q1 - q1_window /2.0
+#    q1_high     =  q1 + q1_window /2.0
+#    q3_low      =  q3 - q3_window /2.0   
+#    q3_high     =  q3 + q3_window /2.0
+#    ssrcalc_low =  ssrcalc - ssrcalc_window /2.0 
+#    ssrcalc_high=  ssrcalc + ssrcalc_window /2.0   
+#    ##q1_low      =   518
+#    ##q2_high     =   519
+#    ##q3_low      =   740
+#    ##q3_high     =   760
+#    ##ssrcalc_low =   20
+#    ##ssrcalc_high=   25
+#    c2 = db.cursor()
+#    t = utils.db_table( c2 )
+#    t.read( select_temp, [q1_low, q1_high, q3_low, q3_high, 
+#                            ssrcalc_low, ssrcalc_high, exp_key])
+#    #TODO implement
+#    #res = t.fetchall()
+#    res = []
+#    while True:
+#        r = t.fetchone()
+#        if r == None: break
+#        res.append( r)
+#    return t, res
 
 
-def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low):
+def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
+
     #sanitize input
     import re
     seqs = "'"
     for inp in input.split():
         #only alphanumeric
         seqs += filter(str.isalnum, inp)+ "','"
+
     seqs = seqs[:-2]
+
+    #figure out which db to use 
+    db_used = 'hroest'
+    table_used =  'yeast'
+    #create the parameter object
+    par = collider.SRM_parameters()
+    par.q1_window = q1_w / 2.0
+    par.q3_window = q3_w / 2.0
+    par.ssrcalc_window = ssr_w / 2.0 
+    par.ppm = False
+    par.considerIsotopes = True
+    par.q3_range = [low, high]
+    par.peptide_table = db_used + '.srmPeptides_' + table_used
+    par.transition_table = db_used + '.srmTransitions_' + table_used
+    par.eval()
+    extra_table = 'ddb.peptide'
+    mycollider = collider.SRMcollider()
+
+    if uis > 0:
+        print "<p>Calculated UIS for peptide %s" % input.split()[0]
+        print "<a href ='%s'>Download csv file with UIS</a></p>" % myUIS_CSVFile_rel
+        if uis >  5 or len( input.split() ) > 1:
+            print "Can only calculate up to order 5 and only 1 peptide"
+            exit()
+
+    
 
     #get input transitions
     input_q  = """
-    select * from ddb.peptide
-    inner join ddb.peptideOrganism on peptideOrganism.peptide_key = peptide.id
-    inner join hroest.srmClashes on srmClashes.peptide_key = peptide.id
-    where peptide.experiment_key = %s
-    and peptide.sequence in 
-    (%s)
-    """ % (exp_key, seqs)
-    c = db.cursor()
-    c.execute( 'use ddb;')
-    t = utils.db_table( c )
-    t.read( input_q )
-    result = t.fetchall_groupBy('sequence')
+    select parent_id, q1, q1_charge, ssrcalc, b.id, b.sequence
+    from %(ptable)s a
+    inner join %(et)s b on a.peptide_key = b.id
+    where b.sequence in 
+    (%(sequences)s)
+    %(query_add)s
+    """ % { 'ptable' : par.peptide_table, 'sequences' : seqs, 'et' : extra_table, 
+           'query_add' : par.query_add  }
+    cursor = db.cursor()
+    cursor.execute(input_q)
+    res = cursor.fetchall()
+    result = [
+        {
+            'parent_id' :  r[0],
+            'q1' :         r[1],
+            'q1_charge' :  r[2],
+            'ssrcalc' :    r[3],
+            'peptide_key' :r[4],
+            'sequence'    :r[5]
+        }
+        for r in res
+    ]
 
     #print some links to csv file and input/output validation
-    print "<a href ='/hroest/srmcollider.csv'>Download csv file</a>"
+    #print "<a href ='/../documents/srmcollider.csv'>Download csv file</a>"
+    unique = utils.unique(input.split() )
+    print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
     print "<br/>"
     print "input: %s peptides" % (len( input.split() )) 
     print "<br/>"
+    print "unqiue: %s peptides" % (len( unique )) 
+    print "<br/>"
     print "found: %s peptides" % (len( result )) 
+    print "<div class='toc'><ul>"
+    for u in result: print '<li><a href="#%s">%s</a></li>' % (u['sequence'],u['sequence'])
+    print "</ul></div>"
 
     #also prepare a csv
     import csv
-    f = open('/nas/www/html/hroest/srmcollider.csv', 'w')
+    f = open( myCSVFile, 'w')
     w = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     w.writerow( ['sequence', 'q1', 'q3', 'type'] )
-    
-    for sequence in result.values():
+
+    #do the part for UIS
+    if uis > 0:
+        #prepare another csv
+        import csv
+        fuis = open( myUIS_CSVFile, 'w')
+        wuis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        MAX_UIS = uis
+        pep = result[0]
+        transitions = mycollider._get_all_transitions(par, pep, cursor, values="q3, srm_id, type, fragment_number")
+        collisions = mycollider._get_all_collisions(par, pep, cursor, values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc")
+        non_uis_list = [set() for i in range(MAX_UIS+1)]
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in transitions:
+            #if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            this_min = q3_window_used
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: collisions_per_peptide[c[3]] = [ t[1] ] 
+        #here we calculate the UIS for this peptide with the given RT-range
+        for pepc in collisions_per_peptide.values():
+            for i in range(1,MAX_UIS+1):
+                collider.get_non_uis(pepc, non_uis_list[i], i)
+        #we could actually calculate the UIS combinations 
+        #from the non-UIS combinations
+        srm_ids = [t[1] for t in transitions]
+        srm_lookup = [ (t[1] , t) for t in transitions]
+        srm_lookup = dict(srm_lookup) 
+        #start = time.time()
+        for i in range(1,MAX_UIS+1):
+            uis_list = collider.get_uis(srm_ids, non_uis_list[i], i)
+            #end = time.time()
+            for comb in uis_list:
+                tmp = [ srm_lookup[elem] for elem in comb]  
+                myrow = []
+                for tt in tmp:
+                    myrow.extend( [ tt[0], tt[2] + str(tt[3] )]  )
+                wuis.writerow(myrow)
+
+        fuis.close()
+
+    for pep in result:
         useable = []
         collisions= []
-        for row in sequence:
-            q1  = t.row( row, 'q1')
-            q3  = t.row( row, 'q3')
-            #print q3, low
-            if q3 < low or q3 > high: continue
-            ssr = t.row( row, 'ssrcalc')
-            occurence = t.row( row, 'genome_occurence')
-            mysequence = t.row( row, 'sequence')
-            tt, rr = get_collisions( q1, q3, ssr, q1_w, q3_w, ssr_w, exp_key, db)
-            assert len( rr) > 0  #this would mean the sequence is not in the DB
-            mycollisions = [rrr for rrr in rr 
-                      if tt.row(rrr, 'sequence') != mysequence] 
-            #print mysequence
-            #print mycollisions
-            #print len(mycollisions)
-            #print '<br/>' * 3
-            if len( mycollisions) == 0: useable.append( row )
-            else: collisions.append( [row, mycollisions] )
-        print "<br/>"*2, mysequence, q1, round(ssr, 2)
-        print "<br/>"
-        print "useable: <br/>"
-        for u in useable:
-            mytype = t.row(u, 'type') 
-            q1_charge = t.row(u, 'q1_charge') 
-            q1 = t.row(u, 'q1') 
-            q3 = t.row(u, 'q3') 
-            print "(" + str( q1_charge ) + ")" + mytype + " " + " " +\
-                                 str( round(q3, 2 ) ) + "<br/>"
-            w.writerow( [ mysequence, q1, q3, mytype ] )
+        non_unique = {}
+        mysequence = pep['sequence']
+        transitions = mycollider._get_all_transitions(par, pep, cursor, values="q3, srm_id, type, fragment_number")
+        collisions = mycollider._get_all_collisions(par, pep, cursor, values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc")
+        q3_window_used = par.q3_window
+        for t in transitions:
+            #if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            this_min = q3_window_used
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= this_min:
+                    try: 
+                        non_unique[ t[1] ][1].append( c )
+                    except:
+                        non_unique[ t[1] ] = [t, [c]]
+        useable = [t for t in transitions if not t[1] in non_unique]
+        #
+        #
+        print "<h2 id='%s'>Peptide %s</h2>" % (mysequence, mysequence)
+        print "<div class='pep_property'>"
+        print "<p>Q1: %s</p>" % pep['q1']
+        print "<p>SSRCalc: %s</p>" % round(pep['ssrcalc'], 2)
+        print "<p>Percent Useable: %d</p>" % (len(useable)*100.0 / len(transitions)  )
+        print "</div>"
 
-        print "<br/>"*1
-        print "collisions:<br/>"
-        for col in collisions:
-            myrow = col[0]
-            print "(" + str(t.row( myrow, 'q1_charge')) + ")", \
-                  t.row( myrow, 'type'), \
-                    '::::'
-            for c in col[1]:
-                print tt.row(c, 'sequence') 
-                print tt.row(c, 'type') 
-                print round( tt.row(c, 'q1'), 2)
-                print round( tt.row(c, 'q3'), 2)
-                print tt.row(c, 'ssrcalc') 
-                print ";;"
-            print "<br/>"*1 
+        if len( useable ) > 0:
+            print "<h3>Useable transitions</h3>"
+            print "<table class='tr_table'>"
+            print "<tr><td>Type</td> <td>Q3</td> </tr>"
+            for u in useable:
+                print "<tr><td>"
+                mytype = u[2] + str(u[3])
+                print mytype
+                print "</td><td>"
+                print str( round( u[0], 2 ) ) 
+                #q1_charge = t.row(u, 'q1_charge') 
+                #q1 = t.row(u, 'q1') 
+                #q3 = t.row(u, 'q3') 
+                #print "(" + str( q1_charge ) + ")" + mytype + " " + " " +\
+                #                     str( round(q3, 2 ) ) + "<br/>"
+                w.writerow( [ mysequence, pep['q1'], u[0], mytype ] )
+                print "</td></tr>"
+            print "</table>"
+        else: print "<p>No useable transitions for this peptide!</p>"
 
-        print "\n\n\n\n"
-        print "%% useable: %d" % (len(useable)*100.0 / ( len(useable) 
-            + len(collisions)) )
+        print "<h3>Unuseable transitions (Collisions)</h3>"
+        print "<table class='col_table'>"
+        for u, coll in non_unique.values():
+            print "<tr><td>"
+            mytype = u[2] + str(u[3])
+            print mytype
+            print str( round( u[0], 2 ) ) 
+            print "</td><td>"
+            #myrow = col[0]
+            #print "(" + str(t.row( myrow, 'q1_charge')) + ")", \
+            #      t.row( myrow, 'type'), \
+            #        '::::'
+            for c in coll:
+                print '(', round(c[1], 2), round(c[0], 2),  ')'
+                print c[7]
+                print c[4] + str(c[5])
+                print c[6], ' </br>'
+                #print tt.row(c, 'sequence') 
+                #print tt.row(c, 'type') 
+                #print round( tt.row(c, 'q1'), 2)
+                #print round( tt.row(c, 'q3'), 2)
+                #print tt.row(c, 'ssrcalc') 
+                #print ";;"
+            print "</td></tr>"
+        print "</table>"
+
+
     f.close()
 
 input = """
@@ -196,6 +317,18 @@ warm_welcome = """
 ###########################################################################<br/>
 ###########################################################################<br/>
 """
+warm_welcome = """
+<div class="header">
+SRM Collider
+<div class="version">
+version 0.1
+</br>
+alpha
+</br>
+Hannes Roest 2010
+</div>
+</div>
+"""
 
 # 2+, 3+ precursor
 # 1+, 2+ fragmente
@@ -218,8 +351,29 @@ for s in sample_peptides.split():
 
 
 
+
+###########################################################################
+###########################################################################
+# START OF HTML
+
+
 print 'Content-type: text/html\n\n'
+print """
+<!DOCTYPE html PUBtdC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"> 
+ 
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"> 
+<head> 
+  <meta http-equiv="content-type" content="text/html;charset=UTF-8" /> 
+  <title>SRM Collider</title> 
+  <link href="/stylesheets/srmcollider.css" media="screen" rel="stylesheet" type="text/css" /> 
+</head> 
+
+<body>
+<div class="whole">
+"""
 print warm_welcome
+print "<div class='main'>"
 
 import cgi
 form = cgi.FieldStorage()   # FieldStorage object to
@@ -230,56 +384,95 @@ if form.has_key('peptides'):
     ssr_w = float(form.getvalue('ssr_window') )
     high = float(form.getvalue('high_mass') )
     low = float(form.getvalue('low_mass') )
+    genome = form.getvalue('genome') 
+    isotope = int(form.getvalue('isotope') )
+    uis = int(form.getvalue('uis') )
     #print peptides
     #peptides = input
-    main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low)
+    start = time.time()
+    main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
+    print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
   print """
-<FORM action="/cgi-bin/hroest/srmcollider.py" method="post">
-    <P>
-    <label for="peptides">Peptides</label><br />
-    <textarea cols="60" name="peptides" rows="20"></textarea>
-    <br/>
-    <br/>
-    <p>
-    <label for="ssr_window">SSRCalc window</label>
-    <input type="text" name="ssr_window" value="4"> arbitrary units
+<form action="/cgi-bin/srmcollider.py" method="post">
+    <p class='input_field'>
+        <label for="peptides">Please enter the peptide sequences here:</label><br />
+        <textarea id="pep_input" name="peptides" rows="20"></textarea>
     </p>
-    <p>
-    <label for="q1_window">Q1 mass window</label>
-    <input type="text" name="q1_window" value="0.7"> Th
+
+    <p class='input_field'>
+        <label class="mylabel" for="ssr_window">SSRCalc window</label>
+        <input class="number_input" type="text" name="ssr_window" value="4"> arbitrary units
     </p>
-    <p>
-    <label for="q3_window">Q3 mass window</label>
-    <input type="text" name="q3_window" value="1.0"> Th
+
+    <p class='input_field'>
+        <label class="mylabel" for="q1_window">Q1 mass window</label>
+        <input class="number_input" type="text" name="q1_window" value="0.7"> Th
     </p>
-    <p>
-    <label for="low_mass">Low mass threshold for transitions</label>
-    <input type="text" name="low_mass" value="300"> Th
+
+    <p class='input_field'>
+        <label class="mylabel" for="q3_window">Q3 mass window</label>
+        <input class="number_input" type="text" name="q3_window" value="1.0"> Th
     </p>
-    <p>
-    <label for="high_mass">High mass threshold for transitions</label>
-    <input type="text" name="high_mass" value="1500"> Th
+
+    <p class='input_field'>
+        <label class="mylabel" for="low_mass">Low mass threshold for transitions</label>
+        <input class="number_input" type="text" name="low_mass" value="300"> Th
     </p>
-    <br/>
-    <br/>
+
+    <p class='input_field'>
+        <label class="mylabel" for="high_mass">High mass threshold for transitions</label>
+        <input class="number_input" type="text" name="high_mass" value="1500"> Th
+    </p>
+
+    <p class='input_field'>
+        <label class="mylabel" for="genome">Genome</label>
+        <!--
+        <input class="number_input" type="text" disabled="True" name="genome" value="Yeast (tryptic)"> 
+        -->
+        <select class="number_input">
+          <option value="yeast">Yeast (tryptic)</option>
+        </select>
+    </p>
+
+    <p class='input_field'>
+        <label class="mylabel" for="isotope">Consider isotopes up to </label>
+        <input class="number_input" type="text" name="isotope" value="3"> amu
+        <!-- >
+        <input class="number_input" type="text" disabled="False" name="isotope" value="3"> amu
+        </!-->
+    </p>
+
+
+    <p class='input_field'>
+        <label class="mylabel" for="uis">Find UIS up to order* </label>
+        <input class="number_input" type="text" name="uis" value="0"> 
+    </p>
+
     <INPUT type="submit" value="Send"> 
-    </P>
- </FORM>
-<br/>
-The following parameters are set:
-<br/>
+
+ </form>
+* due to computational constraints, only one peptide at a time can be searched in UIS mode
+
 <!-- 
 q1_window = 1 Da <br/>
 q3_window = 1 Da <br/>
 ssr_window = 4 units <br/>
 high_mass = 1500 Da <br/>
 low_mass = 300 Da <br/>
--->
 genome = yeast<br/>
 peptides are fully tryptic only <br/>
 <br/><br/>
+-->
+<!-- >
 To try this tool, you could use the following sample peptides:
 <br/>%s    
+</!-->
 """ % sample_peptides_html
 
+
+print "</div>"
+print """
+</div>
+</body>
+</html>"""
