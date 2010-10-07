@@ -70,7 +70,13 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
 
     #figure out which db to use 
     db_used = 'hroest'
-    table_used =  'yeast'
+    if genome == 'yeast':
+        table_used =  'yeast'
+    elif genome == 'yeastN15':
+        table_used =  'yeastN15'
+    elif genome == 'human':
+        table_used =  'human'
+    else: print "Genome not recognized"; exit()
     #create the parameter object
     par = collider.SRM_parameters()
     par.q1_window = q1_w / 2.0
@@ -119,6 +125,13 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
         for r in res
     ]
 
+    #lets see whether we have any results:
+
+    if len( result ) == 0:
+        print "Unfortunately, none of the peptides were found in the database."
+        print "<a href ='srmcollider.py'>Return to main page.</a>" 
+        exit()
+
     #print some links to csv file and input/output validation
     #print "<a href ='/../documents/srmcollider.csv'>Download csv file</a>"
     unique = utils.unique(input.split() )
@@ -126,12 +139,13 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     print "<br/>"
     print "input: %s peptides" % (len( input.split() )) 
     print "<br/>"
-    print "unqiue: %s peptides" % (len( unique )) 
+    print "unique: %s peptides" % (len( unique )) 
     print "<br/>"
     print "found: %s peptides" % (len( result )) 
     print "<div class='toc'><ul>"
     for u in result: print '<li><a href="#%s">%s</a></li>' % (u['sequence'],u['sequence'])
     print "</ul></div>"
+
 
     #also prepare a csv
     import csv
@@ -434,11 +448,10 @@ else:
 
     <p class='input_field'>
         <label class="mylabel" for="genome">Genome</label>
-        <!--
-        <input class="number_input" type="text" disabled="True" name="genome" value="Yeast (tryptic)"> 
-        -->
-        <select class="number_input">
+        <select name="genome" class="number_input">
           <option value="yeast">Yeast (tryptic)</option>
+          <option value="yeastN15">Yeast N15 (tryptic)</option>
+          <option value="human">Human (tryptic)</option>
         </select>
     </p>
 
