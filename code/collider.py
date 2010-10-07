@@ -484,14 +484,14 @@ class SRMcollider(object):
         # This is to plot the absolute distribition (transitions per peptide) 
         # not in percent
         query = """
-        select parent_key, count(*) as nr_transitions
+        select parent_id, count(*) as nr_transitions
         from %(peptable)s
-        inner join %(tratable)s on parent_id = parent_key
+        inner join %(tratable)s on transition_group = group_id 
         where 
         #q1 between 400 and 1200 
         q3 between 400 and 1200 
         and q3_charge = 1
-        group by parent_key
+        group by parent_id
         """ % {'peptable' : par.peptide_table ,
                'tratable' : par.transition_table,
                 'query_add' : par.query1_add }
