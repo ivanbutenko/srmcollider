@@ -344,11 +344,11 @@ class SRMcollider(object):
         cursor.execute( query1 )
         return cursor.fetchall()
 
-    def _get_all_transitions(self, par, pep, cursor):
+    def _get_all_transitions(self, par, pep, cursor, values = "q3, srm_id"):
             q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
             q3_low = par.get_q3_low()
             query1 = """
-            select q3, srm_id
+            select %(values)s
             from %(pep)s
             inner join %(trans)s
               on %(pep)s.transition_group = %(trans)s.group_id
@@ -357,7 +357,8 @@ class SRMcollider(object):
             %(query_add)s
             """ % { 'parent_id' : pep['parent_id'], 'q3_low' : q3_low,
                    'q3_high' : q3_high, 'query_add' : par.query1_add,
-                   'pep' : par.peptide_table, 'trans' : par.transition_table }
+                   'pep' : par.peptide_table, 'trans' : par.transition_table, 
+                   'values' : values}
             cursor.execute( query1 )
             return cursor.fetchall()
 
@@ -367,13 +368,13 @@ class SRMcollider(object):
             collisions.extend( self._get_collisions_per_transition(par, pep, q3, cursor) )
         return  collisions
 
-    def _get_all_collisions(self, par, pep, cursor):
+    def _get_all_collisions(self, par, pep, cursor, values="q3, q1, srm_id, peptide_key"):
             q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
             q3_low = par.get_q3_low()
             #we compare the parent ion against 4 different parent ions
             #thus we need to take the PEPTIDE key here
             query2 = """
-            select q3, q1, srm_id, %(pep)s.peptide_key
+            select %(values)s
             from %(pep)s
             inner join %(trans)s
               on %(pep)s.transition_group = %(trans)s.group_id
@@ -387,7 +388,8 @@ class SRMcollider(object):
                     'peptide_key' : pep['peptide_key'],
                    'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
                    'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-                   'pep' : par.peptide_table, 'trans' : par.transition_table }
+                   'pep' : par.peptide_table, 'trans' : par.transition_table,
+                   'values' : values}
             cursor.execute( query2 )
             return cursor.fetchall()
 

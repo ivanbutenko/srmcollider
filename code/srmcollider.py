@@ -367,11 +367,18 @@ print """
   <meta http-equiv="content-type" content="text/html;charset=UTF-8" /> 
   <title>SRM Collider</title> 
   <link href="/stylesheets/srmcollider.css" media="screen" rel="stylesheet" type="text/css" /> 
+  <link href="/stylesheets/%s.css" media="screen" rel="stylesheet" type="text/css" /> 
 </head> 
 
 <body>
 <div class="whole">
-"""
+""" % 'brown'
+#options for the css are
+## first
+## second
+## brown (quite nice)
+## ocker 
+## green
 print warm_welcome
 print "<div class='main'>"
 
