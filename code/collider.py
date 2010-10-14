@@ -502,7 +502,7 @@ class SRMcollider(object):
         pep_nr_transitions = {}
         for l in lines: pep_nr_transitions[ l[0] ] = l[1]
         self.allpeps_abs = {}
-        for p_id, pep in mycollider.allpeps.items():
+        for p_id, pep in self.allpeps.items():
             self.allpeps_abs[ p_id ] = pep * pep_nr_transitions[p_id]
         #
         mydist = self.allpeps_abs.values()
