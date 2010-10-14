@@ -1038,7 +1038,7 @@ def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
 def get_non_uis(pepc, non_uis, order):
     if len( pepc ) >= order: 
         #TODO: use itertools in 2.6
-        non_uis.update( [tuple(sorted(p)) for p in permutations(pepc, order)] )
+        non_uis.update( [tuple(sorted(p)) for p in combinations(pepc, order)] )
 
 def test_get_non_uis():
     test = set()
@@ -1059,7 +1059,7 @@ def choose(i,r):
 
 def get_uis(srm_ids, non_uis, order):
     all = set()
-    all.update( [tuple(sorted(p)) for p in permutations(srm_ids, order)] )
+    all.update( [tuple(sorted(p)) for p in combinations(srm_ids, order)] )
     #for perm in permutations(srm_ids, order):
     #    all.append( mystr % tuple(perm) )
     return set(all) - set(non_uis) 
@@ -1097,4 +1097,58 @@ def _permutations(iterable, r=None):
                 break
         else:
             return
+
+def _combinations(N, M):
+    """All index combinations of M elements drawn without replacement
+     from a set of N elements.
+    Order of elements does NOT matter."""
+    index = range( M )
+    while index[0] <= N-M:
+        yield index[:]
+        index[ M-1 ] += 1
+        if index[ M-1 ] >= N:
+            #now we hit the end, need to increment other positions than last
+            #the last position may reach N-1, the second last only N-2 etc.
+            j = M-1
+            while j >= 0 and index[j] >= N-M+j: j -= 1
+            #j contains the value of the index that needs to be incremented
+            index[j] += 1
+            k = j + 1
+            while k < M: index[k] = index[k-1] + 1; k += 1; 
+
+def combinations(iterable, r):
+    """ All combinations of size r of the given iterable set. 
+    Order of elements does NOT matter.
+    """
+    return [ [iterable[i] for i in indices] for indices in _combinations( len(iterable) , r)] 
+
+
+
+def test():
+    assert combinations( range(5), 2 ) == [
+        [0, 1],
+        [0, 2],
+        [0, 3],
+        [0, 4],
+        [1, 2],
+        [1, 3],
+        [1, 4],
+        [2, 3],
+        [2, 4],
+        [3, 4]
+    ]
+    assert combinations( range(5), 3 ) == [
+        [0, 1, 2],
+        [0, 1, 3],
+        [0, 1, 4],
+        [0, 2, 3], 
+        [0, 2, 4],
+        [0, 3, 4],
+        [1, 2, 3],
+        [1, 2, 4],
+        [1, 3, 4],
+        [2, 3, 4]
+    ]
+
+
 
