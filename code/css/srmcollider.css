@@ -22,9 +22,10 @@ div.whole {
     border-style: solid;
 }
 
-div.header {
+.header {
     padding-top: 40px;
     padding-bottom: 40px;
+    vertical-align: middle;
 
     padding-right: 20px;
     padding-left: 20px;
@@ -94,4 +95,18 @@ table.tr_table {
 
 table.col_table {
   font-size:11px; 
+}
+
+div#about-content {
+    margin-top: 20px;
+}
+
+p {
+    text-align: justify;
+}
+
+.header a {
+
+  color: #801313; 
+  text-decoration: none;
 }

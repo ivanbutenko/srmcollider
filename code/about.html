@@ -1,0 +1,110 @@
+#!/usr/bin/python
+print 'Content-type: text/html\n\n'
+print """
+
+<!DOCTYPE html PUBtdC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"> 
+ 
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"> 
+<head> 
+  <meta http-equiv="content-type" content="text/html;charset=UTF-8" /> 
+  <title>SRM Collider</title> 
+  <link href="/stylesheets/srmcollider.css" media="screen" rel="stylesheet" type="text/css" /> 
+  <link href="/stylesheets/brown.css" media="screen" rel="stylesheet" type="text/css" /> 
+</head> 
+
+<body>
+    <div class="whole">
+        <div class="header">
+            <a href="srmcollider.py"> SRM Collider </a>
+        </div>
+        <div class="version">
+            version 0.1
+            </br>
+            Hannes Roest 2010
+        </div>
+
+        <div class='main'>
+            <div id="about-content">
+
+            <h1> About </h1>
+
+            <p>
+            This page is about the SRM Collider. It will provide some 
+            information about the algorithm and a link to the source 
+            code.
+            </p>
+
+            <p>
+            The SRM Collider is intented as a tool to support
+            experimental biologists in creating specific and, if possible,
+            unique SRM-assays for a peptide in a given background.
+            </p>
+
+            <h1> Algorithm </h1>
+
+            <p>
+            The SRM Collider can analyse all transitions of a given peptide
+            in a given background.
+            </p>
+
+            <p>
+            It will compare the transition of the query peptide to the complete
+            list of transitions generated from the background genome. The
+            program will consider 3 dimensions: Q1 mass, Q3 mass and retention
+            time. If there is another transition from the background "close
+            enough", it will report a so called "collision". The definition of
+            "close enough" can be adjusted with the input form, by setting
+            (like in a real experiment) Q1, Q3 and RT windows.
+            </p>
+
+            <p>
+            Retention times are not experimental but theortical and calulated
+            using the "SSRCalc tool". Thus the reported values are not
+            retention times but rather an hydrophobicity index that helps to
+            estimate how close together two peptides elute. Please refer to the
+            SSRCalc paper for more information.
+            </p>
+
+            <p>
+            It is also possible to calculate UIS (unique ion signatures) for
+            peptides. This means that combinations of transitions are
+            considered and analysed for uniqueness within a given RT window. In
+            order to calculate global UIS, just set the RT window to a very
+            large value. Please refer to the UIS paper for more information.
+            </p>
+
+            <h1> Download Data </h1>
+            
+            <p>
+            The results of the analysis can be downloaded in CSV (comma
+            separated values) format which is Excel and OpenOffice compatible.
+            While the "collision analysis" can be performed in batches, UIS can
+            only be calculated for one peptide at a time and only up to an
+            order of 5. Otherwise, the resources of the webserver are
+            used up.
+            </p>
+
+            <h1> Source Code </h1>
+
+            <p>
+            Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
+            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+            aliquip ex ea commodo consequat. Duis aute irure dolor in
+            reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+            pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
+            </p>
+
+            <h1> Contact </h1>
+
+            <p>
+            Any questions? Contact me at roest <> at <> imsb.ethz.ch
+            </p>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
