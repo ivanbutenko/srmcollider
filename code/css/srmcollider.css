@@ -1,14 +1,11 @@
 body {  
   background-color: #fff; 
-  /*
-  background-color: #8B542B;
-  */
   color: #801313; 
   font-family: sans-serif; 
   font-size:   13px; 
   line-height: 18px; 
   text-align: center;
-  /*
+  /* If the body should not be centered but on the left
   max-width : 1000px;
   */
 } 
@@ -25,25 +22,26 @@ div.whole {
     border-style: solid;
 }
 
-div.main.textarea {
-    /*
-    height : 600px;
-    */
-}
-
 div.header {
     padding-top: 40px;
-    font-size: 25px;
     padding-bottom: 40px;
 
     padding-right: 20px;
     padding-left: 20px;
+
+    font-size:50px;
 }
 div.version {
     float: right;
     font-size: 11px;
     text-align: right;
-    z-index: 10;
+
+    position: relative;
+    top: -80;
+    /*
+    top: -66;
+    */
+    right: 10;
 }
 
 div.main {
@@ -51,31 +49,20 @@ div.main {
 }
 
 
-
 /*
  *
  *   Only for input
 */
 
-p.input_field {
-}
 .number_input{
     width: 150px;
-    /*
-    text-align: center;
-    */
 }
 label.mylabel{
     width : 300px;
     float: left;
 }
-
 textarea#pep_input {
     width: 100%;
-    /*
-    font-size: 22px;
-    */
-
 }
 
 
