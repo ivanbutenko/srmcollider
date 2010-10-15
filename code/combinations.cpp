@@ -1,24 +1,26 @@
-#include <iostream>
 #include <ctime>
+#include <iostream>
+#include <Python.h>
+#include <fstream>
 
 using namespace std;
 
-void Display(int vi[], int size )
+void Display(int vi[], int size, ofstream &myfile)
 {
     for(size_t i=0; i<size; ++i)
-        cout<<vi[i]<<",";
-    cout<<endl;
+        myfile<<vi[i]<<",";
+    myfile<<endl;
 }
 
 
 
-void _combinations(int M, int N) {
+void _combinations(int M, int N, ofstream &myfile) {
     int j, k;
     int* index = new int[M];
     //initialize with number from 0 to M = range( M )
     for(int k=0;k<M;k++) index[k] =  k ;
     while (index[0] < N-M) {
-        Display( index , M);
+        Display( index , M, myfile);
         //cout << index[0] << N-M << endl;
         index[ M-1 ] += 1;
         if (index[ M-1 ] >= N) {
@@ -32,7 +34,7 @@ void _combinations(int M, int N) {
             while (k < M) { index[k] = index[k-1] + 1; k += 1; } 
         }
     }
-    Display( index , M);
+    Display( index , M, myfile);
     delete [] index;
 }
 
@@ -44,11 +46,16 @@ int main()
     clock_t start, finish;
     start = clock();
 
-    _combinations(3,6);
+    ofstream myfile;
+    myfile.open ("example.txt");
+    _combinations(3,6, myfile);
+    myfile.close();
+
     cout << "done \n";
     finish = clock();
     cout <<  finish - start << endl;
     cout << CLOCKS_PER_SEC  << endl;
     cout << ( (finish - start) * 1.0 /CLOCKS_PER_SEC ) << endl;
+
 return 0;
 }
