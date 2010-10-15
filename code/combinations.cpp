@@ -1,6 +1,6 @@
+#include <Python.h>
 #include <ctime>
 #include <iostream>
-#include <Python.h>
 #include <fstream>
 
 using namespace std;
@@ -38,7 +38,15 @@ void _combinations(int M, int N, ofstream &myfile) {
     delete [] index;
 }
 
+void _combinations_wrapper(int M, int N, const char* filename) {
+    ofstream myfile;
+    myfile.open (filename);
+    _combinations( M, N, myfile);
+    myfile.close();
+}
 
+
+/*
 int main()
 {
     cout << "starting \n";
@@ -46,10 +54,7 @@ int main()
     clock_t start, finish;
     start = clock();
 
-    ofstream myfile;
-    myfile.open ("example.txt");
-    _combinations(3,6, myfile);
-    myfile.close();
+    _combinations_wrapper(3,6, "test.out");
 
     cout << "done \n";
     finish = clock();
@@ -59,3 +64,19 @@ int main()
 
 return 0;
 }
+
+*/
+
+void initcombinations() {;}
+
+
+
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+using namespace boost::python;
+
+BOOST_PYTHON_MODULE(h_combinations)
+{
+    def("combinations", _combinations_wrapper);
+}
+
