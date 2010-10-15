@@ -1,13 +1,11 @@
 #include <iostream>
 #include <ctime>
-#include <vector>
-#include <algorithm>
 
 using namespace std;
 
-void Display(const vector<int>& vi)
+void Display(int vi[], int size )
 {
-    for(size_t i=0; i<vi.size(); ++i)
+    for(size_t i=0; i<size; ++i)
         cout<<vi[i]<<",";
     cout<<endl;
 }
@@ -15,12 +13,12 @@ void Display(const vector<int>& vi)
 
 
 void _combinations(int M, int N) {
-    vector<int> index;
-    //initialize with number from 0 to M = range( M )
     int j, k;
-    for(int k=0;k<M;k++) index.push_back( k );
+    int* index = new int[M];
+    //initialize with number from 0 to M = range( M )
+    for(int k=0;k<M;k++) index[k] =  k ;
     while (index[0] < N-M) {
-        Display( index );
+        Display( index , M);
         //cout << index[0] << N-M << endl;
         index[ M-1 ] += 1;
         if (index[ M-1 ] >= N) {
@@ -34,7 +32,8 @@ void _combinations(int M, int N) {
             while (k < M) { index[k] = index[k-1] + 1; k += 1; } 
         }
     }
-    Display( index );
+    Display( index , M);
+    delete [] index;
 }
 
 
