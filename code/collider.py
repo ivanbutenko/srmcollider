@@ -1065,12 +1065,12 @@ def get_uis(srm_ids, non_uis, order):
     return set(all) - set(non_uis) 
 
 def permutations(iterable, r=None):
-     #use itertools in 2.6
+    #use itertools in 2.6
     import itertools
-     try:
-         return itertools.permutations( iterable, r)
-     except:
-         return _permutations( iterable, r)
+    try:
+        return itertools.permutations( iterable, r)
+    except:
+        return _permutations( iterable, r)
 
 
 def _permutations(iterable, r=None):
