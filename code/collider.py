@@ -1037,7 +1037,6 @@ def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
 ###UIS Code
 def get_non_uis(pepc, non_uis, order):
     if len( pepc ) >= order: 
-        #TODO: use itertools in 2.6
         non_uis.update( [tuple(sorted(p)) for p in combinations(pepc, order)] )
 
 def test_get_non_uis():
@@ -1058,11 +1057,14 @@ def choose(i,r):
         reduce( lambda x,y: x*y, range(1,i-r+1) ) ) 
 
 def get_uis(srm_ids, non_uis, order):
-    all = set()
-    all.update( [tuple(sorted(p)) for p in combinations(srm_ids, order)] )
-    #for perm in permutations(srm_ids, order):
-    #    all.append( mystr % tuple(perm) )
-    return set(all) - set(non_uis) 
+    #prepare input, make sure its sorted
+    non_uis = [ sorted(list(i)) for i in non_uis]
+    srm_ids = sorted( srm_ids )
+    #
+    #the output of combinations is guaranteed to be sorted, if the input was sorted
+    result = combinations(srm_ids, order)
+    result = [r for r in result if not r in non_uis]
+    return result
 
 def permutations(iterable, r=None):
      #use itertools in 2.6
@@ -1120,7 +1122,12 @@ def combinations(iterable, r):
     """ All combinations of size r of the given iterable set. 
     Order of elements does NOT matter.
     """
-    return [ [iterable[i] for i in indices] for indices in _combinations( len(iterable) , r)] 
+    try:
+        import itertools
+        return itertools.combinations( iterable , r) 
+    except:
+        #we are before python 2.6
+        return [ [iterable[i] for i in indices] for indices in _combinations( len(iterable) , r)] 
 
 
 
