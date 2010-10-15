@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys, os, time
-sys.path.append( '/home/hroest/msa/code/tppGhost' )
-sys.path.append( '/home/hroest/lib/' )
+sys.path.append( '/home/hroest/projects/msa/code/tppGhost' )
+sys.path.append( '/home/hroest/projects/hlib/' )
 import numpy
 import progress
 import gnuplot
@@ -1149,6 +1149,7 @@ def test():
         [1, 3, 4],
         [2, 3, 4]
     ]
+
 
 
 
