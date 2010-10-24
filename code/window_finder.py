@@ -230,5 +230,88 @@ class Window_finder(object):
         #we want to know how equally they are distributed
         #return the squared std deviation times N
         mean = sum( self.elements_perbin) / len( self.elements_perbin)
-        return sum([ (e-mean) * (e-mean) for e in self.elements_perbin])
+        import numpy
+        return numpy.sqrt(sum([ (e-mean) * (e-mean) for e in self.elements_perbin]) )/len(b)
+
+def simulated_annealing(start, w, max_change=0.2, iterations=100):
+    for i in range(iterations): 
+        print "=" * 75
+        mytmp = (iterations - i) / 10
+        print "change temperature to ", mytmp
+        w.run(max_change_amount=max_change, 
+                               iterations=1000, temperature=mytmp)
+        print w.f, w.accept_ratio(), max_change
+        if w.accept_ratio() < 0.1: max_change *= 0.8
+        if w.accept_ratio() > 0.3: max_change /= 0.8
+        if w.accept_ratio() < 0.0001 and max_change < 0.001: max_change = 1
+
+def start_chains(start, parallel_runs=3, iterations=10000):
+
+    #chains at different temperatures
+    #have hot and cool at the same time, exchange if possible
+    global_best = start[:]
+    gtemperature = 1
+    e = 2.7182818284590451
+    runs = [ window_finder.Window_finder(values, 32, 400, 1200, overlap=2 ) for i in range(parallel_runs)]
+    f = runs[0].evaluate_f( runs[0].bins, runs[0].ord_values, runs[0].overlap)
+    global_min = f
+    for w in runs: 
+        w.f = f
+        w.set_start(start[:]) 
+        w.max_change_amount = 5
+
+    for j in range(iterations):
+        for i,w in enumerate(runs):
+            #print "=" * 75
+            #print "run ", i
+            ##w.run(max_change_amount=0.5,overlap=2,iterations=5,temperature=i*20.0+1)
+            self = w
+            temperature = i * 50.0 + 1
+            self.old_f = self.f
+            self.old_bins = self.bins[:]
+            self._step(self.bins, j, self.max_change_amount )
+            self.f = self.evaluate_f( self.bins, self.ord_values, self.overlap)
+            #w.set_start( w.best )
+            if self.f < global_min:
+                global_min = self.f
+                global_best = self.bins[:]
+            #print self.old_f, self.f
+            if (self.old_f * 1.0 - self.f) / temperature > 100 or \
+                random.random() < e**( (self.old_f *1.0 - self.f) / temperature):
+                #try:
+                #    print "change ", self.f, " (old: ", self.old_f, " prob: ",\
+                #            2.7182818284590451**( (self.old_f *1.0 - self.f) / temperature)
+                #    print "\n"
+                #except: pass
+                self.accept(True)
+            else:
+                self.bins.bin_sizes = self.old_bins
+                self.f = self.old_f
+                self.accept(False)
+        #break
+        #now we exchange hot and cool ones
+        for i,w in enumerate(runs):
+            if i == len(runs)-1: continue
+            #print runs[i].min, runs[i+1].min
+            #print runs[i].f, runs[i+1].f
+            try:
+                if (runs[i].f *1.0 - runs[i+1].f) / gtemperature > 100 or \
+                 random.random() < e**( (runs[i].f *1.0 - runs[i+1].f) / gtemperature):
+                    print "exchange %s" % i
+                    tmp = runs[i].f 
+                    runs[i].f = runs[i+1].f
+                    runs[i+1].f = tmp
+                    #
+                    tmp = runs[i].bins[:] 
+                    runs[i].bins.bin_sizes = runs[i+1].bins[:]
+                    runs[i+1].bins.bin_sizes = tmp
+            except OverflowError: pass
+        if j % 10 ==0:
+            print "=" * 100
+            print j
+            print global_min
+            for r in runs:
+                print r.f, r.accept_ratio(), r.max_change_amount
+                if r.accept_ratio() < 0.03: r.max_change_amount *= 0.8
+                if r.accept_ratio() > 0.3: r.max_change_amount /= 0.8
 
