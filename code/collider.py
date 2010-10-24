@@ -39,6 +39,7 @@ class SRM_parameters(object):
         #query1 will get all interesting transitions
         #query2 will get all colliding transitions
         self.query_add = "and isotope_nr = 0 "
+        self.query1_add = "and isotope_nr = 0"
         self.query2_add = ""
         self.ppm_string = "Th"
         if self.do_1vs :
@@ -193,6 +194,9 @@ class SRMcollider(object):
         self.total_count = 0
         self.colliding_peptides = {}
         self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
+        self.UIS_singleprob = [ {} for i in range(MAX_UIS+1)]
+        self.count_analysed = 0
+        common_filename = par.get_common_filename()
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         for i, pep in enumerate(self.pepids):
@@ -266,6 +270,7 @@ class SRMcollider(object):
                 for v in non_unique_ppm.values(): self.q3min_distr_ppm.append( v )
             self.non_unique_count += len( non_unique )
             self.total_count += len( transitions)
+            self.count_analysed += 1
             end = time.time()
             progressm.update(1)
         self.total_time = end - start
@@ -303,44 +308,49 @@ class SRMcollider(object):
 
     def _get_unique_pepids_toptransitions(self, par, cursor):
         query = """
-            select parent_id, %(peptable)s.q1 as q1, q1_charge, ssrcalc 
-            from %(db)s.%(peptable)s
-            inner join
-            ddb.peptide on peptide.id = %(peptable)s.peptide_key
-            inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
-            inner join hroest.yeast_dp_data_light  on
-            yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
-            where genome_occurence = 1
-            and q1_charge = prec_z  
-            %(qadd)s
-            group by parent_id, q1_charge
-            """ % { 'db' : par.peptide_db, 'peptable' : par.peptide_tbl, 'qadd' : par.query_add  }
+        select parent_id, q1, q1_charge, ssrcalc, peptide.id
+         from %s
+         inner join
+         ddb.peptide on peptide.id = %s.peptide_key
+         inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
+         inner join hroest.MRMPepLink t on t.peptide_key = peptide.id
+         where genome_occurence = 1
+         %s
+         group by parent_id
+        """ % (par.peptide_table, par.peptide_table, par.query_add )
         #print query
         cursor.execute( query )
-        return cursor.fetchall()
+        res = cursor.fetchall()
+        return [
+            {
+                'parent_id' :  r[0],
+                'q1' :         r[1],
+                'q1_charge' :  r[2],
+                'ssrcalc' :    r[3],
+                'peptide_key' :r[4]
+            }
+            for r in res
+        ]
 
     def _get_all_transitions_toptransitions(self, par, pep, cursor):
         q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
         q3_low = par.get_q3_low()
+        values = 'q3, m.id'
         query1 = """
-        select distinct %(transtable)s.q3, srm_id, rank
-        from %(pep)s
-        inner join %(trans)s
-          on %(pep)s.transition_group = %(trans)s.group_id
-          inner join hroest.yeast_dp_data_light  on
-          yeast_dp_data_light.modified_sequence = %(peptable)s.modified_sequence
-        where parent_id = %(parent_id)s
-        and %(transtable)s.q3 > %(q3_low)s and %(transtable)s.q3 < %(q3_high)s         
-        and rank <= 5
-        and prec_z = q1_charge
-        and frg_type = type
-        and frg_z = q3_charge
-        and frg_nr = fragment_number
+        select %(values)s
+        from %(pep)s p 
+        inner join hroest.MRMPepLink l on p.peptide_key = l.peptide_key
+        inner join hroest.MRMAtlas_yeast_qqq_201002_q2 m on m.id = l.mrm_key
+        where m.parent_charge = p.q1_charge
+        and p.peptide_key = %(peptide_key)s
+        and q3 > %(q3_low)s and q3 < %(q3_high)s         
+        and l.charge = %(q1_charge)s
         %(query_add)s
-        """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
+        """ % { 'peptide_key' : pep['peptide_key'], 'q3_low' : q3_low,
                'q3_high' : q3_high, 'query_add' : par.query1_add,
                'pep' : par.peptide_table, 'trans' : par.transition_table, 
-               'peptable' : par.peptide_tbl, 'transtable' : par.transition_tbl }
+               'values' : values, 'q1_charge' : pep['q1_charge'] }
+        #print query1
         cursor.execute( query1 )
         return cursor.fetchall()
 
@@ -483,8 +493,9 @@ class SRMcollider(object):
         #title = '(2+,1+) transitions, Background of 4 combinations [Range 300 to 1500 Da]' )
 
     def print_cumm_unique_all(self, par, cursor):
-        # This is to plot the absolute distribition (transitions per peptide) 
-        # not in percent
+        """ This is to plot the absolute distribition (transitions per peptide)
+        not in percent
+        """
         query = """
         select parent_id, count(*) as nr_transitions
         from %(peptable)s
