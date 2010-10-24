@@ -59,16 +59,90 @@ class Bins(object):
     #    self.distr[ bin +1 ] = self.distr[bin] + amount + old_size
 
 class Window_finder(object):
-    def __init__(self, values, windows, min, max):
+    def __init__(self, values, windows, min, max, overlap=0):
         self.bins = Bins(windows, min, max)
-        self.values = values
-    def run(self, iterations=1000,overlap=2,max_change_amount=100,eval_every=100,
+        self.ord_values = values
+        self.ord_values.sort()
+        self.overlap = overlap
+        self.set_acc_counter()
+
+    def _step(self, b, i=1, max_change_amount=100, verb=False):
+        #we select one out of 3 steps
+        if i % 3 == 0:
+            #select a random bin and change it a random amount, distribute
+            #the remainder equally over all other bins
+            mybin = int(random.random() * len(b) )
+            if verb: print "random change bin ", mybin
+            b.change_bin_size( mybin, min( -b[mybin], (random.random()-0.5) * max_change_amount) )
+        elif i % 3 == 1: 
+            #randomly give to neighbor bin
+            #we need this to flatten out hills and values
+            direction = random.random()
+            if direction < 0.5: direction = True
+            else: direction = False
+            bin = int( random.random() * len(b) )
+            #f = self.evaluate_f( b, ord_values, overlap)
+            #mean = sum( self.elements_perbin) / len( self.elements_perbin)
+            #diff = [e - mean for e in self.elements_perbin]
+            #print bif
+            #print diff
+            #print b.bin_sizes
+            if verb: print "give to neighbor of bin ", bin
+            b.change_bin_size_locally( bin, 
+                 min(-b[bin], random.random() * max_change_amount), go_left=direction)
+            #print b.bin_sizes
+            #f = self.evaluate_f( b, ord_values, overlap)
+            #mean = sum( self.elements_perbin) / len( self.elements_perbin)
+            #diff = [e - mean for e in self.elements_perbin]
+            #print diff
+        else: 
+            #find the border between valley and hill and try to exchange
+            f = self.evaluate_f( b, self.ord_values, self.overlap)
+            mean = sum( self.elements_perbin) / len( self.elements_perbin)
+            diff = [e - mean for e in self.elements_perbin]
+            #print "=" * 75
+            k = 0
+            for k in range(int(random.random() * len(b) ), len(b)-1):
+                #print k, diff[k] * diff[k+1] 
+                if diff[k] * diff[k+1] < 0: break
+            bin = k
+            amount = random.random() * max_change_amount
+            #print "change ", bin, amount
+            if diff[k] > 0: amount = -1.0 * amount
+            #print "change ", bin, amount
+            #print f
+            #print b.bin_sizes
+            #mean = sum( self.elements_perbin) / len( self.elements_perbin)
+            #print [e - mean for e in self.elements_perbin]
+            if verb: print "exchange with bin ", bin
+            b.change_bin_size_locally( bin, min( -b[bin], amount), go_left=True)
+            #f = self.evaluate_f( b, ord_values, overlap)
+            #print b.bin_sizes
+            #print f
+            #print [e - mean for e in self.elements_perbin]
+        assert len([bb for bb in b if b < 0]) == 0
+
+    def set_acc_counter(self):
+        self.acc_counter = [None for i in range(100)]
+        self.acc_i = 0
+
+    def accept_ratio(self):
+        return len([i for i in self.acc_counter if i is True]) *1.0 / \
+            ( len([i for i in self.acc_counter if i is False]) + 
+            len([i for i in self.acc_counter if i is True])  )
+
+        #len([i for i in self.acc_counter if i is False])  
+
+    def accept(self, acc):
+        self.acc_counter[self.acc_i] = acc
+        self.acc_i += 1
+        self.acc_i = self.acc_i % 100
+
+    def run(self, iterations=1000, max_change_amount=100, eval_every=100,
             temperature=1):
         e = 2.7182818284590451
-        ord_values = self.values
-        ord_values.sort()
         b = self.bins
-        f = self.evaluate_f( b, ord_values, overlap)
+        f = self.evaluate_f( b, self.ord_values, self.overlap)
         self.f =f
         #factor_t = 1.0 - temperature
         if not self.__dict__.has_key('min'):
@@ -77,73 +151,30 @@ class Window_finder(object):
         for i in range(iterations):
             old = b[:]
             old_f = f
-            if i % 3 == 0:
-                #select a random bin and change it a random amount, distribute
-                #the remainder equally over all other bins
-                b.change_bin_size( int(random.random() * len(b) ), (random.random()-0.5) * max_change_amount)
-            elif i % 3 == 1: 
-                #randomly give to neighbor bin
-                #we need this to flatten out hills and values
-                direction = random.random()
-                if direction < 0.5: direction = True
-                else: direction = False
-                bin = int( random.random() * len(b)   )
-                #f = self.evaluate_f( b, ord_values, overlap)
-                #mean = sum( self.elements_perbin) / len( self.elements_perbin)
-                #diff = [e - mean for e in self.elements_perbin]
-                #print bin
-                #print diff
-                #print b.bin_sizes
-                b.change_bin_size_locally( bin, 
-                     random.random() * max_change_amount, go_left=direction)
-                #print b.bin_sizes
-                #f = self.evaluate_f( b, ord_values, overlap)
-                #mean = sum( self.elements_perbin) / len( self.elements_perbin)
-                #diff = [e - mean for e in self.elements_perbin]
-                #print diff
-            else: 
-                #find the border between valley and hill and try to exchange
-                f = self.evaluate_f( b, ord_values, overlap)
-                mean = sum( self.elements_perbin) / len( self.elements_perbin)
-                diff = [e - mean for e in self.elements_perbin]
-                #print "=" * 75
-                k = 0
-                for k in range(int(random.random() * len(b) ), len(b)-1):
-                    #print k, diff[k] * diff[k+1] 
-                    if diff[k] * diff[k+1] < 0: break
-                bin = k
-                amount = random.random() * max_change_amount
-                #print "change ", bin, amount
-                if diff[k] > 0: amount = -1.0 * amount
-                #print "change ", bin, amount
-                #print f
-                #print b.bin_sizes
-                #mean = sum( self.elements_perbin) / len( self.elements_perbin)
-                #print [e - mean for e in self.elements_perbin]
-                b.change_bin_size_locally( bin, amount, go_left=True)
-                #f = self.evaluate_f( b, ord_values, overlap)
-                #print b.bin_sizes
-                #print f
-                #print [e - mean for e in self.elements_perbin]
-            f = self.evaluate_f( b, ord_values, overlap)
+            self._step(b, i, max_change_amount )
+            f = self.evaluate_f( b, self.ord_values, self.overlap)
+            #mean = sum( self.elements_perbin) / len( self.elements_perbin)
+            #print "Iteration %s, function is %s, best is %s" % (i, f, self.min), \
+            #[e - mean for e in self.elements_perbin]
             self.f = f
             if f < self.min:
                 self.best = b[:]
                 self.min = f
             #print old_f, f
-            if f > old_f: 
-                #revert
-                #if random.random() <  old_f *1.0 / f - factor_t:
-                #if random.random() > 2.7182818284590451**(- old_f *0.3 / f):
-                if random.random() < e**( (old_f *1.0 - f) / temperature):
-                    #print "dont change ", f, old_f, 2.7182818284590451**( (old_f *1.0 - f) / temperature)
-                    pass
-                else:
-                    b.bin_sizes = old
-                    f = old_f
-                    self.f = f
+            #if random.random() <  old_f *1.0 / f - factor_t:
+            #if random.random() > 2.7182818284590451**(- old_f *0.3 / f):
+            if (old_f * 1.0 - f) / temperature > 10:
+                self.accept(True)
+            elif random.random() < e**( (old_f *1.0 - f) / temperature):
+                #print "dont change ", f, old_f, 2.7182818284590451**( (old_f *1.0 - f) / temperature)
+                self.accept(True)
+            else:
+                b.bin_sizes = old
+                f = old_f
+                self.f = f
+                self.accept(False)
             if i % eval_every == 0:
-                f = self.evaluate_f( b, ord_values, overlap)
+                f = self.evaluate_f( b, self.ord_values, self.overlap)
                 mean = sum( self.elements_perbin) / len( self.elements_perbin)
                 print "Iteration %s, function is %s, best is %s" % (i, f, self.min), \
                 [e - mean for e in self.elements_perbin]
