@@ -291,6 +291,64 @@ class SRMcollider(object):
             progressm.update(1)
         self.total_time = end - start
 
+    def find_clashes_toptrans_paola(self, db, par, use_per_transition=False, 
+                                    bgpar=None):
+        """
+        We find interferences the following way:
+            Single for the top transition
+            Pairs for the top 2 transitions
+            Triplets for the top3 transitions
+        We stop at par.max_uis
+        """
+        #make sure we only get unique peptides
+        cursor = db.cursor()
+        if bgpar == None: bgpar = par
+        self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
+        MAX_UIS = par.max_uis
+        common_filename = par.get_common_filename()
+        #self.peptide_specificity = []
+        self.min_transitions = []
+        start = time.time()
+        progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+        for i, pep in enumerate(self.pepids):
+            p_id = pep['parent_id']
+            transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
+            nr_transitions = len( transitions )
+            if nr_transitions == 0: continue #no transitions in this window
+            if use_per_transition: collisions = self._get_all_collisions_per_transition(
+                bgpar, pep, transitions, cursor)
+            else: collisions = self._get_all_collisions(bgpar, pep, cursor)
+            min_required = par.max_uis
+            #speci = [0 for i in range(par.max_uis+1)]
+            nr_used_tr = min(par.max_uis+1, nr_transitions)
+            mytransitions = transitions[:nr_used_tr]
+            collisions_per_peptide = {}
+            q3_window_used = par.q3_window
+            for t in mytransitions:
+                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+                for c in collisions:
+                    if abs( t[0] - c[0] ) <= q3_window_used:
+                        #gets all collisions
+                        if collisions_per_peptide.has_key(c[3]):
+                            if not t[1] in collisions_per_peptide[c[3]]:
+                                collisions_per_peptide[c[3]].append( t[1] )
+                        else: collisions_per_peptide[c[3]] = [ t[1] ] 
+
+            #take the top j transitions and see whether they, as a tuple, are
+            #shared
+            min_needed = par.max_uis
+            for j in range(par.max_uis,0,-1): 
+                mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
+                unuseable = False
+                for k,v in collisions_per_peptide.iteritems():
+                    if tuple(sorted(v)) == mytransitions: unuseable=True
+                    #if len(v) > 1: print 'v', v
+                if not unuseable: min_needed = j
+            self.min_transitions.append( [p_id, min_needed] )
+            end = time.time()
+            progressm.update(1)
+        self.total_time = end - start
+
     def find_clashes_toptrans_3strike(self, db, par, pepids=None, 
                      use_per_transition=False):
         """

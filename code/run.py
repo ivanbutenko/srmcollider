@@ -9,28 +9,91 @@ db = MySQLdb.connect(read_default_file="~/.my.cnf")
 cursor = db.cursor()
 import collider
 import hlib
-
+import copy
 #Run the collider
 ###########################################################################
 par = collider.SRM_parameters()
-par.q1_window = 0.7 / 2.0
-par.q3_window = 0.7 / 2.0
-par.ssrcalc_window = 8 / 2.0 #12 = 90%TPR, 8 = 80%TPR
+par.q1_window = 0.7 / 2.0 #UIS paper = 1.2
+par.q3_window = 0.7 / 2.0 #UIS paper = 2.0
+#12 = 90%TPR, 8 = 80%TPR 
+par.ssrcalc_window = 4 / 2.0 #for paola do 9999 and 4
+par.ssrcalc_window = 9999 / 2.0 #for paola do 9999 and 4
 par.ppm = False
 par.considerIsotopes = True
-#par.do_1vs = False
-par.transition_table = 'hroest.srmTransitions_yeast_1200'
-par.peptide_table = 'hroest.srmPeptides_yeast_1200'
+par.do_1vs = False
+par.transition_table = 'hroest.srmTransitions_yeast_top3'
+par.peptide_table = 'hroest.srmPeptides_yeast_top3'
+#contains only the actual mrm transitions (and not all b/y ions)
+par.transition_table = 'hroest.srmTransitions_yeast_mrmatlas'
+par.peptide_table = 'hroest.srmPeptides_yeast_mrmatlas'
+par.transition_table = 'hroest.srmTransitions_yeast_mrmatlasall'
+par.peptide_table = 'hroest.srmPeptides_yeast_mrmatlasall'
+par.transition_table = 'hroest.srmTransitions_yeast'
+par.peptide_table = 'hroest.srmPeptides_yeast'
+par.max_uis = 5 #turn off uis if set to 0
+par.q3_range = [400, 1400]
 par.eval()
 print par.experiment_type
 print par.get_common_filename()
+par.query1_add += ' order by Intensity DESC' #only for the toptrans workflow
 
+#paolas workflow
+#we need a different background for the peptide atlas
+#because there we have differnt peptids and cannot relate
+#those with the MRMlink table
 reload( collider )
 mycollider = collider.SRMcollider()
-pepids = mycollider._get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
-mycollider.find_clashes(db, par, toptrans=False, pepids=pepids)
-#mycollider.find_clashes_small(db, par)
-mycollider.store_in_file(par)
+mycollider.find_clashes_toptrans_paola(db, par) #, bgpar=parbg)
+
+#if you need to have a different background than fg
+#only for peptide atlas since those peptide keys map to experiment 3452 and not 
+#to 3131 as we would need to then find the transition in the MRM table
+parbg = copy.deepcopy(par)
+parbg.transition_table = 'hroest.srmTransitions_yeast_pepatlas'
+parbg.peptide_table = 'hroest.srmPeptides_yeast_pepatlas'
+
+#calculate for precursor, peptide and protein the min nr transitions necessary
+#to measure them without ambiguity
+if True:
+    print "Precursors\n"
+    for j in range(1,6):
+        print len([0 for m in mycollider.min_transitions if m[1] == j] ), '&'
+    #
+    #go to peptides
+    c=cursor
+    tmp = c.execute("select parent_id, peptide_key from " + par.peptide_table)
+    peptide_map = dict(c.fetchall())
+    peptide_min = {}
+    for m in mycollider.min_transitions:
+        parid = m[0]
+        pepid = peptide_map[ parid ]
+        if not peptide_min.has_key( pepid ): peptide_min[pepid] = [m[1]]
+        else: peptide_min[pepid].append( m[1] )
+    #
+    pepmin = [ [k, min(v) ] for k,v in peptide_min.iteritems()]
+    print "Peptides\n"
+    for j in range(1,6):
+        print len([0 for m in pepmin if m[1] == j] ), '&'
+    #go to proteins
+    c=cursor
+    tmp = c.execute( """ select peptide_key, protein_key from ddb.protPepLink l inner join
+              ddb.peptide p on l.peptide_key = p.id where experiment_key = 3131 """)
+    prot_map = dict(c.fetchall())
+    prot_min = {}
+    for m in pepmin:
+        pepid = m[0]
+        protid = prot_map[ pepid ]
+        if not prot_min.has_key( protid ): prot_min[protid] = [m[1]]
+        else: prot_min[protid].append( m[1] )
+    protmin = [ [k, min(v) ] for k,v in prot_min.iteritems()]
+    print "Proteins\n"
+    for j in range(1,6):
+        print len([0 for m in protmin if m[1] == j] ), '&'
+
+
+
+
+
 
 mycollider = collider.SRMcollider()
 directory = '/home/hroest/srm_clashes/results/pedro/'
