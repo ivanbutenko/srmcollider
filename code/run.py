@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
+#in vim: set fdm=marker
+# {{{ Main: Run the collider
 import MySQLdb
 import time
 import sys 
@@ -75,6 +77,7 @@ cursor.executemany(
     VALUES (%s,%s,%s) """, prepare
 )
 
+}}}
 #
 #this is how do the readout
 select id, name, short_description from experiment;
@@ -104,66 +107,40 @@ group by protein_key
 group by mt ; 
 
 
-
-
-
-
-
+#load from file
 mycollider = collider.SRMcollider()
 directory = '/home/hroest/srm_clashes/results/pedro/'
 mycollider.load_from_file( par, directory)
 
+#print results
 mycollider.print_unique_histogram(par)
 mycollider.print_cumm_unique(par)
 mycollider.print_q3min(par)
 mycollider.print_q3min_ppm(par)
 mycollider.print_stats()
+mycollider.print_cumm_unique_all(par, db.cursor() )
 
-
-
-##Run the testcase
-###########################################################################
-reload( collider )
-par  = collider.testcase()
-mycollider = collider.SRMcollider()
-mycollider.find_clashes_small(db, par) 
-print "I ran the testcase in %ss" % mycollider.total_time
-assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert mycollider.non_unique_count == 26
-assert mycollider.total_count == 12502
-assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
-simple_allpeps = mycollider.allpeps
-
-#verify that with toptrans=False we get the same results
-mycollider = collider.SRMcollider()
-mycollider.find_clashes(db, par, toptrans=False) 
-print "I ran the testcase in %ss" % mycollider.total_time
-assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert mycollider.non_unique_count == 26
-assert mycollider.total_count == 12502
-assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
-assert len( mycollider.q3min_distr ) == 26
-assert len( mycollider.q1min_distr ) == 26
-assert len( mycollider.found3good ) == 978 
-for key in mycollider.allpeps: 
-    assert mycollider.allpeps[ key ] - simple_allpeps[ key ] < 10**(-8)
-
-reload( collider )
-par  = collider.testcase()
-mycollider = collider.SRMcollider()
-mycollider.find_clashes_small(db, par,use_per_transition=True ) 
-print "I ran the testcase in %ss" % mycollider.total_time
-assert sum( mycollider.allpeps.values() ) - 975.6326447245566 < 10**(-3)
-assert mycollider.non_unique_count == 26
-assert mycollider.total_count == 12502
-assert mycollider.allpeps[1585] - 0.93333 < 10**(-3)
-for key in mycollider.allpeps: 
-    assert mycollider.allpeps[ key ] - simple_allpeps[ key ] < 10**(-8)
-
-
-###########################################################################
 #
-# Storage of results
+#
+#
+reload( collider )
+mycollider = collider.SRMcollider()
+#pepids = mycollider._get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
+pepids = mycollider._get_unique_pepids_toptransitions(par, cursor)
+
+mycollider.find_clashes(db, par, pepids=pepids, toptrans=True, use_per_transition=False )
+mycollider.find_clashes_small(db, par, pepids=pepids, UIS_only=False)
+mycollider.find_clashes_toptrans_3strike(db, par, pepids=pepids, 
+                                         use_per_transition=False )
+#mycollider.store_in_file(par)
+
+
+
+
+
+##Run the testcase => see test_run.py
+###########################################################################
+# Storage of results {{{
 self = par
 
 common_filename = par.get_common_filename()
@@ -180,8 +157,9 @@ cursor.execute("create table %s (coll_srm1 int, coll_srm2 int) " % restable)
 cursor.executemany( "insert into %s values " % restable + "(%s,%s)", 
               mycollider.allcollisions )
 
+}}}
 ###########################################################################
-# find 2 colliding peptides in the 1200 peptides by Pedro
+# find 2 colliding peptides in the 1200 peptides by Pedro {{{
 
 query = """
 select parent_id, q1, q1_charge, ssrcalc
@@ -208,6 +186,29 @@ interest = [pep for pep in interest if pep not in interest2]
 interest_pep = [pep for pep in pepids if pep['parent_id'] in interest]
 
 
+cursor.execute( """select peptide.id, Tr_original from ddb.peptide inner
+               join hroest.yeast_dp_data_original on peptide.sequence =
+               stripped_sequence where experiment_key = 3352
+               group by sequence"""
+)
+
+cursor.execute( """select peptide.id, RT from ddb.peptide inner
+               join hroest.ludovic_compiled2_mascot20101001 on peptide.sequence =
+               pep_seq
+               where experiment_key = 3352
+               group by sequence"""
+)
+real_rts = cursor.fetchall()
+real_rts = dict(real_rts )
+interest = pepids
+cursor.execute( """select sequence, RT from ddb.peptide inner
+               join hroest.ludovic_compiled2_mascot20101001 on peptide.sequence =
+               pep_seq
+               where experiment_key = 3352
+               group by sequence"""
+)
+realrt_seq = cursor.fetchall()
+realrt_seq = dict(realrt_seq )
 
 
 
@@ -217,9 +218,26 @@ self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
 
 pep = interest_pep[0]
 
+manually_peps = """
+DGPWDVMLK
+DVYLLDLR
+FDELIPSLK
+FNYAWGLIK
+FSEGLLSVIK
+IQTYGETTAVDALQK
+LGEELTAIAK
+LLDTLGFQK
+LLENGITFPK
+NRPTLQVGDLVYAR
+""".split()
 
+
+out_csv = ""
+par.ssrcalc_window = 100000
+REALDIFF =  0.5
 metatext = ''
-for pep in interest_pep:
+count = 0
+for pep in interest:
     transitions = self._get_all_transitions(par, pep, cursor)
     nr_transitions = len( transitions )
     collisions = self._get_all_collisions(par, pep, cursor)
@@ -233,41 +251,97 @@ for pep in interest_pep:
                     if not t[1] in collisions_per_peptide[c[3]]:
                         collisions_per_peptide[c[3]].append( t[1] )
                 else: collisions_per_peptide[c[3]] = [ t[1] ] 
-    mylist = flatten_list( collisions_per_peptide.values() )
+    pairs = []
+    for key in collisions_per_peptide.keys():
+        for key2 in collisions_per_peptide.keys():
+            try:
+                realdiff = real_rts[ key ] - real_rts[ key2 ]
+                if abs( realdiff ) < REALDIFF and key < key2:
+                    print realdiff; count += 1
+                    pairs.append( [key, key2])
+            except:pass #we may not have rts for all of them
+    print "="*75
+    if len( pairs ) == 0: continue
+    flatpairs = flatten_list( pairs )
+    interest_list  =  dict( [ [p,collisions_per_peptide[p]] for p in flatpairs] )
     non_uids = get_all_non_uis(self, pep, par, cursor, 2)
-    len( collisions_per_peptide), mylist , non_uids
     #collisions_per_peptide.values() 
     cursor.execute( "select sequence from ddb.peptide where id =%s" % pep['peptide_key'])
     seq = cursor.fetchall()[0][0]
-    text = """Peptide %s\nQ1: %s, SSRCalc %s\nTo Check:\n""" % (seq, pep['q1'], pep['ssrcalc'])
-    for collpep, coll in collisions_per_peptide.iteritems():
-        cursor.execute( "select q3 from hroest.srmTransitions_yeast_1200 where srm_id =%s" % coll[0] )
-        q3 = cursor.fetchall()[0][0]
+    if seq not in manually_peps: continue
+    real_rt = -1
+    try:
+        real_rt = real_rts[ pep['peptide_key']]
+    except: pass
+    text = """Peptide %s\nQ1: %s\tSSRCalc %s\tReal %s\nTo Check:\n""" % (seq,
+        pep['q1'], pep['ssrcalc'], real_rt)
+    colliding_seqs = [seq]
+    coll_energy = calculate_coll_energy( 2, pep['q1'])
+    for collpep, coll in interest_list.iteritems():
         cursor.execute( "select sequence from ddb.peptide where id =%s" % collpep )
         sequence = cursor.fetchall()[0][0]
-        text += "%s %s \t\t %s\n" % (pep['q1'], q3, sequence)
+        colliding_seqs.append( sequence )
+        for cc in coll:
+            cursor.execute( "select q3 from hroest.srmTransitions_yeast_1200 where srm_id =%s" % cc )
+            q3 = cursor.fetchall()[0][0]
+            text += "%s\t%s\t %s\t%s\n" % (pep['q1'], q3, sequence, realrt_seq[sequence] )
+            out_csv += "%s,%s,%s,coll_%s\n" % (pep['q1'], q3, coll_energy, seq + "_" + sequence )
     text += "We cannot use these combinations at the same time (not UIS):\n" 
     for pair in non_uids:
         for coll in pair:
             cursor.execute( "select q3 from hroest.srmTransitions_yeast_1200 where srm_id =%s" % coll )
-            text += "%s %s \t===\t" % (pep['q1'], cursor.fetchall()[0][0])
+            text += "%s\t%s\t\t" % (pep['q1'], cursor.fetchall()[0][0])
         text += "\n"
-    print text
+    for s in colliding_seqs:
+        #cursor.execute( """select Q1,Q3, stripped_sequence, isotype,
+        #               relative_intensity, rank from
+        #               hroest.yeast_dp_data_original where stripped_sequence =
+        #               '%s' and isotype='light' order by prec_z, rank;
+        #              """ % s)
+        cursor.execute( """select Q1,Q3, naked, prec_z,
+                       intensities from
+                       hroest.ludovic_compiled2_daveDirtyPeP20101001 where naked =
+                       '%s' order by prec_z, intensities;
+                      """ % s)
+        text += "Best transitions for %s\n" % s
+        for tr in cursor.fetchall():
+            text += "%s\t"*4 % (tr[0], tr[1], tr[2], tr[4])
+            text += "\n"
+            if abs(pep['q1'] - tr[0]) > 10: continue
+            coll_energy = calculate_coll_energy( tr[3], tr[0])
+            out_csv += "%s,%s,%s,%s\n" % (tr[0], tr[1], coll_energy, tr[2])
+    #print text
     metatext += text + '\n' * 3
 
 
 
-open('less70pct_unique.txt', 'w').write( metatext)
+
+open('real_close.txt', 'w').write( metatext)
 open('more3coll.txt', 'w').write( metatext)
+open('less70pct_unique.txt', 'w').write( metatext)
+
+
+open('20101004_hannes_srmcollider.csv', 'w').write( out_csv )
+open('20101004_hannes_srmcollider_2.csv', 'w').write( out_csv )
+
+
 
 collider.permutations
 
+
+def calculate_coll_energy(charge, mz):
+    #Fuer 2+
+    # CE (2+)= 0.034*(m/z) +3.314
+    #Fuer 3+
+    # CE (3+)= 0.044*(m/z) +3.314
+    if charge ==2: 
+        return 0.034*(mz) +3.314
+    elif charge ==3: 
+        return 0.044*(mz) +3.314
+    else: assert False
+
 def flatten_list(l):
     return [item for sublist in l for item in sublist]
-
-get_all_non_uis(self, pep, par, cursor, 2)
-
-
 
 
 
@@ -290,10 +364,18 @@ def get_all_non_uis(self, pep, par, cursor, order, ssrcalc_window = 100000):
                     if not t[1] in collisions_per_peptide[c[3]]:
                         collisions_per_peptide[c[3]].append( t[1] )
                 else: collisions_per_peptide[c[3]] = [ t[1] ] 
-    #here we calculate the UIS for this peptide with the given RT-range
-    reslist = set()
-    for pepc in collisions_per_peptide.values():
-        collider.get_non_uis(pepc, reslist, order)
+
+
+
+
+
+
+
+#here we calculate the UIS for this peptide with the given RT-range
+reslist = set()
+for pepc in collisions_per_peptide.values():
+    collider.get_non_uis(pepc, reslist, order)
+
     par.ssrcalc_window = old_win 
     return reslist
 
@@ -347,9 +429,9 @@ for i in interesting:
 latex.create_document( mystr )
 
 
-
+}}}
 ###########################################################################
-## cumulative distr. of how much each ppm resolution contributes
+## cumulative distr. of how much each ppm resolution contributes {{{
 
 
 mycollider = collider.SRMcollider()
@@ -370,10 +452,9 @@ gnu.draw(plt_cmd, keep_data=True)
 
 
 len( [q3 for q3 in self.q3min_distr_ppm if abs(q3) < 5 ] ) * 1.0 / len( self.q3min_distr_ppm )
-
-
+}}}
 ###########################################################################
-# number of shared collisions between two peptides
+# number of shared collisions between two peptides {{{
 more_one_coll = [ {} for i in range(10)]
 for p, c in mycollider.count_pair_collisions.iteritems():
     try:
@@ -403,132 +484,6 @@ for myc in range(10):
     prct_latex = prepare_float( mylen * 100.0 / total, 2, 3)
     print get_latex_row( [myc, mylen_latex, prct_latex ] )
 
+}}}
 
 
-
-
-###########################################################################
-## plot all Q1, Q3 clashes, not just closest
-
-mycollider.print_q1all(par)
-mycollider.print_q3all_ppm(par)
-
-###########################################################################
-### some code to calculate where we were without RT information 
-##NO rt information
-#
-
-query = """
-select q1, q3 
-from %(peptable)s
-inner join %(tratable)s on parent_id = parent_key
-where 
-q1 between 400 and 1200 
-and q3 between 400 and 1200 
-""" % {'peptable' : par.peptide_table ,
-       'tratable' : par.transition_table }
-cursor.execute( query)
-
-lines = cursor.fetchall()
-mybins = [ [0 for i in range(0, 1200) ] for i in range(0, 1200 / 0.7+ 1 ) ]
-for l in lines:
-    q1 = int( numpy.floor( l[0]/ 0.7 ))
-    q3 = int( numpy.floor( l[1] ))
-    mybins[q1][q3] += 1
-
-
-total = 0
-nr_bins = 0
-mymax = 0
-single_spots = 0
-mybest = (0,0)
-for out in range(400, 1200/0.7+1):
-    for inn in range(400, 1200):
-        total += mybins[out][inn]
-        if mybins[out][inn] > mymax:
-            mymax = mybins[out][inn]
-            mybest = (out, inn)
-        nr_bins += 1
-        if mybins[out][inn] == 1: single_spots += 1
-
-avg = 1.0* total / nr_bins
-unique_pct = single_spots * 1.0 / total
-
-
-###########################################################################
-## STOP
-###########################################################################
-
-#get a peptide length distribution
-if True:
-    cursor = db.cursor()
-    query = """
-    select parent_id, LENGTH( sequence )
-     from %s
-     inner join ddb.peptide on peptide.id = peptide_key
-     %s
-    """ % (peptide_table, query_add )
-    cursor.execute( query )
-    pepids = cursor.fetchall()
-    len_distr  = [ [] for i in range(255) ]
-    for zz in pepids:
-        p_id, peplen = zz
-        len_distr[ peplen ].append( allpeps[ p_id ]  )
-    avg_unique_per_length = [ 0 for i in range(255) ]
-    for i, l in enumerate(len_distr):
-        if len(l) > 0:
-            avg_unique_per_length[i] =    sum(l) / len(l) 
-    h = avg_unique_per_length[6:26]
-    h = [ hh *100.0 for hh in h]
-    n = range(6,26)
-    reload( gnuplot )
-    filename = 'yeast_%s_%s_%d%d%d_range%sto%s_lendist' % (do_1vs, do_vs1, 
-        ssrcalc_window*20,  q1_window*20, q3_window*20, q3_range[0], q3_range[1])
-    gnu  = gnuplot.Gnuplot.draw_boxes_from_data( [h,n], filename + '.eps',
-      'Peptide length', 'Average number of unique transitions per peptide / %', keep_data = True )
-    gnu.add_to_body( "set xrange[%s:%s]"  % (4, 26) )
-    gnu.add_to_body( "set yrange[0:100]" )
-    gnu.draw_boxes()
-
-
-
-reload(gnuplot)
-c2.execute( "select floor(q1), count(*) from %s group by floor(q1)" % peptide_table)
-bins = c2.fetchall()
-filename = 'yeast_mzdist'
-n = [nn[0] for nn in bins]
-h = [hh[1] for hh in bins]
-gnu  = gnuplot.Gnuplot.draw_points_from_data( [h,n], filename + '.eps',
-  'Th', 'Occurence', keep_data = True)
-gnu.add_to_body( "set xrange[400:]"   )
-gnu.draw_points()
-
-
-reload(gnuplot)
-c2.execute( "select floor(ssrcalc), count(*) from %s group by floor(ssrcalc)" % peptide_table)
-bins = c2.fetchall()
-filename = 'yeast_rtdist'
-n = [nn[0] for nn in bins]
-h = [hh[1] for hh in bins]
-gnu  = gnuplot.Gnuplot.draw_points_from_data( [h,n], filename + '.eps',
-  'Retention time', 'Occurence', keep_data = True)
-gnu.add_to_body( "set xrange[0:100]"   )
-gnu.draw_points(2, True)
-
-
-
-#print distribution in RT dimension
-f = open( 'rtdist.csv', 'w' )
-w = csv.writer(f,  delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL) 
-for i in range(50):
-    w.writerow( [i - 50, rt_bin_len[ i - 50] ] )
-
-
-
-#print distribution in Q1 dimension
-f = open( 'mzdist.csv', 'w' )
-w = csv.writer(f,  delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL) 
-for l in bins:
-    w.writerow( [l[0], l[1] ] )
-
-f.close()
