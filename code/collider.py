@@ -136,10 +136,12 @@ def get_cum_dist(original):
 
 class SRMcollider(object):
 
-    def find_clashes_small(self, db, par, use_per_transition=False):
+    def find_clashes_small(self, db, par, use_per_transition=False, UIS_only=False):
         #make sure we only get unique peptides
         cursor = db.cursor()
         self.pepids = self._get_unique_pepids(par, cursor)
+        MAX_UIS = par.max_uis
+        common_filename = par.get_common_filename()
         self.allpeps = {}
         self.non_unique_count = 0
         self.total_count = 0
@@ -157,6 +159,19 @@ class SRMcollider(object):
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
             else: collisions = self._get_all_collisions(par, pep, cursor)
+            #
+            if UIS_only:
+                non_uis_list = get_non_UIS_from_transitions(transitions, 
+                                            collisions, par, MAX_UIS)
+                for i in range(1,min(MAX_UIS+1, nr_transitions+1)): 
+                    restable = 'hroest.srm_results_UIS_%s_' % i + common_filename  
+                    cursor.execute( "insert into %s (non_useable_UIS, total_UIS, \
+                                   parent_key) values " % restable +\
+                                   "(%s,%s,%s)" % (len(non_uis_list[i]) , 
+                                       choose(nr_transitions, i), p_id ) )
+                end = time.time()
+                progressm.update(1)
+                continue
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
             q3_window_used = par.q3_window
@@ -252,6 +267,7 @@ class SRMcollider(object):
                     get_non_uis(pepc, non_uis_list[i], i)
             #for i in range(1,MAX_UIS+1): print len(non_uis_list[i]), choose(nr_transitions, i)
             for i in range(1,min(MAX_UIS+1, nr_transitions+1)): 
+                #also in the UIS paper they compute the average of the probabilities
                 self.UIS_redprob[i] += len(non_uis_list[i]) / choose(nr_transitions, i)
             #we could actually calculate the UIS combinations 
             #from the non-UIS combinations
@@ -273,6 +289,87 @@ class SRMcollider(object):
             self.count_analysed += 1
             end = time.time()
             progressm.update(1)
+        self.total_time = end - start
+
+    def find_clashes_toptrans_3strike(self, db, par, pepids=None, 
+                     use_per_transition=False):
+        """
+        The idea is to find UIS combinations that are globally UIS, locally
+        clean and also there are no cases in which all the UIS coelute when
+        they are in different peptides:
+            * global UIS = whole RT
+            * locally clean = no intereferences around the peptide
+            * no coelution: find all peptides globally that share transitions
+        This is a 3 strikes rule to find good UIS combinations.
+        """
+        #make sure we only get unique peptides
+        VERY_LARGE_SSR_WINDOW = 9999999
+        cursor = db.cursor()
+        if pepids is not None: self.pepids = pepids
+        elif not toptrans: self.pepids = self._get_unique_pepids(par, cursor)
+        else: self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
+        self.count_analysed = 0
+        common_filename = par.get_common_filename()
+        start = time.time()
+        progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+        myssrcalc = par.ssrcalc_window
+        f = open('paola_uis.csv', 'w')
+        for i, pep in enumerate(self.pepids):
+            transitions_extend = self._get_all_transitions_toptransitions(par, pep,
+                cursor, values = 'q3, m.id, m.sequence, m.Ion_description')
+            transitions = [ (t[0], t[1]) for t in transitions_extend]
+            nr_transitions = len( transitions )
+            transitions_dic = [ [t[1], t[0]] for t in transitions]
+            transitions_dic = dict(transitions_dic)
+            if nr_transitions == 0: continue #no transitions in this window
+
+            ###############################################################
+            #strike 1: it has to be global UIS
+            par.ssrcalc_window = VERY_LARGE_SSR_WINDOW
+            collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
+            pairs_1strike = get_UIS_from_transitions(transitions, collisions, par, 2)[2]
+            par.ssrcalc_window = myssrcalc
+
+            ###############################################################
+            #strike 2: it has to be locally clean
+            collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
+            local_interferences = get_non_UIS_from_transitions(transitions, collisions, par, 1)
+            pairs_2strike = []
+            for pair in pairs_1strike:
+                contaminated = False
+                for dirty_t in local_interferences[1]:
+                    if dirty_t[0] in pair:  contaminated = True
+                if not contaminated: pairs_2strike.append(pair)
+
+            ###############################################################
+            #strike 3: the two transitions shall not coelute elsewhere
+            pairs_3strike = []
+            for pair in pairs_2strike: 
+                mass1 = transitions_dic[pair[0]]
+                mass2 = transitions_dic[pair[1]]
+                par.ssrcalc_window = VERY_LARGE_SSR_WINDOW
+                globalc1 = self._get_collisions_per_transition(self, par, 
+                               pep, mass1, cursor, values='ssrcalc')
+                globalc2 = self._get_collisions_per_transition(self, par,
+                               pep, mass2, cursor, values='ssrcalc')
+                par.ssrcalc_window = myssrcalc
+                contaminated = False
+                for c1 in globalc1:
+                    for c2 in globalc2:
+                        if abs(c1[0]-c2[0]) < par.ssrcalc_window: contaminated = True
+                if not contaminated: pairs_3strike.append(pair)
+
+            ###############################################################
+            #output
+            for pair in pairs_3strike:
+                p1 = [t for t in transitions_extend if pair[0] == t[1] ]
+                p2 = [t for t in transitions_extend if pair[1] == t[1] ]
+                print "%s,%s,%s,%s,%s" % (p1[2], p1[0], p1[3], p2[0], p2[3])
+
+            self.count_analysed += 1
+            end = time.time()
+            progressm.update(1)
+        f.close()
         self.total_time = end - start
 
     def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
@@ -332,10 +429,9 @@ class SRMcollider(object):
             for r in res
         ]
 
-    def _get_all_transitions_toptransitions(self, par, pep, cursor):
+    def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
         q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
         q3_low = par.get_q3_low()
-        values = 'q3, m.id'
         query1 = """
         select %(values)s
         from %(pep)s p 
@@ -403,12 +499,13 @@ class SRMcollider(object):
             cursor.execute( query2 )
             return cursor.fetchall()
 
-    def _get_collisions_per_transition(self, par, pep, q3, cursor):
+    def _get_collisions_per_transition(self, par, pep, q3, cursor, 
+               values='q3, q1, srm_id, peptide_key'):
         q3_low, q3_high = par.get_q3_window(q3)
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
         query2 = """
-        select q3, q1, srm_id, %(pep)s.peptide_key
+        select %(values)s
         from %(pep)s
         inner join %(trans)s
           on %(pep)s.transition_group = %(trans)s.group_id
@@ -422,7 +519,8 @@ class SRMcollider(object):
                 'peptide_key' : pep['peptide_key'],
                'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-               'pep' : par.peptide_table, 'trans' : par.transition_table }
+               'pep' : par.peptide_table, 'trans' : par.transition_table, 
+               'values': values}
         cursor.execute( query2 )
         return cursor.fetchall()
 
@@ -790,6 +888,40 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
             trans.init(t[0], t[5], t[7], t[6])
         trpep.transitions.append( trans )
     return trpep
+
+def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
+    """ Get all combinations that are not UIS """
+    #collisions
+    #q3, q1, srm_id, peptide_key
+    #transitions
+    #q3, srm_id
+    collisions_per_peptide = {}
+    non_uis_list = [set() for i in range(MAX_UIS+1)]
+    q3_window_used = par.q3_window
+    for t in transitions:
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        this_min = q3_window_used
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    #here we calculate the UIS for this peptide with the given RT-range
+    for pepc in collisions_per_peptide.values():
+        for i in range(1,MAX_UIS+1):
+            get_non_uis(pepc, non_uis_list[i], i)
+    return non_uis_list
+
+def get_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
+    """ Get all combinations that are UIS """
+    uis_list = [ [] for i in range(MAX_UIS+1)]
+    non_uis_list = get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS)
+    srm_ids = [t[1] for t in transitions]
+    for i in range(1,MAX_UIS+1):
+        uis_list[i] = get_uis(srm_ids, non_uis_list[i], i)
+    return uis_list
 
 ""
 ###########################################################################
