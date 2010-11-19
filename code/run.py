@@ -54,41 +54,55 @@ parbg.peptide_table = 'hroest.srmPeptides_yeast_pepatlas'
 
 #calculate for precursor, peptide and protein the min nr transitions necessary
 #to measure them without ambiguity
-if True:
-    print "Precursors\n"
-    for j in range(1,6):
-        print len([0 for m in mycollider.min_transitions if m[1] == j] ), '&'
-    #
-    #go to peptides
-    c=cursor
-    tmp = c.execute("select parent_id, peptide_key from " + par.peptide_table)
-    peptide_map = dict(c.fetchall())
-    peptide_min = {}
-    for m in mycollider.min_transitions:
-        parid = m[0]
-        pepid = peptide_map[ parid ]
-        if not peptide_min.has_key( pepid ): peptide_min[pepid] = [m[1]]
-        else: peptide_min[pepid].append( m[1] )
-    #
-    pepmin = [ [k, min(v) ] for k,v in peptide_min.iteritems()]
-    print "Peptides\n"
-    for j in range(1,6):
-        print len([0 for m in pepmin if m[1] == j] ), '&'
-    #go to proteins
-    c=cursor
-    tmp = c.execute( """ select peptide_key, protein_key from ddb.protPepLink l inner join
-              ddb.peptide p on l.peptide_key = p.id where experiment_key = 3131 """)
-    prot_map = dict(c.fetchall())
-    prot_min = {}
-    for m in pepmin:
-        pepid = m[0]
-        protid = prot_map[ pepid ]
-        if not prot_min.has_key( protid ): prot_min[protid] = [m[1]]
-        else: prot_min[protid].append( m[1] )
-    protmin = [ [k, min(v) ] for k,v in prot_min.iteritems()]
-    print "Proteins\n"
-    for j in range(1,6):
-        print len([0 for m in protmin if m[1] == j] ), '&'
+#create a new hroest.experiment
+common_filename = par.get_common_filename()
+query = """
+insert into hroest.experiment  (name, short_description,
+description, comment1, comment2, super_experiment_key, ddb_experiment_key)
+VALUES (
+    'paola 0.7Da/0.7Da', '%s', '%s', '%s', '%s', 3, 0
+)
+""" %( common_filename + '_' + par.peptide_table.split('.')[1], 
+      par.experiment_type, par.peptide_table, par.transition_table)
+cursor.execute(query)
+myid = db.insert_id()
+prepare = [ [p[0], p[1], myid]  for p in mycollider.min_transitions]
+
+#save our result ("the min nr transitions per precursor") linked with 
+#our new experiment key
+cursor.executemany(
+""" insert into hroest.result_srmpaola (parent_key, min_transitions, exp_key) 
+    VALUES (%s,%s,%s) """, prepare
+)
+
+#
+#this is how do the readout
+select id, name, short_description from experiment;
+select @exp_key := 18;
+select min_transitions, count(*) from hroest.result_srmpaola r 
+inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+where exp_key = @exp_key 
+group by min_transitions ; 
+
+select mt, count(*) from
+(
+select min(min_transitions) as mt, peptide_key from hroest.result_srmpaola r 
+inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+where exp_key = @exp_key 
+group by peptide_key
+) tmp
+group by mt ; 
+
+select mt, count(*) from
+(
+select min(min_transitions) as mt, protein_key from hroest.result_srmpaola r 
+inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+inner join ddb.protPepLink l on l.peptide_key = srm.peptide_key
+where exp_key = @exp_key 
+group by protein_key
+) tmp
+group by mt ; 
+
 
 
 
