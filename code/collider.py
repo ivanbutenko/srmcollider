@@ -20,6 +20,7 @@ import DDB
 ##method 1
 # 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
 class SRM_parameters(object):
+
     def __init__(self): 
         self.do_1vs = True #check only one charge state?
         self.do_vs1 = False #background only one charge state?
@@ -34,6 +35,7 @@ class SRM_parameters(object):
         self.q3_window = 10.0 / 2.0
         self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
+
     def eval(self):
         #query will get all parent ions to consider
         #query1 will get all interesting transitions
@@ -68,6 +70,7 @@ class SRM_parameters(object):
                 raise( 'relative q3_high not implemented for this combination')
             q3_high = q1 * q1_charge + q3_high
         return q3_high
+
     def get_q3_low(self):
         return self.q3_range[0]
 
@@ -189,17 +192,18 @@ class SRMcollider(object):
         self.total_time = end - start
 
     def find_clashes(self, db, par, toptrans=False, pepids=None, 
-                     use_per_transition=False):
+                     use_per_transition=False, exp_key = None):
         #make sure we only get unique peptides
         MAX_UIS = par.max_uis
         cursor = db.cursor()
         if pepids is not None: self.pepids = pepids
         elif not toptrans: self.pepids = self._get_unique_pepids(par, cursor)
         else: self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
+
         self.allpeps = {}
         self.allcollisions = []
         self.q3min_distr = []
-        self.q3all_distr_ppm = []
+        self.q3all_distr = []
         self.q1all_distr = []
         self.q1min_distr = []
         self.q3min_distr_ppm = []
@@ -214,7 +218,9 @@ class SRMcollider(object):
         common_filename = par.get_common_filename()
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
-        for i, pep in enumerate(self.pepids):
+
+        for ii, pep in enumerate(self.pepids):
+            one_runstart = time.time()
             p_id = pep['parent_id']
             q1 = pep['q1']
             non_unique = {}
@@ -230,7 +236,10 @@ class SRMcollider(object):
             nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
-            else: collisions = self._get_all_collisions(par, pep, cursor)
+            else: 
+                #collisions = self._get_all_collisions(par, pep, cursor)
+                collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
+            #
             #collisions
             #q3, q1, srm_id, peptide_key
             #transitions
@@ -253,7 +262,7 @@ class SRMcollider(object):
                         try: self.count_pair_collisions[ coll_key ] += 1
                         except KeyError: self.count_pair_collisions[ coll_key ] = 1
                         self.q1all_distr.append( q1 - c[1])
-                        self.q3all_distr_ppm.append((t[0] - c[0] ) * 10**6 / t[0])
+                        self.q3all_distr.append(t[0] - c[0] ) 
                     if abs( t[0] - c[0] ) <= this_min:
                         #gets the nearest collision
                         this_min = abs( t[0] - c[0] )
@@ -289,6 +298,36 @@ class SRMcollider(object):
             self.count_analysed += 1
             end = time.time()
             progressm.update(1)
+            #print "This run took %ss" % (time.time() - one_runstart )
+            if ii > 0 and ii % 100 == 0 and exp_key is not None: break
+
+                prepare  = [ [exp_key, q, 1] for q in self.q1min_distr] 
+                cursor.executemany( """ insert into hroest.result_diffdistr 
+                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
+                prepare  = [ [exp_key, q, 2] for q in self.q3min_distr] 
+                cursor.executemany( """ insert into hroest.result_diffdistr 
+                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
+                prepare  = [ [exp_key, q, 3] for q in self.q1all_distr] 
+                cursor.executemany( """ insert into hroest.result_diffdistr 
+                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
+                prepare  = [ [exp_key, q, 4] for q in self.q3all_distr] 
+                cursor.executemany( """ insert into hroest.result_diffdistr 
+                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
+
+                self.allpeps = {}
+                self.allcollisions = []
+                self.q3min_distr = []
+                self.q3all_distr = []
+                self.q1all_distr = []
+                self.q1min_distr = []
+                self.q3min_distr_ppm = []
+                self.non_unique_count = 0
+                self.count_pair_collisions = {}
+                self.found3good = []
+                self.colliding_peptides = {}
+                self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
+                self.UIS_singleprob = [ {} for i in range(MAX_UIS+1)]
+
         self.total_time = end - start
 
     def find_clashes_toptrans_paola(self, db, par, use_per_transition=False, 
@@ -532,7 +571,8 @@ class SRMcollider(object):
             collisions.extend( self._get_collisions_per_transition(par, pep, q3, cursor) )
         return  collisions
 
-    def _get_all_collisions(self, par, pep, cursor, values="q3, q1, srm_id, peptide_key"):
+    def _get_all_collisions(self, par, pep, cursor, 
+                values="q3, q1, srm_id, peptide_key", transitions=None):
             q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
             q3_low = par.get_q3_low()
             #we compare the parent ion against 4 different parent ions
@@ -554,7 +594,16 @@ class SRMcollider(object):
                    'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                    'pep' : par.peptide_table, 'trans' : par.transition_table,
                    'values' : values}
-            cursor.execute( query2 )
+            if transitions is None: cursor.execute( query2 )
+            #Here we add N conditions to the SQL query where N = 2*len(transitions)
+            #we only select those transitions that also could possible interact
+            #We gain about a factor two to three [the smaller the window, the better]
+            else:
+                txt = 'and ('
+                for q3, id in transitions:
+                    txt += '(q3 > %s and q3 < %s) or\n' % (q3 - par.q3_window, q3 + par.q3_window)
+                txt = txt[:-3] + ')'
+                cursor.execute( query2 + txt )
             return cursor.fetchall()
 
     def _get_collisions_per_transition(self, par, pep, q3, cursor, 
