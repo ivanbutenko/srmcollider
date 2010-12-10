@@ -63,6 +63,11 @@ class SRM_parameters(object):
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
           self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
           self.peptide_table, self.transition_table, self.considerIsotopes)
+
+    def get_copy(self):
+        import copy
+        return copy.deepcopy(self)
+
     def get_q3_high(self, q1, q1_charge):
         q3_high = self.q3_range[1]
         if q3_high < 0: 
@@ -139,8 +144,10 @@ def get_cum_dist(original):
 
 class SRMcollider(object):
 
-    def find_clashes_small(self, db, par, use_per_transition=False, UIS_only=False):
+    def find_clashes_small(self, db, par, use_per_transition=False,
+                           UIS_only=False, exp_key=None):
         #make sure we only get unique peptides
+
         cursor = db.cursor()
         self.pepids = self._get_unique_pepids(par, cursor)
         MAX_UIS = par.max_uis
@@ -148,9 +155,10 @@ class SRMcollider(object):
         self.allpeps = {}
         self.non_unique_count = 0
         self.total_count = 0
+
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
-        for i, pep in enumerate(self.pepids):
+        for ii, pep in enumerate(self.pepids):
             p_id = pep['parent_id']
             q1 = pep['q1']
             non_unique = {}
@@ -161,17 +169,17 @@ class SRMcollider(object):
             nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
-            else: collisions = self._get_all_collisions(par, pep, cursor)
+            else: collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
             #
             if UIS_only:
                 non_uis_list = get_non_UIS_from_transitions(transitions, 
                                             collisions, par, MAX_UIS)
                 for i in range(1,min(MAX_UIS+1, nr_transitions+1)): 
-                    restable = 'hroest.srm_results_UIS_%s_' % i + common_filename  
+                    restable = 'hroest.result_srmuis'
                     cursor.execute( "insert into %s (non_useable_UIS, total_UIS, \
-                                   parent_key) values " % restable +\
-                                   "(%s,%s,%s)" % (len(non_uis_list[i]) , 
-                                       choose(nr_transitions, i), p_id ) )
+                                   parent_key, uisorder, exp_key) values " % restable +\
+                                   "(%s,%s,%s,%s,%s)" % (len(non_uis_list[i]) , 
+                                       choose(nr_transitions, i), p_id , i, exp_key) )
                 end = time.time()
                 progressm.update(1)
                 continue
@@ -219,7 +227,13 @@ class SRMcollider(object):
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 
+        self.q3min_hist = numpy.zeros(1000)
+        self.q3all_hist = numpy.zeros(1000)
+        self.q1all_hist = numpy.zeros(1000)
+        self.q1min_hist = numpy.zeros(1000)
+
         for ii, pep in enumerate(self.pepids):
+
             one_runstart = time.time()
             p_id = pep['parent_id']
             q1 = pep['q1']
@@ -230,6 +244,7 @@ class SRMcollider(object):
             all_clashes = {}
             non_uis_list = [set() for i in range(MAX_UIS+1)]
             collisions_per_peptide = {}
+
             #END per loop variables
             if not toptrans: transitions = self._get_all_transitions(par, pep, cursor)
             else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
@@ -265,11 +280,13 @@ class SRMcollider(object):
                         self.q3all_distr.append(t[0] - c[0] ) 
                     if abs( t[0] - c[0] ) <= this_min:
                         #gets the nearest collision
+                        #print t[0] - c[0], c
                         this_min = abs( t[0] - c[0] )
                         non_unique[ t[1] ] = t[0] - c[0]
                         non_unique_q1[ t[1] ] = q1 - c[1]
                         non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
                         all_clashes[ t[1] ] = c[2]
+
             #here we calculate the UIS for this peptide with the given RT-range
             for pepc in collisions_per_peptide.values():
                 for i in range(1,MAX_UIS+1):
@@ -299,20 +316,17 @@ class SRMcollider(object):
             end = time.time()
             progressm.update(1)
             #print "This run took %ss" % (time.time() - one_runstart )
-            if ii > 0 and ii % 100 == 0 and exp_key is not None: break
+            if ii > 0 and ii % 100 == 0 and exp_key is not None: 
 
-                prepare  = [ [exp_key, q, 1] for q in self.q1min_distr] 
-                cursor.executemany( """ insert into hroest.result_diffdistr 
-                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
-                prepare  = [ [exp_key, q, 2] for q in self.q3min_distr] 
-                cursor.executemany( """ insert into hroest.result_diffdistr 
-                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
-                prepare  = [ [exp_key, q, 3] for q in self.q1all_distr] 
-                cursor.executemany( """ insert into hroest.result_diffdistr 
-                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
-                prepare  = [ [exp_key, q, 4] for q in self.q3all_distr] 
-                cursor.executemany( """ insert into hroest.result_diffdistr 
-                   (exp_key, value, type) VALUES (%s,%s,%s) """, prepare)
+                q1r = [-par.q1_window, par.q1_window] 
+                q3r = [-par.q3_window, par.q3_window] 
+                #print "pep ", ii
+                #print len(self.q3all_distr), sum( self.q3all_hist)
+                self.q1min_hist += numpy.histogram( self.q1min_distr, 1000, q1r)[0]
+                self.q3min_hist += numpy.histogram( self.q3min_distr, 1000, q3r)[0]
+                self.q1all_hist += numpy.histogram( self.q1all_distr, 1000, q1r)[0]
+                self.q3all_hist += numpy.histogram( self.q3all_distr, 1000, q3r)[0]
+                #print sum( self.q3all_hist)
 
                 self.allpeps = {}
                 self.allcollisions = []
@@ -329,6 +343,13 @@ class SRMcollider(object):
                 self.UIS_singleprob = [ {} for i in range(MAX_UIS+1)]
 
         self.total_time = end - start
+        #the last one
+        q1r = [-par.q1_window, par.q1_window] 
+        q3r = [-par.q3_window, par.q3_window] 
+        self.q1min_hist += numpy.histogram( self.q1min_distr, 1000, q1r)[0]
+        self.q3min_hist += numpy.histogram( self.q3min_distr, 1000, q3r)[0]
+        self.q1all_hist += numpy.histogram( self.q1all_distr, 1000, q1r)[0]
+        self.q3all_hist += numpy.histogram( self.q3all_distr, 1000, q3r)[0]
 
     def find_clashes_toptrans_paola(self, db, par, use_per_transition=False, 
                                     bgpar=None):
@@ -501,6 +522,8 @@ class SRMcollider(object):
         ]
 
     def _get_unique_pepids_toptransitions(self, par, cursor):
+        #TODO we select all peptides that are in the peplink table
+        #regardless whether their charge is actually correct
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide.id
          from %s
