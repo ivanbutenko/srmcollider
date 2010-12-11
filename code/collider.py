@@ -19,6 +19,16 @@ import DDB
 #10ppm, 50Da => 4 / s
 ##method 1
 # 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
+
+#for the first 20 peptides of human, it takes
+#with regular: 73 seconds (71% collisions)
+#with optimized SQL query (pass transitions along): 29 seconds (95% collisions)
+#with silver 300 seconds (50% collisions)
+#with my own fragmentation 80 seconds (50% collisions)
+#with my own fragmentation and list from generator 45s (47% collision) 
+#with my own fragmentation and generator 40s 
+
+
 class SRM_parameters(object):
 
     def __init__(self): 
@@ -145,9 +155,8 @@ def get_cum_dist(original):
 class SRMcollider(object):
 
     def find_clashes_small(self, db, par, use_per_transition=False,
-                           UIS_only=False, exp_key=None):
+                           UIS_only=False, exp_key=None, calc_collisions=False):
         #make sure we only get unique peptides
-
         cursor = db.cursor()
         self.pepids = self._get_unique_pepids(par, cursor)
         MAX_UIS = par.max_uis
@@ -155,7 +164,6 @@ class SRMcollider(object):
         self.allpeps = {}
         self.non_unique_count = 0
         self.total_count = 0
-
         start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         for ii, pep in enumerate(self.pepids):
@@ -168,7 +176,10 @@ class SRMcollider(object):
             transitions = self._get_all_transitions(par, pep, cursor)
             nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
-            if use_per_transition: raise ValueError "not possible"
+            if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
+            elif calc_collisions: 
+                collisions = list(self._get_all_collisions_calculate(par, pep, cursor))
+            else: collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
             #
             if UIS_only:
                 non_uis_list = get_non_UIS_from_transitions(transitions, 
@@ -185,10 +196,10 @@ class SRMcollider(object):
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
             q3_window_used = par.q3_window
-            for c in self._get_all_collisions_calculate(par, pep, cursor, transitions = transitions):
-                for t in transitions:
-                    if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-                    this_min = q3_window_used
+            for t in transitions:
+                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+                this_min = q3_window_used
+                for c in collisions:
                     if abs( t[0] - c[0] ) <= this_min:
                         non_unique[ t[1] ] = t[0] - c[0]
             self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
@@ -199,7 +210,7 @@ class SRMcollider(object):
         self.total_time = end - start
 
     def __get_all_precursors(self, par, pep, cursor, 
-             values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):
+             values="q1, modified_sequence, peptide_key, q1_charge"):
             #we compare the parent ion against 4 different parent ions
             #thus we need to take the PEPTIDE key here
             query2 = """
@@ -220,8 +231,15 @@ class SRMcollider(object):
             return cursor.fetchall()
 
     def _get_all_collisions_calculate(self, par, pep, cursor, 
-                values="q1, modified_sequence, peptide_key, q1_charge, transition_group", 
-                          transitions=None):
+      values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):
+        """
+        Here we calculate all the fragments on the fly instead of getting them
+        from the database.
+
+        We do get the precursors which could interfere from the database and 
+        then create a DDB.Peptide object for each precursor, and get the
+        fragmentation patterns from those.
+        """
             import silver
             import DDB 
             R = silver.Residues.Residues('mono')
@@ -482,6 +500,7 @@ class SRMcollider(object):
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
         myssrcalc = par.ssrcalc_window
         f = open('paola_uis.csv', 'w')
+        ff = open('paola.log', 'w')
         for i, pep in enumerate(self.pepids):
             transitions_extend = self._get_all_transitions_toptransitions(par, pep,
                 cursor, values = 'q3, m.id, m.sequence, m.Ion_description')
@@ -506,7 +525,7 @@ class SRMcollider(object):
             for pair in pairs_1strike:
                 contaminated = False
                 for dirty_t in local_interferences[1]:
-                    if dirty_t[0] in pair:  contaminated = True
+                    if dirty_t[0] in pair: contaminated = True
                 if not contaminated: pairs_2strike.append(pair)
 
             ###############################################################
@@ -516,9 +535,9 @@ class SRMcollider(object):
                 mass1 = transitions_dic[pair[0]]
                 mass2 = transitions_dic[pair[1]]
                 par.ssrcalc_window = VERY_LARGE_SSR_WINDOW
-                globalc1 = self._get_collisions_per_transition(self, par, 
+                globalc1 = self._get_collisions_per_transition(par, 
                                pep, mass1, cursor, values='ssrcalc')
-                globalc2 = self._get_collisions_per_transition(self, par,
+                globalc2 = self._get_collisions_per_transition(par,
                                pep, mass2, cursor, values='ssrcalc')
                 par.ssrcalc_window = myssrcalc
                 contaminated = False
@@ -529,10 +548,11 @@ class SRMcollider(object):
 
             ###############################################################
             #output
+            ff.write( "%s,%s,%s,%s\n" % (transitions_extend[0][2], len(pairs_1strike), len(pairs_2strike), len(pairs_3strike)))
             for pair in pairs_3strike:
-                p1 = [t for t in transitions_extend if pair[0] == t[1] ]
-                p2 = [t for t in transitions_extend if pair[1] == t[1] ]
-                print "%s,%s,%s,%s,%s" % (p1[2], p1[0], p1[3], p2[0], p2[3])
+                p1 = [t for t in transitions_extend if pair[0] == t[1] ][0]
+                p2 = [t for t in transitions_extend if pair[1] == t[1] ][0]
+                f.write( "%s,%s,%s,%s,%s\n" % (p1[2], p1[0], p1[3], p2[0], p2[3]) )
 
             self.count_analysed += 1
             end = time.time()
@@ -735,8 +755,12 @@ class SRMcollider(object):
         try:
             self.q1min_distr = pickle.load( open(fname + "_q1min_distr.pkl"))
         except Exception: pass
-        self.q3min_distr = pickle.load( open(fname + "_q3min_distr.pkl"))
-        self.q3min_distr_ppm = pickle.load( open(fname + "_q3min_distr_ppm.pkl"))
+        try:
+            self.q3min_distr = pickle.load( open(fname + "_q3min_distr.pkl"))
+        except Exception: pass
+        try:
+            self.q3min_distr_ppm = pickle.load( open(fname + "_q3min_distr_ppm.pkl"))
+        except Exception: pass
         self.allpeps = pickle.load( open(fname + "_allpeps.pkl"))
         self.non_unique_count, self.total_count = pickle.load( open(fname + "_count.pkl"))
         self.pepids = [ (k,) for k in self.allpeps.keys()]
@@ -861,6 +885,7 @@ class SRMcollider(object):
             self.non_unique_count * 1.0 /self.total_count)
         below_1ppm = len( [q3 for q3 in self.q3min_distr_ppm if abs(q3) < 1] ) * 1.0/ len( self.q3min_distr_ppm)
         print('Percentage of collisions below 1 ppm: %02.2f~\%%' % (below_1ppm*100) )
+
 
 def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
     query1_add = 'and q1_charge = 2 and q3_charge = 1'):
@@ -1452,8 +1477,6 @@ def combinations(iterable, r):
         #we are before python 2.6
         return [ [iterable[i] for i in indices] for indices in _combinations( len(iterable) , r)] 
 
-
-
 def test():
     assert combinations( range(5), 2 ) == [
         [0, 1],
@@ -1479,7 +1502,4 @@ def test():
         [1, 3, 4],
         [2, 3, 4]
     ]
-
-
-
 
