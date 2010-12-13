@@ -81,9 +81,7 @@ for ii,row in enumerate(rows):
         peptide = collider.get_peptide_from_table(t, row)
         peptide.charge = mycharge
         if modify_cysteins: peptide.modify_cysteins()
-        peptide.create_fragmentation_pattern(R, aions=True, aMinusNH3=True, 
-             bMinusH2O=True, bMinusNH3=True, bPlusH2O=True,
-             yMinusH2O=True, yMinusNH3=True)
+        peptide.create_fragmentation_pattern(R)
         if insert_db:
             #insert peptide into db
             collider.insert_peptide_in_db(peptide, db, peptide_table, transition_group=ii)
@@ -95,38 +93,9 @@ for ii,row in enumerate(rows):
     #we want to insert the fragments only once per peptide
     if insert_db:
         #insert fragment charge 1 and 2 into database
-        ##collider.fast_insert_in_db(peptide, db, 1, transition_table, transition_group=i)
-        ##collider.fast_insert_in_db(peptide, db, 2, transition_table, transition_group=i)
-        #
-        transition_group = ii
-        for ch in [1,2,3]:
-            c = db.cursor()
-            vals = "type, fragment_number, group_id, q3_charge, q3 "
-            q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
-            #ch = fragment_charge
-            tr = len(peptide.y_series)
-            many = []
-            for series,type in zip([
-                peptide.b_series ,
-                peptide.y_series ,
-                peptide.a_series,
-                peptide.a_minus_NH3,
-                peptide.b_minus_H2O,
-                peptide.b_minus_NH3,
-                peptide.b_plus_H2O ,
-                peptide.y_minus_H2O,
-                peptide.y_minus_NH3], "b y a a-NH3 b-H2O b-NH3 b+H2O y-H2O y-NH3".split() ):
-                charged =  [ ( pred + (ch -1)*R.mass_H)/ch for pred in series ]
-                many.extend( [ [type, i+1, transition_group, ch, q3] for i, q3 in 
-                          enumerate(charged) ])
-            many.append( ['p', 0, transition_group, ch, 
-                 (peptide.molecular_weight + ch * R.mass_H) / ch ])
-            many.append( ['p-NH3', 0, transition_group, ch, 
-                 (peptide.molecular_weight + ch * R.mass_H- R.mass_NH3) / ch])
-            many.append( ['p-H2O', 0, transition_group, ch, 
-                 (peptide.molecular_weight + ch * R.mass_H- R.mass_H2O) / ch])
-            tt = c.executemany( q, many)
-            
+        peptide.mass_H = R.mass_H
+        collider.fast_insert_in_db(peptide, db, 1, transition_table, transition_group=i)
+        collider.fast_insert_in_db(peptide, db, 2, transition_table, transition_group=i)
 
 #A2 create the additional parent ions for the isotope patterns
 PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
