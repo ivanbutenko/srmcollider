@@ -1,4 +1,5 @@
-#in vim: set fdm=marker
+#
+# vim:set fdm=marker:
 
 #################################################################
 #Creating Paolas Special tables {{{
@@ -171,7 +172,7 @@ c.executemany( q, prepared)
 #################################################################
 #START creating the Peptide Atlas tables {{{
 from Bio import SeqIO
-f = open('APD_Sc_all.fasta')
+f = open('/home/hroest/data/pepatlas/APD_Sc_all.fasta')
 peptides = []
 for p in SeqIO.parse(f, "fasta"):
     peptides.append(p.seq.tostring())
@@ -412,6 +413,115 @@ where s.group_id  in (select transition_group from hroest.srmPeptides_yeast_mrma
 alter table hroest.srmTransitions_yeast_mrmatlasall add index(group_id);
 alter table hroest.srmTransitions_yeast_mrmatlasall add index(q3);
 #END creating the top3 tables }}}
+#################################################################
+
+
+#################################################################
+#{{{ 2010,12,13 creating complete yeast digest + peptide_atlas
+import MySQLdb
+sys.path.append( '/home/hroest/lib/' )
+sys.path.append( '/home/hroest/lib/hlib' )
+sys.path.append( '/home/hroest/srm_clashes/code' )
+sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
+db = MySQLdb.connect(read_default_file="~/.my.cnf")
+c = db.cursor()
+import silver
+import collider
+import DDB 
+R = silver.Residues.Residues('mono')
+import progress
+
+c.execute("select mod_sequence from hroest.peptideatlas_201012_davecampbell")
+seqs = c.fetchall()
+
+peptide = DDB.Peptide()
+excluded = 0
+allowed = ['M[147]', 'A', 'E', 'D', 'G', 'F', 'I', 'H', 'K', 'M',
+               'L', 'N', 'Q', 'P', 'S', 'R', 'T', 'W', 'V', 'Y', 'C[160]']
+#I excluded 24818 sequences
+peptideatlas = []
+for s in seqs:
+    peptide.set_sequence(s[0])
+    seq = s[0]
+    excl = False
+    fragments =  list(peptide._get_modified_fragments() )
+    for fr in fragments:
+        if fr not in allowed: excl = True
+    if excl: excluded += 1
+    else: peptideatlas.append( seq )
+
+peptideatlas = set(peptideatlas)
+
+c.execute('select distinct modified_sequence from hroest.srmPeptides_yeast')
+seqs = c.fetchall()
+proteome = set( [s[0] for s in seqs])
+
+union = peptideatlas.union(proteome)
+len(proteome)
+len(peptideatlas)
+#I go from 192792 to 222298
+#I thus add 29506 peptides
+len(union)
+
+transition_table = 'hroest.srmTransitions_yeast_pepatlas_union'
+peptide_table = 'hroest.srmPeptides_yeast_pepatlas_union'
+c.execute('truncate table ' + peptide_table)
+c.execute('truncate table ' + transition_table)
+tmp_c  = db.cursor()
+progressm = progress.ProgressMeter(total=len(union), unit='peptides')
+peptide = DDB.Peptide()
+insert_db = True
+for ii,sequence in enumerate(union):
+    progressm.update(1)
+    for mycharge in [2,3]:  #precursor charge 2 and 3
+        peptide.set_sequence(sequence)
+        peptide.charge = mycharge
+        peptide.mass_H = R.mass_H
+        peptide.create_fragmentation_pattern(R)
+        tmp = c.execute( """
+        select p.id from ddb.peptide p 
+             where p.sequence = '%s' and experiment_key = 3131
+        """ % peptide.sequence
+        )
+        rr = c.fetchall()
+        try: peptide.id = rr[0][0]
+        except Exception: peptide.id = -99
+        tmp = c.execute( """
+        select ssrcalc from compep.ssrcalc_prediction 
+             where sequence = '%s' 
+        """ % peptide.sequence
+        )
+        rr = c.fetchall()[0]
+        peptide.ssr_calc= rr[0]
+        if insert_db:
+            #insert peptide into db
+            ##collider.insert_peptide_in_db(S, db, peptide_table, transition_group=i)
+            transition_group = ii
+            c = db.cursor()
+            #insert peptide into db
+            vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
+            q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
+                peptide_table,
+                vals, 
+                peptide.id, peptide.charge, 
+                peptide.charged_mass,
+                peptide.ssr_calc, 
+                peptide.get_modified_sequence(),
+                0, #we only have the 0th isotope (0 C13 atoms)
+                transition_group
+            )
+            tmp = c.execute(q)
+            peptide.parent_id = db.insert_id()
+    #we want to insert the fragments only once per peptide
+    if insert_db:
+        #insert fragment charge 1 and 2 into database
+        collider.fast_insert_in_db( peptide, db, 1, transition_table, transition_group=ii)
+        collider.fast_insert_in_db( peptide, db, 2, transition_table, transition_group=ii)
+
+
+
+
+#}}}
 #################################################################
 
 #}}}

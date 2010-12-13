@@ -66,47 +66,67 @@ print "executed the query"
 rows = t.c.fetchall()
 #1000 entries / 9 s with fast (executemany), 10.5 with index
 #1000 entries / 31 s with normal (execute), 34 with index
-transition_table = 'hroest.srmTransitions_test'
-peptide_table = 'hroest.srmPeptides_test'
+transition_table = 'hroest.srmTransitions_yeast_all'
+peptide_table = 'hroest.srmPeptides_yeast_all'
+c.execute('truncate table ' + peptide_table)
+c.execute('truncate table ' + transition_table)
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
 progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
-start = time.time()
-for i,row in enumerate(rows):
+for ii,row in enumerate(rows):
     progressm.update(1)
-    #if i >= 1000: break #####FOR TESTING ONLY
+    #if ii >= 1000: break #####FOR TESTING ONLY
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = collider.get_peptide_from_table(t, row)
         peptide.charge = mycharge
         if modify_cysteins: peptide.modify_cysteins()
-        S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-        S.ion_charge = peptide.charge
-        S.construct_from_peptide( 
-            peptide.get_modified_sequence('SEQUEST'), R.residues, 
-            R.res_pairs)
-        S.ass_peptide = peptide
-        S.fragment_ids = {}
+        peptide.create_fragmentation_pattern(R, aions=True, aMinusNH3=True, 
+             bMinusH2O=True, bMinusNH3=True, bPlusH2O=True,
+             yMinusH2O=True, yMinusNH3=True)
         if insert_db:
             #insert peptide into db
-            collider.insert_peptide_in_db(S, db, peptide_table, transition_group=i)
+            collider.insert_peptide_in_db(peptide, db, peptide_table, transition_group=ii)
         elif read_from_db:
             #instead of inserting, we read the database
             assert False
             #not implemented with new table layout
             collider.read_fragment_ids(S, tmp_c, peptide, peptide_table, transition_table)
-        #insert peptide into mass_bins hash
-        ##peptide.spectrum = S
-        ##mz = S.peptide_mass / S.ion_charge
-        ##bin = int( mz / 0.7) ;
-        ##mass_bins[ bin ].append( peptide )
-        ##rt_bins[ int(peptide.ssr_calc) ].append( peptide )
-        end = time.time()
     #we want to insert the fragments only once per peptide
     if insert_db:
         #insert fragment charge 1 and 2 into database
-        collider.fast_insert_in_db( S, db, 1, transition_table, transition_group=i)
-        collider.fast_insert_in_db( S, db, 2, transition_table, transition_group=i)
+        ##collider.fast_insert_in_db(peptide, db, 1, transition_table, transition_group=i)
+        ##collider.fast_insert_in_db(peptide, db, 2, transition_table, transition_group=i)
+        #
+        transition_group = ii
+        for ch in [1,2,3]:
+            c = db.cursor()
+            vals = "type, fragment_number, group_id, q3_charge, q3 "
+            q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
+            #ch = fragment_charge
+            tr = len(peptide.y_series)
+            many = []
+            for series,type in zip([
+                peptide.b_series ,
+                peptide.y_series ,
+                peptide.a_series,
+                peptide.a_minus_NH3,
+                peptide.b_minus_H2O,
+                peptide.b_minus_NH3,
+                peptide.b_plus_H2O ,
+                peptide.y_minus_H2O,
+                peptide.y_minus_NH3], "b y a a-NH3 b-H2O b-NH3 b+H2O y-H2O y-NH3".split() ):
+                charged =  [ ( pred + (ch -1)*R.mass_H)/ch for pred in series ]
+                many.extend( [ [type, i+1, transition_group, ch, q3] for i, q3 in 
+                          enumerate(charged) ])
+            many.append( ['p', 0, transition_group, ch, 
+                 (peptide.molecular_weight + ch * R.mass_H) / ch ])
+            many.append( ['p-NH3', 0, transition_group, ch, 
+                 (peptide.molecular_weight + ch * R.mass_H- R.mass_NH3) / ch])
+            many.append( ['p-H2O', 0, transition_group, ch, 
+                 (peptide.molecular_weight + ch * R.mass_H- R.mass_H2O) / ch])
+            tt = c.executemany( q, many)
+            
 
 #A2 create the additional parent ions for the isotope patterns
 PATTERNS_UP_TO = 3 #up to how many isotopes should be considered

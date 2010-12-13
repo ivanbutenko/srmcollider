@@ -1147,20 +1147,19 @@ def get_peptide_from_table(t, row):
 
 def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c = db.cursor()
-    peptide = self.ass_peptide
     #insert peptide into db
     vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
     q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
         peptide_table,
         vals, 
-        peptide.id, peptide.charge, 
-        get_actual_mass(self), peptide.ssr_calc, 
-        peptide.get_modified_sequence(),
+        self.id, self.charge, 
+        self.charged_mass, self.ssr_calc, 
+        self.get_modified_sequence(),
         0, #we only have the 0th isotope (0 C13 atoms)
         transition_group
     )
     c.execute(q)
-    peptide.parent_id = db.insert_id()
+    self.parent_id = db.insert_id()
 
 def get_actual_mass(self):
     return self.peptide_mass / self.ion_charge

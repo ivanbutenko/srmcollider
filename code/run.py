@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
-#in vim: set fdm=marker
+# vim:set fdm=marker:
 # {{{ Main: Run the collider
 import MySQLdb
 import time
