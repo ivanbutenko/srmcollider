@@ -64,6 +64,7 @@ t = utils.db_table( c2 )
 t.read( all_peptide_query )
 print "executed the query"
 rows = t.c.fetchall()
+
 #1000 entries / 9 s with fast (executemany), 10.5 with index
 #1000 entries / 31 s with normal (execute), 34 with index
 transition_table = 'hroest.srmTransitions_yeast_all'
@@ -74,9 +75,11 @@ mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
 progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
-for ii,row in enumerate(rows):
+transition_group = 0
+for row in rows:
     progressm.update(1)
-    #if ii >= 1000: break #####FOR TESTING ONLY
+    transition_group += 1 
+    #if transition_group >= 1001: break #####FOR TESTING ONLY
     for mycharge in [2,3]:  #precursor charge 2 and 3
         peptide = collider.get_peptide_from_table(t, row)
         peptide.charge = mycharge
@@ -84,18 +87,17 @@ for ii,row in enumerate(rows):
         peptide.create_fragmentation_pattern(R)
         if insert_db:
             #insert peptide into db
-            collider.insert_peptide_in_db(peptide, db, peptide_table, transition_group=ii)
-        elif read_from_db:
-            #instead of inserting, we read the database
-            assert False
-            #not implemented with new table layout
-            collider.read_fragment_ids(S, tmp_c, peptide, peptide_table, transition_table)
+            collider.insert_peptide_in_db(peptide, db, peptide_table,
+                                          transition_group=transition_group)
     #we want to insert the fragments only once per peptide
     if insert_db:
         #insert fragment charge 1 and 2 into database
         peptide.mass_H = R.mass_H
-        collider.fast_insert_in_db(peptide, db, 1, transition_table, transition_group=i)
-        collider.fast_insert_in_db(peptide, db, 2, transition_table, transition_group=i)
+        collider.fast_insert_in_db(peptide, db, 1, transition_table,
+                                   transition_group=transition_group)
+        collider.fast_insert_in_db(peptide, db, 2, transition_table,
+                                   transition_group=transition_group)
+
 
 #A2 create the additional parent ions for the isotope patterns
 PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
