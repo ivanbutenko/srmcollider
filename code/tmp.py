@@ -533,7 +533,7 @@ for ii,sequence in enumerate(union):
 c.execute( 
 """
 select id, Ion_description 
-from hroest.MRMAtlas_yeast_qqq_201002_q2
+from hroest.MRMAtlas_yeast_201009_final
 """
 )
 desc = c.fetchall()
@@ -567,7 +567,7 @@ for d in desc:
     prepare.append( [  id, fragment, nr, charge, loss, gain, isotope] )
 
 
-create table hroest.result_mrmfragment_analysis (
+create table hroest.result_mrmfragment_analysis_final (
 id int, 
 fragment char(1), 
 nr int,
@@ -578,7 +578,7 @@ isotope int
 )
 
 c.executemany( 
-    'insert into hroest.result_mrmfragment_analysis values (%s,%s,%s,%s,%s,%s,%s)', 
+    'insert into hroest.result_mrmfragment_analysis_final values (%s,%s,%s,%s,%s,%s,%s)', 
               prepare)
 
 
@@ -597,8 +597,7 @@ desc hroest.result_mrmfragment_analysis;
 #there is no fragment a with any gains/losses
 select @all := count(*)  from hroest.result_mrmfragment_analysis;
 select count(*) / @all * 100 , fragment from hroest.result_mrmfragment_analysis
-group by fragment
-;
+group by fragment;
 select count(*) / @all * 100, loss from hroest.result_mrmfragment_analysis
 group by loss
 ;
@@ -610,7 +609,8 @@ create temporary table tmp as
 select count(*) / @all * 100 as pcnt, fragment, nr from hroest.result_mrmfragment_analysis
 group by fragment, nr
 ;
-select  * from tmp where pcnt > 1.0;
+
+#select  * from tmp where pcnt > 1.0;
 #
 drop table if exists tmp ;
 create temporary table tmp as
@@ -618,12 +618,13 @@ select count(*) / @all * 100 as pcnt, fragment, nr, loss, gain
 from hroest.result_mrmfragment_analysis
 group by fragment, nr, loss, gain
 ;
-select  * from tmp where pcnt > 0.1;
+#select  * from tmp where pcnt > 0.1;
 
 #interestingly, a loss of 17 and 18 is nearly twice as likely from y than b
 select count(*) / @all * 100, fragment, loss from hroest.result_mrmfragment_analysis
 group by fragment, loss
 ;
+#group by fragment type and charge
 select count(*) / @all * 100, fragment, charge from hroest.result_mrmfragment_analysis
 group by fragment, charge
 ;
@@ -656,6 +657,77 @@ select count(*) / @all * 100 from hroest.result_mrmfragment_analysis
 where 
 isotope  = 1
 ;
+
+
+
+select @nrprecursors := count(distinct sequence) from MRMAtlas_yeast_qqq_201002_q2
+
+
+#in total, we would have 315933 fragments generated from those peptides
+#of one ion series with one charge state per precursor
+select @all_fragments := sum(nr_fragments) from 
+(
+select distinct a.sequence, 
+LEAST(15, length(p.sequence) - 3  #select at most 15 transitions
+-3 #subtract the first 3 transitions because we dont use them
+) as nr_fragments 
+from MRMAtlas_yeast_qqq_201002_q2  a
+inner join MRMPepLink l on l.mrm_key = a.id
+inner join ddb.peptide p on l.peptide_key = p.id
+)
+t;
+
+select @all_fragments / @nrprecursors;
+select @all_fragments;
+
+
+#if we added the a fragments, only 3 % of singly charged would actually be 
+#in the top 10 fragments and actually contribute whereas the other added
+#97% would just pollute our space
+select @all * 2.9 / @all_fragments;
+select @all * 1.1 / @all_fragments;
+
+#also for the parent ions, only 4.5% of them are acutually seen and the other
+#95.5% would be polluting our space
+select @all * 0.579 / @nrprecursors;
+
+#for b ions, we have 14% and 2%
+select @all * 13.15 / @all_fragments;
+select @all * 1.77 / @all_fragments;
+
+
+#for y ions its 73% and 10.5%
+select @all * 69.34 / @all_fragments;
+select @all * 9.97 / @all_fragments;
+
+
+
+#group by fragment type and charge
+select count(*)
+from hroest.result_mrmfragment_analysis an
+inner join  MRMAtlas_yeast_qqq_201002_q2 at on at.id = an.id
+where fragment in ('p')
+and loss = 0 and gain = 0
+and charge in (2)
+and isotope  = 0
+and RIGHT(sequence, 1) = 2 #parent charge
+;
+
+
+
+#group by fragment type and charge
+select count(*) from hroest.result_mrmfragment_analysis an
+inner join  MRMAtlas_yeast_qqq_201002_q2 at on at.id = an.id
+where fragment in ('y')
+and loss = 0 and gain = 0
+and charge in (2)
+and isotope  = 0
+;
+
+group by fragment, charge
+;
+
+
 
 +-----------------------+----------+
 | count(*) / @all * 100 | fragment |
@@ -1094,22 +1166,23 @@ and average != 0
 
 
 ###########################################################################
-### some code to calculate where we were without RT information {{{
-##NO rt information
+### SRM without RT information {{{ ##NO rt information
 #
 
+import numpy
 query = """
 select q1, q3 
-from %(peptable)s
-inner join %(tratable)s on parent_id = parent_key
+from %(peptable)s 
+inner join %(tratable)s on group_id = transition_group
 where 
 q1 between 400 and 1200 
 and q3 between 400 and 1200 
+and isotope_nr = 0
 """ % {'peptable' : par.peptide_table ,
        'tratable' : par.transition_table }
 cursor.execute( query)
-
 lines = cursor.fetchall()
+
 mybins = [ [0 for i in range(0, 1200) ] for i in range(0, 1200 / 0.7+ 1 ) ]
 for l in lines:
     q1 = int( numpy.floor( l[0]/ 0.7 ))
@@ -1133,6 +1206,175 @@ for out in range(400, 1200/0.7+1):
 
 avg = 1.0* total / nr_bins
 unique_pct = single_spots * 1.0 / total
+
 }}}
 
 
+{{{def get_max_charge(sequence):
+
+def get_max_charge(sequence):
+    #Calculate the max. charge state feasible for the peptide
+    maxCharge = 1 #Any peptide may be charged at the N-terminus
+    for aa in sequence:
+        if aa in ['K', 'R', 'D', 'E', 'H']:
+             maxCharge += 1
+    return maxCharge
+
+}}}
+
+
+
+#################################################################
+#{{{ 2010.12.14 Create mixture of N14 and N15
+
+if True:
+    #1000 entries / 9 s with fast (executemany), 10.5 with index
+    #1000 entries / 31 s with normal (execute), 34 with index
+    transition_table = 'hroest.srmTransitions_yeast_N14N15'
+    peptide_table = 'hroest.srmPeptides_yeast_N14N15'
+    c.execute('truncate table ' + peptide_table)
+    c.execute('truncate table ' + transition_table)
+    mass_bins = [ []  for i in range(0, 10000) ]
+    rt_bins = [ []  for i in range(-100, 500) ]
+    tmp_c  = db.cursor()
+    progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
+    transition_group = 0
+    for row in rows:
+        progressm.update(1)
+        transition_group += 1 
+        #if ii >= 1000: break #####FOR TESTING ONLY
+        for mycharge in [2,3]:  #precursor charge 2 and 3
+            peptide = collider.get_peptide_from_table(t, row)
+            peptide.charge = mycharge
+            if modify_cysteins: peptide.modify_cysteins()
+            peptide.create_fragmentation_pattern(R)
+            if insert_db:
+                #insert peptide into db
+                collider.insert_peptide_in_db(peptide, db, peptide_table,
+                                              transition_group=transition_group)
+        #we want to insert the fragments only once per peptide
+        if insert_db:
+            #insert fragment charge 1 and 2 into database
+            peptide.mass_H = R.mass_H
+            collider.fast_insert_in_db(peptide, db, 1, transition_table,
+                                       transition_group=transition_group)
+            collider.fast_insert_in_db(peptide, db, 2, transition_table,
+                                       transition_group=transition_group)
+    ####
+    #
+    R.recalculate_monisotopic_data_for_N15()
+    mass_bins = [ []  for i in range(0, 10000) ]
+    rt_bins = [ []  for i in range(-100, 500) ]
+    tmp_c  = db.cursor()
+    progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
+    #
+    #
+    #do NOT reset transition_group
+    for row in rows:
+        progressm.update(1)
+        transition_group += 1 
+        #if ii >= 1000: break #####FOR TESTING ONLY
+        for mycharge in [2,3]:  #precursor charge 2 and 3
+            peptide = collider.get_peptide_from_table(t, row)
+            peptide.charge = mycharge
+            if modify_cysteins: peptide.modify_cysteins()
+            peptide.create_fragmentation_pattern(R)
+            if insert_db:
+                #insert peptide into db
+                collider.insert_peptide_in_db(peptide, db, peptide_table,
+                                              transition_group=transition_group)
+        #we want to insert the fragments only once per peptide
+        if insert_db:
+            #insert fragment charge 1 and 2 into database
+            peptide.mass_H = R.mass_H
+            collider.fast_insert_in_db(peptide, db, 1, transition_table,
+                                       transition_group=transition_group)
+            collider.fast_insert_in_db(peptide, db, 2, transition_table,
+                                       transition_group=transition_group)
+
+
+
+
+}}}
+#################################################################
+
+
+
+
+Some SQL cleanup stuff, find big tables
+\url{http://www.mysqlperformanceblog.com/2008/03/17/researching-your-mysql-table-sizes/}
+
+select TABLE_NAME, TABLE_SCHEMA,
+concat(round(data_length/(1024*1024*1024),2),'G') DATA,
+concat(round(INDEX_LENGTH/(1024*1024*1024),2),'G') IDX
+from information_schema.TABLES 
+where TABLE_SCHEMA = 'hroest'
+order by data_length ;
+
+
+SELECT count(*) TABLES,
+concat(round(sum(table_rows)/1000000,2),'M') rows,
+concat(round(sum(data_length)/(1024*1024*1024),2),'G') DATA,
+concat(round(sum(index_length)/(1024*1024*1024),2),'G') idx,
+concat(round(sum(data_length+index_length)/(1024*1024*1024),2),'G') total_size,
+round(sum(index_length)/sum(data_length),2) idxfrac
+FROM information_schema.TABLES;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+truncate srmTransitions_perf_test;
+insert into srmTransitions_perf_test (srm_id, group_id, q3_charge,
+q3, type, fragment_number, q3_floor)
+select 
+srm_id, group_id, q3_charge,
+q3, type, fragment_number,
+floor(q3) 
+from srmTransitions_yeast 
+;
+
+
+
+truncate srmPeptides_perf_test;
+insert into srmPeptides_perf_test (parent_id, peptide_key, modified_sequence,
+q1, ssrcalc, isotope_nr, transition_group, q1_charge, q1_floor, ssrcalc_floor) 
+select parent_id, peptide_key,
+modified_sequence, q1, ssrcalc, isotope_nr, transition_group, q1_charge,
+floor(q1), floor(ssrcalc)
+from srmPeptides_yeast 
+;
+
+select * from  srmPeptides_perf_test;
