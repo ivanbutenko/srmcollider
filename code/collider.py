@@ -333,6 +333,7 @@ class SRMcollider(object):
             for t in transitions:
                 if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
                 this_min = q3_window_used
+                q1min = par.q1_window
                 for c in collisions:
                     if abs( t[0] - c[0] ) <= q3_window_used:
                         #gets all collisions
@@ -346,12 +347,14 @@ class SRMcollider(object):
                         except KeyError: self.count_pair_collisions[ coll_key ] = 1
                         self.q1all_distr.append( q1 - c[1])
                         self.q3all_distr.append(t[0] - c[0] ) 
+                        if abs( q1 - c[1] ) <= q1min:
+                            non_unique_q1[ t[1] ] = q1 - c[1]
+                            q1min = abs( q1 - c[1])
                     if abs( t[0] - c[0] ) <= this_min:
                         #gets the nearest collision
                         #print t[0] - c[0], c
                         this_min = abs( t[0] - c[0] )
                         non_unique[ t[1] ] = t[0] - c[0]
-                        non_unique_q1[ t[1] ] = q1 - c[1]
                         non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
                         all_clashes[ t[1] ] = c[2]
 
@@ -663,6 +666,51 @@ class SRMcollider(object):
         for q3, id in transitions:
             collisions.extend( self._get_collisions_per_transition(par, pep, q3, cursor) )
         return  collisions
+
+    def _get_all_collisions_floor(self, par, pep, cursor, 
+                values="q3, q1, srm_id, peptide_key", transitions=None):
+        """
+        This function tries a new mySQL table that has indices on the floor of
+        the relevant values. It is not actually faster then the conventional
+        table.
+        """
+        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
+        q3_low = par.get_q3_low()
+        #we compare the parent ion against 4 different parent ions
+        #thus we need to take the PEPTIDE key here
+        query2 = """
+        SELECT %(values)s
+        FROM %(pep)s
+        INNER JOIN %(trans)s
+          on %(pep)s.transition_group = %(trans)s.group_id
+        WHERE ssrcalc_floor >= FLOOR(%(ssrcalc)s - %(ssr_window)s )
+          AND ssrcalc_floor <= FLOOR( %(ssrcalc)s + %(ssr_window)s )
+        #
+        AND q1_floor >= FLOOR( %(q1)s - %(q1_window)s) 
+        AND q1_floor <= FLOOR( %(q1)s + %(q1_window)s )
+        #
+        AND %(pep)s.peptide_key != %(peptide_key)d
+        #
+        AND q3_floor >= FLOOR( %(q3_low)s) AND q3_floor <= FLOOR(%(q3_high)s)
+        %(query_add)s
+        """ % { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'], 
+                'peptide_key' : pep['peptide_key'],
+               'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
+               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+               'pep' : par.peptide_table, 'trans' : par.transition_table,
+               'values' : values}
+        if transitions is None or len(transitions) == 0: cursor.execute( query2 )
+        #Here we add N conditions to the SQL query where N = 2*len(transitions)
+        #we only select those transitions that also could possible interact
+        #We gain about a factor two to three [the smaller the window, the better]
+        else:
+            txt = 'AND ('
+            for q3, id in transitions:
+                txt += '(q3_floor >= FLOOR(%s) AND q3_floor <= FLOOR(%s) )\
+                        OR\n' % (q3 - par.q3_window, q3 + par.q3_window)
+            txt = txt[:-3] + ')'
+            cursor.execute( query2 + txt )
+        return cursor.fetchall()
 
     def _get_all_collisions(self, par, pep, cursor, 
                 values="q3, q1, srm_id, peptide_key", transitions=None):
