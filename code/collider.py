@@ -45,6 +45,8 @@ class SRM_parameters(object):
         self.q3_window = 10.0 / 2.0
         self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
+        self.print_query = False
+        self.select_floor = False
 
     def eval(self):
         #query will get all parent ions to consider
@@ -292,13 +294,16 @@ class SRMcollider(object):
         self.UIS_singleprob = [ {} for i in range(MAX_UIS+1)]
         self.count_analysed = 0
         common_filename = par.get_common_filename()
-        start = time.time()
+        self.start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 
         self.q3min_hist = numpy.zeros(1000)
         self.q3all_hist = numpy.zeros(1000)
         self.q1all_hist = numpy.zeros(1000)
         self.q1min_hist = numpy.zeros(1000)
+
+        self.coll_time = 0
+        self.trans_time = 0
 
         for ii, pep in enumerate(self.pepids):
 
@@ -314,14 +319,19 @@ class SRMcollider(object):
             collisions_per_peptide = {}
 
             #END per loop variables
+            mystart = time.time()
             if not toptrans: transitions = self._get_all_transitions(par, pep, cursor)
             else: transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
             nr_transitions = len( transitions )
+            self.trans_time += time.time() - mystart
+            #
+            mystart = time.time()
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
             else: 
                 #collisions = self._get_all_collisions(par, pep, cursor)
                 collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
+            self.coll_time += time.time() - mystart
             #
             #collisions
             #q3, q1, srm_id, peptide_key
@@ -376,7 +386,7 @@ class SRMcollider(object):
             self.colliding_peptides[ p_id ] = len( collisions_per_peptide )
             self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
             if len(transitions) - len(non_unique) > 3: self.found3good.append( p_id )
-            if len(non_unique) > 0:
+            if len(non_unique) > 0 and exp_key is not None:
                 self.allcollisions.extend( all_clashes.items() )
                 for v in non_unique.values(): self.q3min_distr.append( v )
                 for v in non_unique_q1.values(): self.q1min_distr.append( v )
@@ -384,7 +394,7 @@ class SRMcollider(object):
             self.non_unique_count += len( non_unique )
             self.total_count += len( transitions)
             self.count_analysed += 1
-            end = time.time()
+            self.end = time.time()
             progressm.update(1)
             #print "This run took %ss" % (time.time() - one_runstart )
             if ii > 0 and ii % 100 == 0 and exp_key is not None: 
@@ -413,7 +423,7 @@ class SRMcollider(object):
                 self.UIS_redprob = [0 for i in range(MAX_UIS+1)]
                 self.UIS_singleprob = [ {} for i in range(MAX_UIS+1)]
 
-        self.total_time = end - start
+        self.total_time = self.end - self.start
         #the last one
         q1r = [-par.q1_window, par.q1_window] 
         q3r = [-par.q3_window, par.q3_window] 
@@ -581,6 +591,7 @@ class SRMcollider(object):
              ddb.peptide on peptide.id = %s.peptide_key
              %s
             """ % (par.peptide_table, par.peptide_table, par.query_add )
+        if par.print_query: print query
         cursor.execute( query )
         res = cursor.fetchall()
         return [
@@ -659,6 +670,7 @@ class SRMcollider(object):
                'q3_high' : q3_high, 'query_add' : par.query1_add,
                'pep' : par.peptide_table, 'trans' : par.transition_table, 
                'values' : values}
+        if par.print_query: print query1
         cursor.execute( query1 )
         return cursor.fetchall()
 
@@ -736,15 +748,22 @@ class SRMcollider(object):
                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                'pep' : par.peptide_table, 'trans' : par.transition_table,
                'values' : values}
-        if transitions is None: cursor.execute( query2 )
+        if transitions is None: 
+            if par.select_floor: query2 += "\n GROUP BY FLOOR(q3)"
+            if par.print_query: print query2
+            cursor.execute( query2 )
         #Here we add N conditions to the SQL query where N = 2*len(transitions)
         #we only select those transitions that also could possible interact
         #We gain about a factor two to three [the smaller the window, the better]
         else:
             txt = 'and ('
+            q3_window_used = par.q3_window 
             for q3, id in transitions:
-                txt += '(q3 > %s and q3 < %s) or\n' % (q3 - par.q3_window, q3 + par.q3_window)
+                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * q3
+                txt += '(q3 > %s and q3 < %s) or\n' % (q3 - q3_window_used, q3 + q3_window_used)
             txt = txt[:-3] + ')'
+            if par.select_floor: txt += "\n GROUP BY FLOOR(q3)"
+            if par.print_query: print query2 + txt
             cursor.execute( query2 + txt )
         return cursor.fetchall()
 

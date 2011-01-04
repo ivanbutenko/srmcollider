@@ -39,20 +39,19 @@ print par.experiment_type
 print par.get_common_filename()
 par.query1_add += ' order by Intensity DESC' #only for the toptrans workflow
 
-#paolas workflow
+#{{{ paolas workflow
 #we need a different background for the peptide atlas
 #because there we have differnt peptids and cannot relate
 #those with the MRMlink table
-reload( collider )
-mycollider = collider.SRMcollider()
-mycollider.find_clashes_toptrans_paola(db, par) #, bgpar=parbg)
-
-#if you need to have a different background than fg
-#only for peptide atlas since those peptide keys map to experiment 3452 and not 
+#only for peptide atlas since those peptide keys map to experiment 3452 and not
 #to 3131 as we would need to then find the transition in the MRM table
 parbg = copy.deepcopy(par)
 parbg.transition_table = 'hroest.srmTransitions_yeast_pepatlas'
 parbg.peptide_table = 'hroest.srmPeptides_yeast_pepatlas'
+reload( collider )
+mycollider = collider.SRMcollider()
+mycollider.find_clashes_toptrans_paola(db, par) #, bgpar=parbg)
+
 
 #calculate for precursor, peptide and protein the min nr transitions necessary
 #to measure them without ambiguity
@@ -77,21 +76,172 @@ cursor.executemany(
     VALUES (%s,%s,%s) """, prepare
 )
 
+
+}}}
+
+
+{{{ Print plot / result
+
+    cursor.execute(
+    """
+    create table hroest.srmuis_tmp32 as 
+    select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key
+    from hroest.result_srmuis 
+    group by uisorder, exp_key
+    ;
+    """)
+
+    cursor.execute( """
+    select sum_non / sum_total as pcnt_non, uisorder, exp_key 
+    from hroest.srmuis_tmp32 
+    order by exp_key, uisorder
+    """ )
+    result = cursor.fetchall()
+    data = []
+    h = [float(r[0])*100 for r in result if r[2] == 32]
+    n = [r[1] for r in result if r[2] == 32]
+    data.append( [h,n])
+    h = [float(r[0])*100 for r in result if r[2] == 35]
+    n = [r[1] for r in result if r[2] == 35]
+    data.append( [h,n])
+    import gnuplot
+    titles = ['Human', 'Yeast']
+    output = 'out.eps'
+    xlabel = 'Number of transitions'
+    ylabel = 'Probability of non-unique transition set / %'
+    title = ''
+    cmd = 'with lines'
+    ba = """
+        set yrange[0:100]
+        set xtics 1
+        set mxtics 1
+        set key top right
+        """
+    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            'fig1.eps', xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=True)
+
+
+    cursor.execute(
+    """
+    create temporary table hroest.nr_transitions as 
+    select parent_id, count(*) as transitions from 
+    hroest.srmPeptides_yeast srm 
+    inner join hroest.srmTransitions_yeast tr on srm.transition_group = tr.group_id
+    and q1 between 400 and 1400
+    and q3 between 400 and 1400
+    and q1_charge = 2 and q3_charge = 1
+    group by parent_id
+    ;
+    """ )
+    cursor.execute(" alter table hroest.nr_transitions add index(parent_id);" )
+
+    cursor.execute(
+    """
+    select parent_key, free_transitions, exp_key, n.transitions, modified_sequence ,
+    free_transitions * n.transitions free
+    from hroest.result_srmcompare r
+    inner join hroest.srmPeptides_yeast srm on srm.parent_id = r.parent_key
+    inner join hroest.nr_transitions n on n.parent_id = r.parent_key
+    #inner join ddb.peptide on peptide.id = srm.peptide_key
+    #   and length(sequence) between 7 and 21
+       and q1 between 400 and 1400
+    """ )
+    result = cursor.fetchall()
+
+    data = []
+    h, n = numpy.histogram( [r[1]*100 for r in result if r[2] == 50], 100 )
+    cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+    data.append( [cumh,n])
+    h, n = numpy.histogram( [r[1]*100 for r in result if r[2] == 53], 100 )
+    cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+    data.append( [cumh,n])
+
+    data = []
+    h, n = numpy.histogram( [r[5] for r in result if r[2] == 50], 20, (0,20) )
+    cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+    data.append( [cumh,n])
+    h, n = numpy.histogram( [r[5] for r in result if r[2] == 53], 20, (0,20) )
+    cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+    data.append( [cumh,n])
+
+    import gnuplot
+    titles = ['29 Da, 50 ppm', '0.7 Da, 0.7 Da']
+    output = 'test.eps'
+    xlabel = 'Unique transitions per peptide / %'
+    ylabel = 'Cummulative Occurence / %'
+    title = 'Comparison at 2 SSRCalc unit with yeast N^{14} + N^{15} background'
+    cmd = 'with lines '
+    ba = """
+        #set xrange[0:20]
+        set key top left
+        """
+    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            output, xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=True)
+
+
+
+
+}}}
+
+
+#{{{ #speedtest
+
+par.transition_table = 'hroest.srmTransitions_perf_test2_400'
+par.peptide_table = 'hroest.srmPeptides_perf_test2'
+
+par.transition_table = 'hroest.srmTransitions_human'
+par.peptide_table = 'hroest.srmPeptides_human'
+
+reload( collider )
+par.query_add += ' and q1 between 400 and 500 '
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par, exp_key = None) 
+
+#using 2 SSRCalc, 0.7 0.7 we have 23pep/s over 14pep/s improvment == 30-60%
+
+}}}
+
+
 }}}
 #
 #this is how do the readout
 select id, name, short_description from experiment;
-select @exp_key := 18;
-select min_transitions, count(*) from hroest.result_srmpaola r 
-inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+
+
+#{{{ Paola readout
+create temporary table allowed_sequences as
+select modified_sequence from hroest.srmPeptides_yeast ;
+alter table allowed_sequences add index(modified_sequence);
+
+#43 - 45/46
+select @exp_key := 45; 
+select @table := comment1 from experiment where id = @exp_key;
+select count(*) from
+hroest.result_srmpaola r inner join hroest.srmpeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key
+where exp_key = @exp_key;
+
+select count(distinct r.parent_key) from hroest.result_srmpaola r 
+inner join hroest.srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key
+inner join allowed_sequences seqs on seqs.modified_sequence = srm.modified_sequence
 where exp_key = @exp_key 
+and srm.isotope_nr = 0;
+
+select min_transitions, count(*) from hroest.result_srmpaola r 
+inner join hroest.srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
+#inner join allowed_sequences seqs on seqs.modified_sequence = srm.modified_sequence
+where exp_key = @exp_key 
+and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
 group by min_transitions ; 
 
+#peptides
 select mt, count(*) from
 (
 select min(min_transitions) as mt, peptide_key from hroest.result_srmpaola r 
-inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+inner join srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
 where exp_key = @exp_key 
+and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
 group by peptide_key
 ) tmp
 group by mt ; 
@@ -99,12 +249,39 @@ group by mt ;
 select mt, count(*) from
 (
 select min(min_transitions) as mt, protein_key from hroest.result_srmpaola r 
-inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+#inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+inner join srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
 inner join ddb.protPepLink l on l.peptide_key = srm.peptide_key
 where exp_key = @exp_key 
+and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
 group by protein_key
 ) tmp
 group by mt ; 
+
+
+
+#create the table with min_nr transitions for each precursor
+select @exp_key := 13;
+select 
+RIGHT(ac, LENGTH(ac) - INSTR(ac, '.')) as protein, 
+sequence as stripped_sequence, 
+CONCAT(modified_sequence, '/', q1_charge) as modified_sequence,
+min_transitions 
+from hroest.result_srmpaola r 
+inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
+inner join ddb.peptide p on srm.peptide_key = p.id
+inner join ddb.protPepLink l on l.peptide_key = p.id
+inner join ddb.protein prot on prot.id = l.protein_key
+inner join ddb.isbAc ac on prot.sequence_key = ac.sequence_key
+where exp_key = @exp_key 
+and db='eggnog'
+into outfile '/home/hroest/data/allbackground_nossrcalc_1Da1Da.csv'
+; 
+
+}}}
+
+
+
 
 
 #load from file
@@ -134,8 +311,98 @@ mycollider.find_clashes_toptrans_3strike(db, par, pepids=pepids,
                                          use_per_transition=False )
 #mycollider.store_in_file(par)
 
+{{{ SWATH workflow
 
 
+reload( collider )
+mycollider = collider.SRMcollider()
+mycollider.find_clashes(db, par, exp_key = None)
+
+
+
+db = MySQLdb.connect(read_default_file="~/.my.cnf")
+cursor = db.cursor()
+
+common_filename = par.get_common_filename()
+query = """
+insert into hroest.experiment  (name, short_description,
+description, comment1, comment2, super_experiment_key, ddb_experiment_key)
+VALUES (
+    'SWATH yeast', '%s', '%s', '%s', '%s', 47, 0
+)
+""" %( common_filename + '_' + par.peptide_table.split('.')[1], 
+      par.experiment_type, par.peptide_table, par.transition_table)
+cursor.execute(query)
+myid = db.insert_id()
+
+prepare = [ [k,v, myid]  for k,v in mycollider.allpeps.iteritems() ]
+#save our result ("the min nr transitions per precursor") linked with 
+#our new experiment key
+cursor.executemany(
+""" insert into hroest.result_srmcompare (parent_key, free_transitions, exp_key) 
+    VALUES (%s,%s,%s) """, prepare
+)
+
+create temporary table nr_transitions as 
+select parent_id, count(*) as transitions from 
+hroest.srmPeptides_yeast srm 
+inner join hroest.srmTransitions_yeast tr on srm.transition_group = tr.group_id
+and q1 between 400 and 1400
+and q3 between 400 and 1400
+and q1_charge = 2 and q3_charge = 1
+group by parent_id
+;
+alter table nr_transitions add index(parent_id);
+
+
+select parent_key, free_transitions, exp_key, n.transitions, modified_sequence ,
+free_transitions * n.transitions free
+from hroest.result_srmcompare r
+inner join hroest.srmPeptides_yeast srm on srm.parent_id = r.parent_key
+inner join hroest.nr_transitions n on n.parent_id = r.parent_key
+#inner join ddb.peptide on peptide.id = srm.peptide_key
+where exp_key = 49
+#   and length(sequence) between 7 and 21
+   and q1 between 400 and 1400
+limit 10;
+
+
+   create table hroest.result_srmcompare (
+   parent_key int, 
+   free_transitions double, 
+   exp_key int
+   )
+   alter table hroest.result_srmcompare add index(exp_key, parent_key);
+
+
+
+
+}}}
+
+{{{ srmuis filler workflow
+
+#31 yeast, 34 human
+db = MySQLdb.connect(read_default_file="~/.my.cnf")
+cursor = db.cursor()
+common_filename = par.get_common_filename()
+query = """
+insert into hroest.experiment  (name, short_description,
+description, comment1, comment2, super_experiment_key, ddb_experiment_key)
+VALUES (
+    'uis_perpeptide', '%s', '%s', '%s', '%s', 31, 0
+)
+""" %( common_filename + '_' + par.peptide_table.split('.')[1], 
+      par.experiment_type, par.peptide_table, par.transition_table)
+cursor.execute(query)
+myid = db.insert_id()
+
+reload( collider )
+mycollider = collider.SRMcollider()
+mycollider.find_clashes_small(db, par, UIS_only=True, exp_key = myid,
+                              calc_collisions=False)
+
+
+}}}
 
 
 ##Run the testcase => see test_run.py

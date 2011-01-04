@@ -358,8 +358,8 @@ Figure~\ref{fig:400range.dist_all} for the Q1 and Q3 distribution of all hits.
 \begin{figure}
 
 \center
-\subfloat[2][Q1 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q3distr_ppm.pdf}} \\
-\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q1distr.pdf}}
+\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q3distr_ppm.pdf}} \\
+\subfloat[2][Q1 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q1distr.pdf}}
 
 \caption{
 Q1 and Q3 difference distributions of the closest hit for a search using 50 Da and 100 ppm windows.
@@ -371,7 +371,7 @@ Q1 and Q3 difference distributions of the closest hit for a search using 50 Da a
 
 \center
 \subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q3all_distr_ppm.pdf}} \\
-\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q1all_distr.pdf}}
+\subfloat[2][Q1 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_500_1000ppm_range400to1200_q1all_distr.pdf}}
 
 \caption{
 Q1 and Q3 difference distributions of all hits for a search using 50 Da and 100 ppm windows.
@@ -383,7 +383,7 @@ Q1 and Q3 difference distributions of all hits for a search using 50 Da and 100 
 
 
 \center
-\subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_20_20_range400to1200_q3all_distr_ppm_zomm500.pdf}} \\
+\subfloat[2][Q3 distance distribution (zoom)]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_20_20_range400to1200_q3all_distr_ppm_zomm500.pdf}} \\
 \subfloat[2][Q3 distance distribution]{\includegraphics[width=0.6\textwidth, angle=-90]{/home/hroest/srm_clashes/results/pedro/yeast_True_False_20_20_20_range400to1200_q3all_distr_ppm_zomm3000.pdf}}
 
 \caption{
@@ -563,6 +563,39 @@ Minum number of Collisions & Number of Peptides \\
 
 
 \clearpage
+
+
+\section{Sharing more than 2 transitions}
+To answer the question how often a double collision occurs, we look at
+\url{count_pair_collisions} where we see with 50 Da and 100 ppm and a total of
+134410 parent ions. We have 122301 that have another peptide with at least 2
+shared transitions, 70241 with at least 3 shared transitions.
+
+\begin{verbatim}
+[132460, 122301, 70241, 15726, 3245, 1234, 736, 0, 0, 0]
+\end{verbatim}
+
+This is very bad, lets see what 20Da/20ppm gives us. We have 120118 peptides
+sharing 1 or more transitions with another peptide, 60545 peptides sharing 2 or
+more transitions and 12049 peptides sharing 3 or more transitions.
+
+\begin{verbatim}
+[120118, 60545, 12049, 2849, 1102, 642, 419, 0, 0, 0]
+\end{verbatim}
+
+
+I wrote some code to see what will happen if we dont have RT information. It
+looks really bad: 
+Yeast
+4.77 transitions per 0.7 Th x 1.0 Th in [400,1200]
+1.7 \% unique transitions
+Human
+9.73 transitions per 0.7 Th x 1.0 Th in [400,1200]
+0.2 \% unique transitions
+up to 600 transitions in one bin 
+\newline
+Thus even better when we do have RT information, we gain about a factor of 45 in yeast
+
 \section{Add 3 isotope traces}
 0.7 / 0.7 and 2 SSRCalc units in SRM we get Nonunique / Total transitions : 769176 / 1867985 = 0.411767760448
 So we have 40\% non unique transitions. Compared to 24\% when we use 0.7 and 1 (so an even bigger window!)
