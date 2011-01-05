@@ -385,6 +385,7 @@ alter table hroest.srmTransitions_yeast_top3 add index(q3);
 
 #################################################################
 #START creating the MRM Atlas (all transitions) tables {{{
+
 drop table hroest.srmPeptides_yeast_mrmatlasall ;
 create table hroest.srmPeptides_yeast_mrmatlasall as
 select  distinct
@@ -560,18 +561,29 @@ select id, Ion_description
 from hroest.MRMAtlas_yeast_201009_final
 """
 )
-desc = c.fetchall()
+orig_desc = c.fetchall()
 
-d  = desc[0]
+desc = []
+for d in orig_desc:
+    #we only append the first, e.g. "best" explanation
+    dd = d[1].split(',')[0]
+    desc.append( [ d[0], dd] )
+
+    #append all explanations => not a good idea
+    #for dd in d[1].split(','):
+    #    desc.append( [ d[0], dd] )
+
 
 prepare = []
+bra_c = 0
 for d in desc:
     id = d[0]
     d = d[1]
     ion = d.split('/')[0]
     #for some reasons, 806 have a [] around them
+    # => it might mean that they are wrongly associated
     isotope = 0
-    if ion.startswith('['): ion = ion[1:]
+    if ion.startswith('['): bra_c += 1; continue
     if ion.find('i') != -1:
         if ion.find('i') != len(ion)-1: break
     if ion.endswith('i'): ion = ion[:-1]; isotope = 1
@@ -589,9 +601,10 @@ for d in desc:
     else: nr = 0
     #print  d, fragment, nr, charge, loss, gain, isotope
     prepare.append( [  id, fragment, nr, charge, loss, gain, isotope] )
+    #if  id > 20: break
 
 
-create table hroest.result_mrmfragment_analysis_final (
+create table hroest.result_mrmfragment_analysis_final_best_expl (
 id int, 
 fragment char(1), 
 nr int,
@@ -602,7 +615,7 @@ isotope int
 )
 
 c.executemany( 
-    'insert into hroest.result_mrmfragment_analysis_final values (%s,%s,%s,%s,%s,%s,%s)', 
+   'insert into hroest.result_mrmfragment_analysis_final_best_expl values (%s,%s,%s,%s,%s,%s,%s)', 
               prepare)
 
 
@@ -615,233 +628,38 @@ select sequence,Ion_description,
 from hroest.MRMAtlas_yeast_qqq_201002_q2
 limit 100;
 
-
-
-desc hroest.result_mrmfragment_analysis;
-#there is no fragment a with any gains/losses
-select @all := count(*)  from hroest.result_mrmfragment_analysis;
-select count(*) / @all * 100 , fragment from hroest.result_mrmfragment_analysis
-group by fragment;
-select count(*) / @all * 100, loss from hroest.result_mrmfragment_analysis
-group by loss
-;
-select count(*) / @all * 100, gain from hroest.result_mrmfragment_analysis
-group by gain
-;
-drop table if exists tmp ;
+###there is no fragment a with any gains/losses
+select @all := count(*) from hroest.result_mrmfragment_analysis_final_best_expl;
+select @precursor := count(distinct modified_sequence) from hroest.MRMAtlas_yeast_201009_final;
+drop table tmp ;
 create temporary table tmp as
-select count(*) / @all * 100 as pcnt, fragment, nr from hroest.result_mrmfragment_analysis
-group by fragment, nr
+select length(substr(sequence, 1,15)) -3-1  as t
+from hroest.MRMAtlas_yeast_201009_final group by modified_sequence ;
+select @estimated_nr_fragments := sum(t) from tmp;
+
+select @all := count(*) from hroest.result_mrmfragment_analysis_final_best_expl an
+inner join hroest.MRMAtlas_yeast_201009_final at on at.id = an.id
+where Intensity > 1000;
+
+select 
+#count(*) / @all * 100 as pcnt, 
+CONCAT( fragment, '^', charge) as frag,
+parent_charge ch, loss, gain , 
+count(*)  as occ
+from hroest.result_mrmfragment_analysis_final_best_expl an
+inner join hroest.MRMAtlas_yeast_201009_final at on at.id = an.id
+where Intensity > 2000
+group by fragment, parent_charge, charge, loss, gain
+order by occ desc
 ;
 
-#select  * from tmp where pcnt > 1.0;
-#
-drop table if exists tmp ;
-create temporary table tmp as
-select count(*) / @all * 100 as pcnt, fragment, nr, loss, gain 
-from hroest.result_mrmfragment_analysis
-group by fragment, nr, loss, gain
-;
-#select  * from tmp where pcnt > 0.1;
-
-#interestingly, a loss of 17 and 18 is nearly twice as likely from y than b
-select count(*) / @all * 100, fragment, loss from hroest.result_mrmfragment_analysis
-group by fragment, loss
-;
-#group by fragment type and charge
-select count(*) / @all * 100, fragment, charge from hroest.result_mrmfragment_analysis
-group by fragment, charge
+select 
+count(*)
+from hroest.result_mrmfragment_analysis_final an
+#inner join hroest.MRMAtlas_yeast_201009_final at on at.id = an.id
 ;
 
-select count(*) / @all * 100, fragment, gain from hroest.result_mrmfragment_analysis
-group by fragment, gain
-;
-
-#how often do the different charge combinations happen?
-select count(*) / @all * 100, charge, parent_charge 
-from hroest.result_mrmfragment_analysis an
-inner join  MRMAtlas_yeast_qqq_201002_q2 at on at.id = an.id
-group by charge, parent_charge
-;
-
-
-select @Intensity := 1000;
-select @all := count(*) from MRMAtlas_yeast_qqq_201002_q2
-where Intensity > @Intensity; 
-select count(*) / @all * 100 from hroest.result_mrmfragment_analysis an
-inner join  MRMAtlas_yeast_qqq_201002_q2 at on at.id = an.id
-where fragment in ('b', 'y')
-and loss = 0 and gain = 0
-and charge in (1)
-and isotope  = 0
-and Intensity > @Intensity; 
-;
-
-select count(*) / @all * 100 from hroest.result_mrmfragment_analysis
-where 
-isotope  = 1
-;
-
-
-
-select @nrprecursors := count(distinct sequence) from MRMAtlas_yeast_qqq_201002_q2
-
-
-#in total, we would have 315933 fragments generated from those peptides
-#of one ion series with one charge state per precursor
-select @all_fragments := sum(nr_fragments) from 
-(
-select distinct a.sequence, 
-LEAST(15, length(p.sequence) - 3  #select at most 15 transitions
--3 #subtract the first 3 transitions because we dont use them
-) as nr_fragments 
-from MRMAtlas_yeast_qqq_201002_q2  a
-inner join MRMPepLink l on l.mrm_key = a.id
-inner join ddb.peptide p on l.peptide_key = p.id
-)
-t;
-
-select @all_fragments / @nrprecursors;
-select @all_fragments;
-
-
-#if we added the a fragments, only 3 % of singly charged would actually be 
-#in the top 10 fragments and actually contribute whereas the other added
-#97% would just pollute our space
-select @all * 2.9 / @all_fragments;
-select @all * 1.1 / @all_fragments;
-
-#also for the parent ions, only 4.5% of them are acutually seen and the other
-#95.5% would be polluting our space
-select @all * 0.579 / @nrprecursors;
-
-#for b ions, we have 14% and 2%
-select @all * 13.15 / @all_fragments;
-select @all * 1.77 / @all_fragments;
-
-
-#for y ions its 73% and 10.5%
-select @all * 69.34 / @all_fragments;
-select @all * 9.97 / @all_fragments;
-
-
-
-#group by fragment type and charge
-select count(*)
-from hroest.result_mrmfragment_analysis an
-inner join  MRMAtlas_yeast_qqq_201002_q2 at on at.id = an.id
-where fragment in ('p')
-and loss = 0 and gain = 0
-and charge in (2)
-and isotope  = 0
-and RIGHT(sequence, 1) = 2 #parent charge
-;
-
-
-
-#group by fragment type and charge
-select count(*) from hroest.result_mrmfragment_analysis an
-inner join  MRMAtlas_yeast_qqq_201002_q2 at on at.id = an.id
-where fragment in ('y')
-and loss = 0 and gain = 0
-and charge in (2)
-and isotope  = 0
-;
-
-group by fragment, charge
-;
-
-
-
-+-----------------------+----------+
-| count(*) / @all * 100 | fragment |
-+-----------------------+----------+
-|                0.2141 | ?        | 
-|                4.1522 | a        | 
-|               15.1250 | b        | 
-|                0.5977 | p        | 
-|               79.9110 | y        | 
-+-----------------------+----------+
-
------------------------+------+
-| count(*) / @all * 100 | loss |
-+-----------------------+------+
-|               90.3802 |    0 | 
-|                3.3425 |   17 | 
-|                3.5521 |   18 | 
-|                0.0427 |   34 | 
-|                0.8073 |   35 | 
-|                0.5550 |   36 | 
-|                0.5881 |   44 | 
-|                0.1346 |   45 | 
-|                0.5768 |   46 | 
-|                0.0069 |   64 | 
-|                0.0003 |   82 | 
-|                0.0134 |   91 | 
-+-----------------------+------+
-
-+-----------------------+------+
-| count(*) / @all * 100 | gain |
-+-----------------------+------+
-|               99.6241 |    0 | 
-|                0.3759 |   18 | 
-+-----------------------+------+
-
-
-+---------+----------+------+
-| pcnt    | fragment | nr   |
-+---------+----------+------+
-|  2.3355 | b        |    4 | 
-|  3.2401 | b        |    5 | 
-|  2.6616 | b        |    6 | 
-|  2.0773 | b        |    7 | 
-|  1.6513 | b        |    8 | 
-|  1.1225 | b        |    9 | 
-|  1.9779 | y        |    3 | 
-|  8.9266 | y        |    4 | 
-| 10.6080 | y        |    5 | 
-| 10.9603 | y        |    6 | 
-| 11.2863 | y        |    7 | 
-| 10.6573 | y        |    8 | 
-|  8.7869 | y        |    9 | 
-|  6.6570 | y        |   10 | 
-|  4.6102 | y        |   11 | 
-|  2.6183 | y        |   12 | 
-|  1.2190 | y        |   13 | 
-+---------+----------+------+
-
-
-+-----------------------+----------+--------+
-| count(*) / @all * 100 | fragment | charge |
-+-----------------------+----------+--------+
-|                0.2141 | ?        |      1 | 
-|                2.9073 | a        |      1 | 
-|                1.1055 | a        |      2 | 
-|                0.1394 | a        |      3 | 
-|               13.1459 | b        |      1 | 
-|                1.7713 | b        |      2 | 
-|                0.2078 | b        |      3 | 
-|                0.0009 | p        |      1 | 
-|                0.5789 | p        |      2 | 
-|                0.0179 | p        |      3 | 
-|               69.3401 | y        |      1 | 
-|                9.9658 | y        |      2 | 
-|                0.6052 | y        |      3 | 
-+-----------------------+----------+--------+
-
-
-select @all / count(distinct sequence) from MRMAtlas_yeast_qqq_201002_q2;
-select @all / count(distinct peptide_key) from MRMAtlas_yeast_qqq_201002_q2 a
-inner join MRMPepLink l on l.mrm_key = a.id;
-
-#the average minimal intensity is 1704
-select sum(minint) / 44215 from 
-( select min(Intensity) as minint, sequence from MRMAtlas_yeast_qqq_201002_q2
- group by sequence
-) tmp
-;
-
-#}}}
+}}}
 {{{#some analysis of the peptide atlas data
 
 #peptide Atlas
@@ -1188,6 +1006,7 @@ and average != 0
 #################################################################
 
 
+c.execute()
 
 ###########################################################################
 ### SRM without RT information {{{ ##NO rt information
