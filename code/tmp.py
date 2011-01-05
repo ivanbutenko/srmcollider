@@ -78,9 +78,15 @@ inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
 where experiment_key = %s
 and length( peptide.sequence ) > 1
-and peptide.id in (select peptide_key from hroest.MRMPepLink)
+and peptide.sequence in (select sequence from hroest.MRMAtlas_yeast_201009_final)
 """ % exp_key
 
+
+
+
+
+ 
+ 
 
 
 c2 = db.cursor()
@@ -102,6 +108,8 @@ rows = t.c.fetchall()
 #1000 entries / 31 s with normal (execute), 34 with index
 transition_table = 'hroest.srmTransitions_yeast_mrmatlas'
 peptide_table = 'hroest.srmPeptides_yeast_mrmatlas'
+c.execute('truncate table ' + peptide_table)
+c.execute('truncate table ' + transition_table)
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -113,26 +121,21 @@ exclude = 0
 for i,row in enumerate(rows):
     progressm.update(1)
     ttmp = utils.db_table( tmp_c )
-    ttmp.read( "select * from hroest.MRMAtlas_yeast_qqq_201002_q2 a inner join hroest.MRMPepLink p on p.mrm_key = a.id where peptide_key = %s order by Intensity" % row[4])
+    ttmp.read( "select * from hroest.MRMAtlas_yeast_201009_final a where sequence = '%s' and Intensity > 100 order by Intensity " % row[0])
     transitions = ttmp.fetchall_groupBy( 'parent_charge')
     for ch, t_charge in transitions.iteritems(): 
         mod_sequence = ttmp.row( t_charge[0] , 'sequence').split('/')[0]
         #
         peptide = DDB.Peptide()
         peptide.set_sequence( mod_sequence )
-        peptide.charge = ttmp.row( t_charge[0] , 'charge')
+        peptide.charge = ttmp.row( t_charge[0] , 'parent_charge')
         peptide.ssr_calc         = t.row( row, 'ssrcalc' )
         peptide.id               = t.row( row, 'peptide_key' )
-        if '[' in peptide.get_modified_sequence('SEQUEST'): continue
+        #if '[' in peptide.get_modified_sequence('SEQUEST'): continue
         #
         assert ch == peptide.charge
-        S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-        S.ion_charge = peptide.charge
-        S.construct_from_peptide( 
-            peptide.get_modified_sequence('SEQUEST'), R.residues, 
-            R.res_pairs)
-        S.ass_peptide = peptide
-        collider.insert_peptide_in_db(S, db, peptide_table, transition_group=i)
+        peptide.create_fragmentation_pattern(R)
+        collider.insert_peptide_in_db(peptide, db, peptide_table, transition_group=i)
         prepare  = []
         vals = "type, fragment_number, group_id, q3_charge, q3 "
         q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
@@ -189,19 +192,16 @@ for seq in peptides:
     p.addignore_setid()
 
 
-exp_key = 3131  #yeast (all)
+exp_key = 3452  #yeast (all)
 #pep atlas
 all_peptide_query  = """
 select distinct peptide.sequence, molecular_weight, ssrcalc,
-genome_occurence, 
+1 as genome_occurence, 
 peptide.id as peptide_key
 from peptide 
-inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
-inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
-peptide.sequence
+inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence = peptide.sequence
 where experiment_key = %s
 and length( peptide.sequence ) > 1
-and peptide.sequence in (select sequence from ddb.peptide where experiment_key = 3452)
 """ % exp_key
 
 
@@ -223,8 +223,8 @@ rows = t.c.fetchall()
 
 #1000 entries / 9 s with fast (executemany), 10.5 with index
 #1000 entries / 31 s with normal (execute), 34 with index
-transition_table = 'hroest.srmTransitions_yeast_pepatlas'
-peptide_table = 'hroest.srmPeptides_yeast_pepatlas'
+transition_table = 'hroest.srmTransitions_yeast_pepatlas_tt'
+peptide_table = 'hroest.srmPeptides_yeast_pepatlas_tt'
 c.execute('truncate table ' + peptide_table)
 c.execute('truncate table ' + transition_table)
 mass_bins = [ []  for i in range(0, 10000) ]
@@ -233,42 +233,46 @@ tmp_c  = db.cursor()
 tmp2_c  = db.cursor()
 progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 start = time.time()
+#####this si wRONG
 R = silver.Residues.Residues('mono')
 exclude = 0
-for i,row in enumerate(rows):
+transition_group = 0
+for row in rows:
     progressm.update(1)
-    ttmp = utils.db_table( tmp_c )
-    ttmp.read( "select * from hroest.MRMAtlas_yeast_qqq_201002_q2 a inner join hroest.MRMPepLink p on p.mrm_key = a.id where peptide_key = %s order by Intensity" % row[4])
-    transitions = ttmp.fetchall_groupBy( 'parent_charge')
-    for ch, t_charge in transitions.iteritems(): 
-        mod_sequence = ttmp.row( t_charge[0] , 'sequence').split('/')[0]
-        #
-        peptide = DDB.Peptide()
-        peptide.set_sequence( mod_sequence )
-        peptide.charge = ttmp.row( t_charge[0] , 'charge')
-        peptide.ssr_calc         = t.row( row, 'ssrcalc' )
-        peptide.id               = t.row( row, 'peptide_key' )
-        if '[' in peptide.get_modified_sequence('SEQUEST'): continue
-        #
-        assert ch == peptide.charge
-        S = silver.Spectrum.Spectrum(SEQUEST_mode =1 )
-        S.ion_charge = peptide.charge
-        S.construct_from_peptide( 
-            peptide.get_modified_sequence('SEQUEST'), R.residues, 
-            R.res_pairs)
-        S.ass_peptide = peptide
-        collider.insert_peptide_in_db(S, db, peptide_table, transition_group=i)
-        prepare  = []
-        vals = "type, fragment_number, group_id, q3_charge, q3 "
-        q = "insert into %s (%s)" % (transition_table, vals)  + " VALUES (%s,%s,%s,%s,%s)" 
-        #attention: we write the parent ion charge into the q3_charge field!
-        #this to be able to still figure out the relative order of the
-        #transitions later on
-        for j,tt in enumerate(t_charge):
-            prepare.append( [ttmp.row( tt, 'Ion_description').split('/')[0][:8],
-                             j+1, i, ch, ttmp.row( tt, 'q3') ] )
-        dummy = tmp2_c.executemany( q, prepare)
+    transition_group += 1 
+    #if transition_group >= 1001: break #####FOR TESTING ONLY
+    for mycharge in [2,3]:  #precursor charge 2 and 3
+        peptide = collider.get_peptide_from_table(t, row)
+        peptide.charge = mycharge
+        if modify_cysteins: peptide.modify_cysteins()
+        peptide.create_fragmentation_pattern(R)
+        if insert_db:
+            #insert peptide into db
+            collider.insert_peptide_in_db(peptide, db, peptide_table,
+                                          transition_group=transition_group)
+    #we want to insert the fragments only once per peptide
+    if insert_db:
+        #insert fragment charge 1 and 2 into database
+        peptide.mass_H = R.mass_H
+        collider.fast_insert_in_db(peptide, db, 1, transition_table,
+                                   transition_group=transition_group)
+        collider.fast_insert_in_db(peptide, db, 2, transition_table,
+                                   transition_group=transition_group)
 
+
+#A2 create the additional parent ions for the isotope patterns
+PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
+cursor = c
+vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
+query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
+cursor.execute( query )
+allpeptides =  cursor.fetchall()
+prepared = []
+for p in allpeptides:
+    q1_charge = p[2]
+    for i in range(1,1+PATTERNS_UP_TO):
+        prepared.append( [p[1], p[2], p[3] + (R.mass_diffC13 * i* 1.0) / q1_charge,
+                              p[4], p[5], i, p[7]] )
 
 
 
@@ -392,8 +396,8 @@ s.q1               ,
 s.ssrcalc          ,
 s.isotope_nr       ,
 s.transition_group 
-from  hroest.MRMPepLink t inner join hroest.srmPeptides_yeast s
-on s.peptide_key = t.peptide_key;
+from MRMAtlas_yeast_201009_final t inner join hroest.srmPeptides_yeast s
+on t.modified_sequence = CONCAT( s.modified_sequence, '/', s.q1_charge);
 alter table hroest.srmPeptides_yeast_mrmatlasall add index(peptide_key);
 alter table hroest.srmPeptides_yeast_mrmatlasall add index(q1);
 alter table hroest.srmPeptides_yeast_mrmatlasall add index(ssrcalc);
@@ -412,7 +416,7 @@ from hroest.srmTransitions_yeast s
 where s.group_id  in (select transition_group from hroest.srmPeptides_yeast_mrmatlasall);
 alter table hroest.srmTransitions_yeast_mrmatlasall add index(group_id);
 alter table hroest.srmTransitions_yeast_mrmatlasall add index(q3);
-#END creating the top3 tables }}}
+#END creating the MRM Atlas (all transitions) tables }}}
 #################################################################
 
 
@@ -518,6 +522,26 @@ for ii,sequence in enumerate(union):
         collider.fast_insert_in_db( peptide, db, 1, transition_table, transition_group=ii)
         collider.fast_insert_in_db( peptide, db, 2, transition_table, transition_group=ii)
 
+
+
+
+#A2 create the additional parent ions for the isotope patterns
+PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
+cursor = c
+vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
+query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
+cursor.execute( query )
+allpeptides =  cursor.fetchall()
+prepared = []
+for p in allpeptides:
+    q1_charge = p[2]
+    for i in range(1,1+PATTERNS_UP_TO):
+        prepared.append( [p[1], p[2], p[3] + (R.mass_diffC13 * i* 1.0) / q1_charge,
+                              p[4], p[5], i, p[7]] )
+
+q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
+     " VALUES (" + "%s," *6 + "%s)"
+c.executemany( q, prepared)
 
 
 
@@ -1295,6 +1319,28 @@ if True:
 
 
 
+
+#A2 create the additional parent ions for the isotope patterns
+PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
+cursor = c
+vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
+query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
+cursor.execute( query )
+allpeptides =  cursor.fetchall()
+prepared = []
+for p in allpeptides:
+    q1_charge = p[2]
+    for i in range(1,1+PATTERNS_UP_TO):
+        prepared.append( [p[1], p[2], p[3] + (R.mass_diffC13 * i* 1.0) / q1_charge,
+                              p[4], p[5], i, p[7]] )
+
+q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
+     " VALUES (" + "%s," *6 + "%s)"
+c.executemany( q, prepared)
+
+
+
+
 }}}
 #################################################################
 
@@ -1309,7 +1355,14 @@ concat(round(data_length/(1024*1024*1024),2),'G') DATA,
 concat(round(INDEX_LENGTH/(1024*1024*1024),2),'G') IDX
 from information_schema.TABLES 
 where TABLE_SCHEMA = 'hroest'
-order by data_length ;
+#order by data_length ;
+
+select TABLE_NAME, TABLE_SCHEMA,
+concat(round(data_length/(1024*1024),2),'M') DATA,
+concat(round(INDEX_LENGTH/(1024*1024),2),'M') IDX
+from information_schema.TABLES 
+where TABLE_SCHEMA = 'hroest'
+#order by data_length ;
 
 
 SELECT count(*) TABLES,
@@ -1318,7 +1371,8 @@ concat(round(sum(data_length)/(1024*1024*1024),2),'G') DATA,
 concat(round(sum(index_length)/(1024*1024*1024),2),'G') idx,
 concat(round(sum(data_length+index_length)/(1024*1024*1024),2),'G') total_size,
 round(sum(index_length)/sum(data_length),2) idxfrac
-FROM information_schema.TABLES;
+FROM information_schema.TABLES
+where TABLE_SCHEMA = 'hroest';
 
 
 
@@ -1378,3 +1432,64 @@ from srmPeptides_yeast
 ;
 
 select * from  srmPeptides_perf_test;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ #why are they different?
+ MRMAtlas_yeast_201009_final_top10                           |
+ | MRMAtlas_yeast_201009_final_top25                           |
+ | MRMAtlas_yeast_201009_final_top5                            |
+ | MRMAtlas_yeast_qqq_201002_q2    
+
+
+
+#has ions with more than one description / possibility
+#unknown ions
+#isotopes
+#parent ions
+#ions with square brackets [b9/-0.15]  => they appeared already?
+select @seq := 'AAAAEKNVPLYKHLADLSK/3' ;
+select @seq := 'DHITNAWHVPVTAQITEK/2' ;
+select @seq := 'SSNSLDNQESSQQR/3 ' ;
+select sequence, parent_mass, q3, Intensity, Ion_description
+from MRMAtlas_yeast_qqq_201002_q2 where sequence =  @seq ;
+
+select modified_sequence, q1, q3, Intensity, Ion_description
+from MRMAtlas_yeast_201009_final_top25 where 
+modified_sequence = @seq ;
+
+
+
+select * from 
+MRMAtlas_yeast_qqq_201002_q2 order by rand() limit 2;
+
