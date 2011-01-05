@@ -24,26 +24,26 @@ using namespace std;
 #include <boost/python/module.hpp>
 #include <boost/python/def.hpp>
 
-boost::python::dict _getnonuis_wrapper(boost::python::list transitions,
-        boost::python::list collisions, int max_uis, double q3window, 
+boost::python::dict _getnonuis_wrapper(boost::python::tuple transitions,
+        boost::python::tuple collisions, int max_uis, double q3window, 
         bool ppm) {
 
     boost::python::dict collisions_per_peptide;
-    boost::python::list clist;
-    boost::python::list tlist;
+    boost::python::tuple clist;
+    boost::python::tuple tlist;
     boost::python::list tmplist;
 
     int collision_length = boost::python::extract<int>(collisions.attr("__len__")());
     int transitions_length = boost::python::extract<int>(transitions.attr("__len__")());
-    int c3, t1, tmplen, tmpint, t0;
+    int c3, t1, tmplen, tmpint;
     bool tmpbool;
-    double q3used = q3window;
+    double t0, q3used = q3window;
 
 
     for (int i=0; i<transitions_length; i++) {
-        tlist = boost::python::extract< boost::python::list >(transitions[i]);
+        tlist = boost::python::extract< boost::python::tuple >(transitions[i]);
         for (int j=0; j<collision_length; j++) {
-            clist = boost::python::extract< boost::python::list >(collisions[j]);
+            clist = boost::python::extract< boost::python::tuple >(collisions[j]);
 
             //ppm is 10^-6
             t0 = boost::python::extract< double >(tlist[0]);
