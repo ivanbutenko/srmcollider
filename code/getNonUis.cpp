@@ -27,8 +27,7 @@ using namespace std;
 namespace python = boost::python;
 
 python::dict _getnonuis_wrapper(python::tuple transitions,
-        python::tuple collisions, int max_uis, double q3window, 
-        bool ppm) {
+        python::tuple collisions, double q3window, bool ppm) {
 
     python::dict collisions_per_peptide;
     python::tuple clist;
@@ -39,18 +38,23 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int tmplen;
     long c3, t1, tmplong;
-    bool tmpbool;
+    bool already_in_list;
     double t0, q3used = q3window;
 
 
     for (int i=0; i<transitions_length; i++) {
         tlist = python::extract< python::tuple >(transitions[i]);
+
+        //ppm is 10^-6
+        t0 = python::extract< double >(tlist[0]);
+        if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+
+        // go through all (potential) collisions
+        // and store the colliding SRM ids in a dictionary (they can be found at
+        // position 3 and 1 respectively)
         for (int j=0; j<collision_length; j++) {
             clist = python::extract< python::tuple >(collisions[j]);
 
-            //ppm is 10^-6
-            t0 = python::extract< double >(tlist[0]);
-            if(ppm) {q3used = q3window / 1000000.0 * t0; } 
             if(fabs(t0-python::extract< double >(clist[0]) ) <  q3used) {
 
                 c3 = python::extract<long>(clist[3]);
@@ -58,15 +62,16 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
 
                 if(collisions_per_peptide.has_key(c3)) {
                     //append to the list in the dictionary
+                    ///unless its already in the list
                     tmplist = python::extract<python::list>( 
                             collisions_per_peptide[c3] );
                     tmplen = python::extract<int>(tmplist.attr("__len__")());
-                    tmpbool = false;
+                    already_in_list = false;
                     for (int k=0; k<tmplen; k++) {
                         tmplong = python::extract<long>(tmplist[k]);
-                        if(tmplong == t1) {tmpbool = true;}
+                        if(tmplong == t1) {already_in_list = true;}
                     }
-                    if(not tmpbool) { tmplist.append(t1); }
+                    if(not already_in_list) { tmplist.append(t1); }
                 }
                 else {
                     //create new list in the dictionary
@@ -153,7 +158,117 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
 }
 
 
+//M is the order
+//N is the length of the input vector
 
+void _combinations(int M, int N, const python::list &mapping, 
+        python::dict &result) {
+    // The basic idea is to create an index array of length M that contains
+    // numbers between 0 and N. The indices denote the combination produced and
+    // we always increment the rightmost index. If it goes above N, we try to
+    // increase the one left to it until we find one that still can be
+    // increased. We stop when the rightmost index hits N-M, we thus go from
+    // (0,1,2,3...M-1) to (N-M,N-M+1,N-M+2...N-1)
+    int j, k, tmpint;
+    int* index = new int[M];
+    //int* mytuple = new int[M];
+    python::tuple tmptuple;
+    //initialize with numbers from 0 to M = range( M )
+    for(int k=0;k<M;k++) index[k] = k;
+    while (index[0] <= N-M) {
+
+        //EVALUATE THE RESULT
+        python::list tmplist;
+        for(int i=0; i<M; ++i) tmplist.append( mapping[index[i]] ); 
+        tmplist.sort();
+        //this doesnt work for some reason
+        //tmptuple = python::make_tuple( tmplist );
+        switch(M) {
+            case 1: tmptuple = python::make_tuple( tmplist[0] ); break;
+            case 2: tmptuple = python::make_tuple( tmplist[0], tmplist[1] ); break;
+            case 3: tmptuple = python::make_tuple( tmplist[0], tmplist[1],
+                            tmplist[2]); break;
+            case 4: tmptuple = python::make_tuple( tmplist[0], tmplist[1], 
+                            tmplist[2], tmplist[3]); break;
+            case 5: tmptuple = python::make_tuple( tmplist[0], tmplist[1], 
+                            tmplist[2], tmplist[3], tmplist[4]); break;
+        }
+        result[ tmptuple ] = 0; //append to result dict
+
+        // We need to break if index[0] has the final value
+        // The other option is to make the while condition (index[0] < N-M) 
+        // and add an additional evaluation of the result to the end of the 
+        // function (that would probably be faster).
+        if(index[0] == N-M) break;
+
+        index[ M-1 ] += 1;
+        if (index[ M-1 ] >= N) {
+            //#now we hit the end, need to increment other positions than last
+            //#the last position may reach N-1, the second last only N-2 etc.
+            j = M-1;
+            while (j >= 0 and index[j] >= N-M+j) j -= 1;
+            //#j contains the value of the index that needs to be incremented
+            index[j] += 1;
+            k = j + 1;
+            while (k < M) { index[k] = index[k-1] + 1; k += 1; } 
+        }
+    }
+
+    delete [] index;
+
+}
+
+
+python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
+
+    python::list tmplist;
+    python::list pepcollisions = python::extract< python::list >(
+            collisions_per_peptide.values() );
+    python::dict result;
+
+    int tmp_length;
+    int collision_length = python::extract<int>(pepcollisions.attr("__len__")());
+
+    for (int i=0; i<collision_length; i++) {
+        tmplist = python::extract< python::list >( pepcollisions[i] );
+        int tmp_length = python::extract<int>(tmplist.attr("__len__")());
+        _combinations(order, tmp_length, tmplist, result);
+    }
+
+    return result;
+}
+
+/* This above get_non_uis and _combinations functions 
+ * correspond to the following python function (roughly)
+ * 
+
+    for pepc in collisions_per_peptide.values():
+        for i in range(1,MAX_UIS+1):
+            if len( pepc ) >= i: 
+                tmp = [ [pepc[j] for j in indices] for indices in 
+                    _combinations( len(pepc) , i)] 
+                non_uis.update( [tuple(sorted(p)) for p in combinations(pepc, i)] )
+    return non_uis_list
+
+    def _combinations(N, M):
+        """All index combinations of M elements drawn without replacement
+         from a set of N elements.
+        Order of elements does NOT matter."""
+        index = range( M )
+        while index[0] <= N-M:
+            yield index[:]
+            index[ M-1 ] += 1
+            if index[ M-1 ] >= N:
+                #now we hit the end, need to increment other positions than last
+                #the last position may reach N-1, the second last only N-2 etc.
+                j = M-1
+                while j >= 0 and index[j] >= N-M+j: j -= 1
+                #j contains the value of the index that needs to be incremented
+                index[j] += 1
+                k = j + 1
+                while k < M: index[k] = index[k-1] + 1; k += 1; 
+
+*/
 
 void initgetnonuis() {;}
 void initcore_non_unique() {;}
@@ -164,13 +279,15 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 {
 
     def("getnonuis", _getnonuis_wrapper, 
- "void tesat()\n"
+ "getnonuis(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
            );
 
- "void tesat()\n"
+    def("get_non_uis", get_non_uis, 
+ "void get_non_uis(dict collisions_per_peptide, int order)\n"
+           );
 
     def("core_non_unique", _find_clashes_core_non_unique, 
- "void tesat()\n"
+ "core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
            );
 
 }
