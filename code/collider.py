@@ -1164,6 +1164,22 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
 
 def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
     """ Get all combinations that are not UIS """
+    try: 
+        #using C++ functions for this == faster
+        import c_getnonuis
+        non_uis_list = [0 for i in range(MAX_UIS+1)]
+        collisions_per_peptide = c_getnonuis.getnonuis(
+            transitions, collisions, par.q3window, par.ppm)
+        for order in range(1,MAX_UIS+1):
+            non_uis_list[order] = c_getnonuis.get_non_uis(
+                collisions_per_peptide, order)
+        return non_uis_list
+    except ImportError:
+        #old way of doing it
+        return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
+
+def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS):
+    """ Get all combinations that are not UIS """
     #collisions
     #q3, q1, srm_id, peptide_key
     #transitions

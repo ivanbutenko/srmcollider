@@ -23,3 +23,8 @@ setup(name="c_combinations",
         libraries = ["boost_python"])
     ])
 
+setup(name="c_getnonuis",
+    ext_modules=[
+        Extension("c_getnonuis", ["getNonUis.cpp"],
+        libraries = ["boost_python"])
+    ]) 

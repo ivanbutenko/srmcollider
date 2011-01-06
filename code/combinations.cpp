@@ -76,7 +76,7 @@ void _combinations(int M, int N, ofstream &myfile, const vector<string>&
     //initialize with numbers from 0 to M = range( M )
     for(int k=0;k<M;k++) index[k] = k;
     while (index[0] < N-M) {
-        /* Do we need to skip this one, e.g. is it in the include?  */
+        /* Do we need to skip this one, e.g. is it in the exclude?  */
         for(std::vector<int>::size_type i = 0; i != exclude.size(); i++) {
             found = true;
             for(std::vector<int>::size_type j = 0; j != exclude[i].size(); j++) {
