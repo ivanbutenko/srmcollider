@@ -118,20 +118,22 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
 
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     long peptide_key;
-    int j, k, start;
+    int j, k, start, scounter;
     double q1, acc_mass, res_mass;
     char* sequence;
     char c;
     bool inside;
+
+    double* fragment_series = new double[256];
+    double* b_series = new double[256];
+    double* y_series = new double[256];
 
     for (int i=0; i<precursor_length; i++) {
         tlist = python::extract< python::tuple >(precursors[i]);
 
         acc_mass = 0.0;
         res_mass = 0.0;
-        python::list fragment_series;
-        python::list b_series;
-        python::list y_series;
+        scounter = 0;
 
         q1 = python::extract< double >(tlist[0]);
         peptide_key = python::extract< long >(tlist[2]);
@@ -191,9 +193,11 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
                 //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
 
                 acc_mass += res_mass;
-                fragment_series.append( acc_mass );
-                b_series.append( acc_mass + MASS_H );
-                y_series.append( - acc_mass + 2* MASS_H + MASS_OH );
+                fragment_series[scounter] = res_mass;
+                b_series[scounter] = acc_mass + MASS_H ;
+                y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
+                scounter++;
+
                 inside = false;
             }
             else if(inside) { }
@@ -228,30 +232,30 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
                         return result;
                 }
 
-                fragment_series.append( res_mass );
                 acc_mass += res_mass;
-                b_series.append( acc_mass + MASS_H );
-                y_series.append( - acc_mass + 2* MASS_H + MASS_OH );
+                fragment_series[scounter] = res_mass;
+                b_series[scounter] = acc_mass + MASS_H ;
+                y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
+                scounter++;
             }
         }
 
-        int y_length = python::extract<int>(y_series.attr("__len__")());
-        for (int j=0; j<y_length; j++) y_series[j] += acc_mass;
+        for (int j=0; j<scounter; j++) y_series[j] += acc_mass;
 
         for(int ch=1; ch<=2; ch++) {
-            for (int j=0; j<y_length-1; j++){
+            for (int j=0; j<scounter-1; j++){
                 /*
                 cout << python::extract<double>(y_series[j]) << " ";
                 cout << python::extract<double>(b_series[j]) << endl;
                 */
 
-                double q3 = (python::extract<double>(y_series[j]) + (ch-1)*MASS_H)/ch;
+                double q3 = (y_series[j] + (ch-1)*MASS_H)/ch;
                 if (q3 > q3_low && q3 < q3_high)
                     result.append(python::make_tuple(q3, q1, 0, peptide_key) );
             }
 
-            for (int j=0; j<y_length-1; j++){
-                double q3 = (python::extract<double>(b_series[j]) + (ch-1)*MASS_H)/ch;
+            for (int j=0; j<scounter-1; j++){
+                double q3 = (b_series[j] + (ch-1)*MASS_H)/ch;
                 if (q3 > q3_low && q3 < q3_high)
                     result.append(python::make_tuple(q3, q1, 0, peptide_key) );
             }
