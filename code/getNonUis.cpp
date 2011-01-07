@@ -24,6 +24,9 @@ using namespace std;
 #include <boost/python/module.hpp>
 #include <boost/python/def.hpp>
 
+#define MASS_H 1.007825032
+#define MASS_OH 17.002739651999999
+
 namespace python = boost::python;
 
 python::dict _getnonuis_wrapper(python::tuple transitions,
@@ -105,6 +108,182 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
 
     return collisions_per_peptide;
 }
+
+
+python::list _find_clashes_calculate_clashes(python::tuple precursors,
+        double q3_low, double q3_high ) {
+
+    python::tuple tlist;
+    python::list result;
+
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    long peptide_key;
+    int j, k, start;
+    double q1, acc_mass, res_mass;
+    char* sequence;
+    char c;
+    bool inside;
+
+    for (int i=0; i<precursor_length; i++) {
+        tlist = python::extract< python::tuple >(precursors[i]);
+
+        acc_mass = 0.0;
+        res_mass = 0.0;
+        python::list fragment_series;
+        python::list b_series;
+        python::list y_series;
+
+        q1 = python::extract< double >(tlist[0]);
+        peptide_key = python::extract< long >(tlist[2]);
+        sequence = python::extract<char *>(tlist[1]);
+
+        /* Python code
+         *
+            for q in re.finditer( '([A-Z]\[\d*\]|[A-Z])', seq):
+                element = q.group(0)
+                res_mass = R.residues[element][1]
+                self.mass += res_mass
+                fragment_series.append( self.mass )
+
+            self.b_series = [b + R.mass_H for b in fragment_series[:-1]] 
+            self.y_series = [self.mass - y + 2*R.mass_H + R.mass_OH for y 
+                in fragment_series[:-1]]
+        */
+        inside = false;
+        start = 0;
+        j = 0; 
+        while(c = sequence[j++]) {
+            if(sequence[j] == '[') {
+                start = j-1;
+                inside = true;
+            }
+            else if(sequence[j-1] == ']') {
+                //for(k=start; k < j; k++) cout << sequence[k];
+                //We found a modification
+                switch(sequence[start]) {
+                    case 'M': 
+                        if(!(sequence[start+2] == '1' && 
+                             sequence[start+3] == '4' && 
+                             sequence[start+4] == '7' )) {
+                            PyErr_SetString(PyExc_ValueError, 
+                                "Unknown modification for methionine");
+                            boost::python::throw_error_already_set();
+                            return result;
+                            }
+                        res_mass = 147.03540462; break;
+                    case 'C': 
+                        if(!(sequence[start+2] == '1' && 
+                             sequence[start+3] == '6' && 
+                             sequence[start+4] == '0' )) {
+                            PyErr_SetString(PyExc_ValueError, 
+                                "Unknown modification for cysteine");
+                            boost::python::throw_error_already_set();
+                            return result;
+                        }
+                        res_mass = 160.030653721; break;
+                    default: 
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification ");
+                        boost::python::throw_error_already_set();
+                        return result;
+                }
+                //'M[147]':  131.04049 + mass_O), # oxygen
+                //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+
+                acc_mass += res_mass;
+                fragment_series.append( acc_mass );
+                b_series.append( acc_mass + MASS_H );
+                y_series.append( - acc_mass + 2* MASS_H + MASS_OH );
+                inside = false;
+            }
+            else if(inside) { }
+            else {
+                //We found a regular AA
+                switch(c) {
+                    case 'A': res_mass = 71.03711; break;
+                    case 'C': res_mass = 103.00919; break;
+                    case 'D': res_mass = 115.02694; break;
+                    case 'E': res_mass = 129.04259; break;
+                    case 'F': res_mass = 147.06841; break;
+                    case 'G': res_mass = 57.02146; break;
+                    case 'H': res_mass = 137.05891; break;
+                    case 'I': res_mass = 113.08406; break;
+                    case 'K': res_mass = 128.09496; break;
+                    case 'L': res_mass = 113.08406; break;
+                    case 'M': res_mass = 131.04049; break;
+                    case 'N': res_mass = 114.04293; break;
+                    case 'P': res_mass = 97.05276; break;
+                    case 'Q': res_mass = 128.05858; break;
+                    case 'R': res_mass = 156.10111; break;
+                    case 'S': res_mass = 87.03203; break;
+                    case 'T': res_mass = 101.04768; break;
+                    case 'V': res_mass = 99.06841; break;
+                    case 'W': res_mass = 186.07931; break;
+                    case 'X': res_mass = 113.08406; break;
+                    case 'Y': res_mass = 163.06333; break;
+                    default: 
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown amino acid ");
+                        boost::python::throw_error_already_set();
+                        return result;
+                }
+
+                fragment_series.append( res_mass );
+                acc_mass += res_mass;
+                b_series.append( acc_mass + MASS_H );
+                y_series.append( - acc_mass + 2* MASS_H + MASS_OH );
+            }
+        }
+
+        int y_length = python::extract<int>(y_series.attr("__len__")());
+        for (int j=0; j<y_length; j++) y_series[j] += acc_mass;
+
+        for(int ch=1; ch<=2; ch++) {
+            for (int j=0; j<y_length-1; j++){
+                /*
+                cout << python::extract<double>(y_series[j]) << " ";
+                cout << python::extract<double>(b_series[j]) << endl;
+                */
+
+                double q3 = (python::extract<double>(y_series[j]) + (ch-1)*MASS_H)/ch;
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+
+            for (int j=0; j<y_length-1; j++){
+                double q3 = (python::extract<double>(b_series[j]) + (ch-1)*MASS_H)/ch;
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+        }
+    }
+
+    /*
+     * Python code
+     *
+
+        for c in self.__get_all_precursors(par, pep, cursor, values=values):
+            q1 = c[0]
+            peptide_key = c[2]
+            peptide = DDB.Peptide()
+            peptide.set_sequence(c[1])
+            peptide.charge = c[3]
+            peptide.create_fragmentation_pattern(R)
+            b_series = peptide.b_series
+            y_series = peptide.y_series
+            for ch in [1,2]:
+                for pred in y_series:
+                    q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    if q3 < q3_low or q3 > q3_high: continue
+                    yield (q3, q1, 0, peptide_key)
+                for pred in b_series:
+                    q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    if q3 < q3_low or q3 > q3_high: continue
+                    yield (q3, q1, 0, peptide_key)
+    */
+
+    return result;
+}        
 
 
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
@@ -288,6 +467,10 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 
     def("core_non_unique", _find_clashes_core_non_unique, 
  "core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
+           );
+
+    def("calculate_transitions", _find_clashes_calculate_clashes, 
+ ""
            );
 
 }
