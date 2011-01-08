@@ -29,6 +29,10 @@ using namespace std;
 
 namespace python = boost::python;
 
+
+int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series, double ch);
+
+
 python::dict _getnonuis_wrapper(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm) {
 
@@ -118,13 +122,12 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
 
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     long peptide_key;
-    int j, k, start, scounter;
+    int j, start, scounter;
     double q1, acc_mass, res_mass;
     char* sequence;
     char c;
     bool inside;
 
-    double* fragment_series = new double[256];
     double* b_series = new double[256];
     double* y_series = new double[256];
 
@@ -193,7 +196,6 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
                 //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
 
                 acc_mass += res_mass;
-                fragment_series[scounter] = res_mass;
                 b_series[scounter] = acc_mass + MASS_H ;
                 y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
                 scounter++;
@@ -233,7 +235,6 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
                 }
 
                 acc_mass += res_mass;
-                fragment_series[scounter] = res_mass;
                 b_series[scounter] = acc_mass + MASS_H ;
                 y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
                 scounter++;
@@ -288,6 +289,203 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
 
     return result;
 }        
+
+
+
+
+
+
+python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
+python::tuple precursors,
+        double q3_low, double q3_high,
+        double q3window, bool ppm) {
+
+    python::dict collisions_per_peptide;
+    python::tuple clist;
+    python::tuple tlist;
+    python::list tmplist;
+    //python::list result;
+
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int tmplen, fragcount, i, j, k, ch;
+    long t1, tmplong, peptide_key;
+    bool already_in_list;
+    double t0, q3used = q3window;
+
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+
+    for (i=0; i<transitions_length; i++) {
+        tlist = python::extract< python::tuple >(transitions[i]);
+
+        //ppm is 10^-6
+        t0 = python::extract< double >(tlist[0]);
+        if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+
+        // go through all (potential) collisions
+        // and store the colliding SRM ids in a dictionary (they can be found at
+        // position 3 and 1 respectively)
+        for (j=0; j<precursor_length; j++) {
+            clist = python::extract< python::tuple >(precursors[j]);
+
+            for (ch=1; ch<=2; ch++) {
+                fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+                // go through all fragments of this precursor
+                for (k=0; k<fragcount; k++) {
+                    if(fabs(t0-y_series[k])<q3used || fabs(t0-b_series[k])<q3used) {
+                        peptide_key = python::extract< long >(clist[2]);
+                        t1 = python::extract<long>(tlist[1]);
+
+                        if(collisions_per_peptide.has_key(peptide_key)) {
+                            //append to the list in the dictionary
+                            ///unless its already in the list
+                            tmplist = python::extract<python::list>( 
+                                    collisions_per_peptide[peptide_key] );
+                            tmplen = python::extract<int>(tmplist.attr("__len__")());
+                            already_in_list = false;
+                            for (int k=0; k<tmplen; k++) {
+                                tmplong = python::extract<long>(tmplist[k]);
+                                if(tmplong == t1) {already_in_list = true;}
+                            }
+                            if(not already_in_list) { tmplist.append(t1); }
+                        }
+                        else {
+                            //create new list in the dictionary
+                            python::list newlist;
+                            newlist.append(t1);
+                            collisions_per_peptide[peptide_key] = newlist;
+                        }
+                    }
+                }
+            }
+
+
+
+        }
+
+    }
+    return collisions_per_peptide;
+}
+
+
+int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
+        double ch) {
+
+    long peptide_key;
+    int j, start, scounter;
+    double q1, acc_mass, res_mass;
+    char* sequence;
+    char c;
+    bool inside;
+
+    acc_mass = 0.0;
+    res_mass = 0.0;
+    scounter = 0;
+
+    q1 = python::extract< double >(tlist[0]);
+    peptide_key = python::extract< long >(tlist[2]);
+    sequence = python::extract<char *>(tlist[1]);
+
+    inside = false;
+    start = 0;
+    j = 0; 
+    while(c = sequence[j++]) {
+        if(sequence[j] == '[') {
+            start = j-1;
+            inside = true;
+        }
+        else if(sequence[j-1] == ']') {
+            //for(k=start; k < j; k++) cout << sequence[k];
+            //We found a modification
+            switch(sequence[start]) {
+                case 'M': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '4' && 
+                         sequence[start+4] == '7' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for methionine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                        }
+                    res_mass = 147.03540462; break;
+                case 'C': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '6' && 
+                         sequence[start+4] == '0' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 160.030653721; break;
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown modification ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+            //'M[147]':  131.04049 + mass_O), # oxygen
+            //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+
+            acc_mass += res_mass;
+            b_series[scounter] = acc_mass + MASS_H ;
+            y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
+            scounter++;
+
+            inside = false;
+        }
+        else if(inside) { }
+        else {
+            //We found a regular AA
+            switch(c) {
+                case 'A': res_mass = 71.03711; break;
+                case 'C': res_mass = 103.00919; break;
+                case 'D': res_mass = 115.02694; break;
+                case 'E': res_mass = 129.04259; break;
+                case 'F': res_mass = 147.06841; break;
+                case 'G': res_mass = 57.02146; break;
+                case 'H': res_mass = 137.05891; break;
+                case 'I': res_mass = 113.08406; break;
+                case 'K': res_mass = 128.09496; break;
+                case 'L': res_mass = 113.08406; break;
+                case 'M': res_mass = 131.04049; break;
+                case 'N': res_mass = 114.04293; break;
+                case 'P': res_mass = 97.05276; break;
+                case 'Q': res_mass = 128.05858; break;
+                case 'R': res_mass = 156.10111; break;
+                case 'S': res_mass = 87.03203; break;
+                case 'T': res_mass = 101.04768; break;
+                case 'V': res_mass = 99.06841; break;
+                case 'W': res_mass = 186.07931; break;
+                case 'X': res_mass = 113.08406; break;
+                case 'Y': res_mass = 163.06333; break;
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown amino acid ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+
+            acc_mass += res_mass;
+            b_series[scounter] = acc_mass + MASS_H ;
+            y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
+            scounter++;
+        }
+    }
+
+    for (int j=0; j<scounter; j++) y_series[j] += acc_mass;
+
+    for (int j=0; j<scounter-1; j++){
+
+        y_series[j] = (y_series[j] + (ch-1)*MASS_H)/ch;
+        b_series[j] = (b_series[j] + (ch-1)*MASS_H)/ch;
+
+    }
+    return scounter;
+}
 
 
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
@@ -352,7 +550,7 @@ void _combinations(int M, int N, const python::list &mapping,
     // increase the one left to it until we find one that still can be
     // increased. We stop when the rightmost index hits N-M, we thus go from
     // (0,1,2,3...M-1) to (N-M,N-M+1,N-M+2...N-1)
-    int j, k, tmpint;
+    int j, k;
     int* index = new int[M];
     //int* mytuple = new int[M];
     python::tuple tmptuple;
@@ -414,7 +612,7 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
 
     for (int i=0; i<collision_length; i++) {
         tmplist = python::extract< python::list >( pepcollisions[i] );
-        int tmp_length = python::extract<int>(tmplist.attr("__len__")());
+        tmp_length = python::extract<int>(tmplist.attr("__len__")());
         _combinations(order, tmp_length, tmplist, result);
     }
 
@@ -467,6 +665,9 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 
     def("get_non_uis", get_non_uis, 
  "void get_non_uis(dict collisions_per_peptide, int order)\n"
+           );
+    def("calculate_collisions_per_peptide", _find_clashes_calculate_collperpeptide, 
+ ""
            );
 
     def("core_non_unique", _find_clashes_core_non_unique, 
