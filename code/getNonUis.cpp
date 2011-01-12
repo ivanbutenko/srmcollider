@@ -43,6 +43,10 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) ;
 
 
 
+/* Input
+ * transitions: (q3, srm_id)
+ * collisions: (q3, q1, srm_id, peptide_key)
+ */
 python::dict _getnonuis_wrapper(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm) {
 
@@ -124,6 +128,9 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
 }
 
 
+/* Input
+ * precursors: (q1, sequence, peptide_key)
+ */
 python::list _find_clashes_calculate_clashes(python::tuple precursors,
         double q3_low, double q3_high ) {
 
@@ -182,15 +189,21 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
                     if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
     */
+    delete [] b_series;
+    delete [] y_series;
 
     return result;
 }        
 
 
+
+/* Input
+ * transitions: (q3, srm_id)
+ * precursors: (q1, sequence, peptide_key)
+ */
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
-python::tuple precursors,
-        double q3_low, double q3_high,
-        double q3window, bool ppm) {
+    python::tuple precursors, double q3_low, double q3_high, double q3window,
+    bool ppm) {
 
     python::dict collisions_per_peptide;
     python::tuple clist;
@@ -200,65 +213,56 @@ python::tuple precursors,
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    int tmplen, fragcount, i, j, k, ch;
+    int tmplen, fragcount, i, j, k, ch, listmembers = 0;
     long t1, tmplong, peptide_key;
-    bool already_in_list;
+    bool append_to_list;
     double t0, q3used = q3window;
 
 
     double* b_series = new double[256];
     double* y_series = new double[256];
 
+    // go through all (potential) collisions
+    // and store the colliding SRM ids in a dictionary (they can be found at
+    // position 3 and 1 respectively)
+    for (j=0; j<precursor_length; j++) {
+        clist = python::extract< python::tuple >(precursors[j]);
 
-    for (i=0; i<transitions_length; i++) {
-        tlist = python::extract< python::tuple >(transitions[i]);
-
-        //ppm is 10^-6
-        t0 = python::extract< double >(tlist[0]);
-        if(ppm) {q3used = q3window / 1000000.0 * t0; } 
-
-        // go through all (potential) collisions
-        // and store the colliding SRM ids in a dictionary (they can be found at
-        // position 3 and 1 respectively)
-        for (j=0; j<precursor_length; j++) {
-            clist = python::extract< python::tuple >(precursors[j]);
+        for (i=0; i<transitions_length; i++) {
+            append_to_list = false;
+            tlist = python::extract< python::tuple >(transitions[i]);
+            //ppm is 10^-6
+            t0 = python::extract< double >(tlist[0]);
+            if(ppm) {q3used = q3window / 1000000.0 * t0; } 
 
             for (ch=1; ch<=2; ch++) {
                 fragcount = _calculate_clashes(clist, b_series, y_series, ch);
                 // go through all fragments of this precursor
                 for (k=0; k<fragcount; k++) {
-                    if(fabs(t0-y_series[k])<q3used || fabs(t0-b_series[k])<q3used) {
-                        peptide_key = python::extract< long >(clist[2]);
-                        t1 = python::extract<long>(tlist[1]);
-
-                        if(collisions_per_peptide.has_key(peptide_key)) {
-                            //append to the list in the dictionary
-                            ///unless its already in the list
-                            tmplist = python::extract<python::list>( 
-                                    collisions_per_peptide[peptide_key] );
-                            tmplen = python::extract<int>(tmplist.attr("__len__")());
-                            already_in_list = false;
-                            for (int k=0; k<tmplen; k++) {
-                                tmplong = python::extract<long>(tmplist[k]);
-                                if(tmplong == t1) {already_in_list = true;}
-                            }
-                            if(not already_in_list) { tmplist.append(t1); }
-                        }
-                        else {
-                            //create new list in the dictionary
-                            python::list newlist;
-                            newlist.append(t1);
-                            collisions_per_peptide[peptide_key] = newlist;
-                        }
-                    }
+                    if(fabs(t0-y_series[k])<q3used || 
+                       fabs(t0-b_series[k])<q3used) {append_to_list = true; }
                 }
             }
-
-
-
+            //append if necessary
+            if(append_to_list) {
+                t1 = python::extract<long>(tlist[1]);
+                tmplist.append(t1);
+                listmembers++; 
+            }
         }
 
+        if (listmembers>0) {
+            peptide_key = python::extract< long >(clist[2]);
+            collisions_per_peptide[peptide_key] = tmplist;
+            //create new list
+            python::list newlist;
+            tmplist = newlist;
+        }
+        listmembers = 0;
+
     }
+    delete [] b_series;
+    delete [] y_series;
     return collisions_per_peptide;
 }
 
@@ -278,8 +282,8 @@ int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
     scounter = 0;
 
     q1 = python::extract< double >(tlist[0]);
-    peptide_key = python::extract< long >(tlist[2]);
     sequence = python::extract<char *>(tlist[1]);
+    peptide_key = python::extract< long >(tlist[2]);
 
     inside = false;
     start = 0;
@@ -332,6 +336,7 @@ int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
         else if(inside) { }
         else {
             //We found a regular AA
+            //TODO use hash map http://en.wikipedia.org/wiki/Hash_map_%28C%2B%2B%29
             switch(c) {
                 case 'A': res_mass = 71.03711; break;
                 case 'C': res_mass = 103.00919; break;
@@ -379,6 +384,11 @@ int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
     return scounter;
 }
 
+
+/* Input
+ * transitions: (q3, srm_id)
+ * collisions: (q3, q1, srm_id, peptide_key)
+ */
 
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm) {
@@ -542,6 +552,25 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
                 while k < M: index[k] = index[k-1] + 1; k += 1; 
 
 */
+
+int main() {
+/* Input
+ * transitions: (q3, srm_id)
+ * precursors: (q1, sequence, peptide_key)
+ */
+    cout << "main" << endl;
+    python::tuple transitions = python::make_tuple( 
+            python::make_tuple(500.2, 1),
+            python::make_tuple(600.2, 1)
+            );
+    python::tuple precursors = python::make_tuple( 
+            python::make_tuple(500.2, "PEPTIDE", 101),
+            python::make_tuple(600.2, "DEPTIDE", 102)
+            );
+    python::dict res =  _find_clashes_calculate_collperpeptide(transitions,
+        precursors, 400, 1400, 2.0, false);
+
+}
 
 void initgetnonuis() {;}
 void initcore_non_unique() {;}
