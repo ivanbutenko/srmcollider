@@ -609,11 +609,12 @@ class SRMcollider(object):
         #TODO we select all peptides that are in the peplink table
         #regardless whether their charge is actually correct
         query = """
-        select parent_id, srmPep.q1, parent_charge, ssrcalc, peptide.id, atl.modified_sequence
-         from %s srmPep
+        select parent_id, q1, q1_charge, ssrcalc, peptide.id, m.sequence
+         from %s  srmPep
          inner join ddb.peptide on peptide.id = srmPep.peptide_key
          inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
-         inner join hroest.MRMAtlas_yeast_201009_final atl on atl.sequence = peptide.sequence
+         inner join hroest.MRMPepLink t on t.peptide_key = peptide.id
+         inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
          where genome_occurence = 1
          %s
          group by parent_id
@@ -639,10 +640,10 @@ class SRMcollider(object):
         query1 = """
         select %(values)s
         from %(pep)s p 
-        inner join ddb.peptide pep on pep.id = p.peptide_key
-        inner join hroest.MRMAtlas_yeast_201009_final m on m.sequence = pep.sequence
+        inner join hroest.MRMPepLink l on p.peptide_key = l.peptide_key
+        inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
         where m.parent_charge = p.q1_charge
-        and m.modified_sequence = '%(mod_seq)s'
+        and m.sequence = '%(mod_seq)s'
         and p.peptide_key = %(peptide_key)s
         and q3 > %(q3_low)s and q3 < %(q3_high)s         
         and m.parent_charge = %(q1_charge)s
