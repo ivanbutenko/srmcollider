@@ -1,7 +1,9 @@
 import MySQLdb
+#from numpy import *
 import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as font_manager
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
 cursor = db.cursor()
 cursor.execute( """
@@ -38,7 +40,7 @@ for p in allpeps:
 regvalues = [ 0 for i in range(28) ]
 for i in range(1,28):
     rtpeps = [ [r[0], r[1], r[1] / 60.0] for r in rtpeps_byfile if r[2] == i]
-    corr = array([ [r[1] / 60.0, pepdic[r[0]]] for r in rtpeps])
+    corr = np.array([ [r[1] / 60.0, pepdic[r[0]]] for r in rtpeps])
     x = corr[:,0]
     y = corr[:,1]
     A = np.vstack([x, np.ones(len(x))]).T
@@ -46,8 +48,8 @@ for i in range(1,28):
     #Rsquare is 1-SSE/SST 
     #where SSE is the squared residuals
     #and SST is the squared deviation from the mean
-    [m, c], SSE, d, dummy = numpy.linalg.lstsq( A, y )
-    SST = sum( ( y-numpy.mean( y )) * ( y-numpy.mean( y )) )
+    [m, c], SSE, d, dummy = np.linalg.lstsq( A, y )
+    SST = sum( ( y-np.mean( y )) * ( y-np.mean( y )) )
     Rsquared = 1- SSE/SST
     regvalues[i] = [m,c]
     #print Rsquared
@@ -57,10 +59,10 @@ for i in range(1,28):
 #boxplot of the m and intersect values
 plt.clf()
 regvalues[0] = [0,0]
-plt.boxplot( numpy.array(regvalues)[:,0][1:] )
+plt.boxplot( np.array(regvalues)[:,0][1:] )
 plt.savefig( 'boxplot_m.pdf', format='pdf' )
 plt.clf()
-plt.boxplot( array(regvalues)[:,1][1:] )
+plt.boxplot( np.array(regvalues)[:,1][1:] )
 plt.savefig( 'boxplot_intersect.pdf', format='pdf' )
 
 
@@ -91,8 +93,8 @@ A = np.vstack([x, np.ones(len(x))]).T
 #Rsquare is 1-SSE/SST 
 #where SSE is the squared residuals
 #and SST is the squared deviation from the mean
-[m, c], SSE, d, dummy = numpy.linalg.lstsq( A, y )
-SST = sum( ( y-numpy.mean( y )) * ( y-numpy.mean( y )) )
+[m, c], SSE, d, dummy = np.linalg.lstsq( A, y )
+SST = sum( ( y-np.mean( y )) * ( y-np.mean( y )) )
 Rsquared = 1- SSE/SST
 plt.clf()
 plt.plot(x, y, 'o', label='Original data') 
@@ -101,9 +103,9 @@ plt.xlabel( 'SSRCalc')
 plt.ylabel( 'RT')
 plt.title( 'Correlation without correction: $R^2 = %s$' % Rsquared[0] )
 plt.legend()
-plt.show()
+#plt.show()
 plt.savefig( 'corr_uncorrected.pdf', format='pdf' )
-
+print "Created corr_uncorrected.pdf"
 
 
 
@@ -119,22 +121,22 @@ for mpep in measured_peps:
 x = []
 y = []
 for i in range(1,28):
-    tr = array( [t[2] for t in by_runnr[i]] )
-    ssr = array( [t[1] for t in by_runnr[i]] )
+    tr = np.array( [t[2] for t in by_runnr[i]] )
+    ssr = np.array( [t[1] for t in by_runnr[i]] )
     m, c = regvalues[i]
     x.extend( tr * m + c)
     y.extend( ssr )
 
 
-x = array( x )
-y = array( y )
+x = np.array( x )
+y = np.array( y )
 A = np.vstack([x, np.ones(len(x))]).T
 #we fit y = m*x + c
 #Rsquare is 1-SSE/SST 
 #where SSE is the squared residuals
 #and SST is the squared deviation from the mean
-[m, c], SSE, d, dummy = numpy.linalg.lstsq( A, y )
-SST = sum( ( y-numpy.mean( y )) * ( y-numpy.mean( y )) )
+[m, c], SSE, d, dummy = np.linalg.lstsq( A, y )
+SST = sum( ( y-np.mean( y )) * ( y-np.mean( y )) )
 Rsquared = 1- SSE/SST
 plt.clf()
 plt.plot(x, y, 'o', label='Original data') 
@@ -143,8 +145,9 @@ plt.xlabel( 'SSRCalc')
 plt.ylabel( 'RT')
 plt.title( 'Correlation with correction: $R^2 = %s$' % Rsquared[0] )
 plt.legend()
-plt.show()
+#plt.show()
 plt.savefig( 'corr_corrected.pdf', format='pdf' )
+print "Created corr_corrected.pdf"
 
 
 
@@ -199,8 +202,18 @@ def get_ROC_area(fprs, tprs):
 #   How large does the SSRCalc window need to be get at least x
 #   peptides inside the real window and get at most y FP
 plt.clf()
-win_sizes = [1 / 2.0, 2 / 2.0,  3 / 2.0 , 4 / 2.0, 5 / 2.0]
+win_sizes = [ 0.25 / 2.0, 0.5 / 2.0, 1 / 2.0, 2 / 2.0,  3 / 2.0 ,  5 / 2.0, 
+             10.0 / 2.0, 
+            # 20.0 / 2,
+            # 50.0 / 2,
+            ]
+
+allfprs = []
+alltprs = []
+allssrcalc = []
+alllabel = []
 for win_size in win_sizes:
+    ssrcalcs  = []
     fprs  = []
     tprs = []
     for ssrcalc_size in [i*0.1 for i in range(101)]:
@@ -208,39 +221,76 @@ for win_size in win_sizes:
         FPR = FP*1.0 / (FP + TN)
         TPR = TP*1.0 / (TP + FN)
         fprs.append( FPR )
+        ssrcalcs.append( ssrcalc_size  )
         tprs.append( TPR )
+    #for the correct ROC plot we need to have it end at (1,1)
     fprs.append( 1.0 )
     tprs.append( 1.0 )
+    allfprs.append( fprs)
+    alltprs.append( tprs[:])
+    allssrcalc.append( ssrcalcs )
     ROC_area = get_ROC_area(fprs, tprs)
-    #plot ROC curves
-    x = array( fprs )
-    y = array( tprs )
-    plt.plot(x, y, label = 'RT +/- %0.1f min (AUC = %0.4f)' % (win_size, ROC_area ))
+    mylabel = 'RT +/- %0.1f min (AUC = %0.4f)' % (win_size, ROC_area )
+    alllabel.append( mylabel )
     print ROC_area, win_size
+
+#make the first plot
+for i in range(len(allfprs)):
+    fprs = allfprs[i]
+    tprs = alltprs[i]
+    ssrcals = allssrcalc[i]
+    mylabel = alllabel[i]
+    #plot ROC curves
+    x = np.array( fprs )
+    y = np.array( tprs )
+    plt.plot(x, y, label = mylabel )
 
 plt.plot(x, x, label='Random (AUC = 0.5)')
 plt.xlabel( 'False Positive Rate')
 plt.ylabel( 'True Positive Rate')
 plt.title( 'SSRCalc predicting two peptides to be in a RT window')
 plt.axis([0, 1, 0, 1])
-font = matplotlib.font_manager.FontProperties(size=12)
+font = font_manager.FontProperties(size=12)
 plt.legend(loc='best', prop=font)
 plt.grid(True)
-plt.show()
 plt.savefig( 'SSRCalc_ROC.pdf', format='pdf' )
 plt.clf()
+print "Created SSRCalc_ROC.pdf"
+
+#make the second plot
+for i in range(len(allfprs)):
+    fprs = allfprs[i]
+    tprs = alltprs[i]
+    ssrcals = allssrcalc[i]
+    mylabel = alllabel[i]
+    tprs.pop()
+    x = np.array( ssrcalcs )
+    y = np.array( tprs )
+    plt.plot(x, y, label = mylabel )
+
+
+plt.xlabel( 'SSRCalc value')
+plt.ylabel( 'True Positive Rate')
+plt.title( 'SSRCalc predicting two peptides to be in a RT window')
+font = font_manager.FontProperties(size=12)
+plt.legend(loc='best', prop=font)
+plt.grid(True)
+plt.savefig( 'SSRCalc_TPR.pdf', format='pdf' )
+plt.clf()
+print "Created SSRCalc_TPR.pdf"
+
 
 
 #calculate the correlation between SSRcalc and real RT
-x = array( rdiffs  )
-y = array( sdiffs )
+x = np.array( rdiffs  )
+y = np.array( sdiffs )
 A = np.vstack([x, np.ones(len(x))]).T
 #we fit y = m*x + c
 #Rsquare is 1-SSE/SST 
 #where SSE is the squared residuals
 #and SST is the squared deviation from the mean
-[m, c], SSE, d, dummy = numpy.linalg.lstsq( A, y )
-SST = sum( ( y-numpy.mean( y )) * ( y-numpy.mean( y )) )
+[m, c], SSE, d, dummy = np.linalg.lstsq( A, y )
+SST = sum( ( y-np.mean( y )) * ( y-np.mean( y )) )
 
 plt.clf()
 plt.plot(x, y, 'o', label='Original data') 
@@ -249,9 +299,10 @@ plt.xlabel( '$\Delta$ RT / min')
 plt.ylabel( r'$\Delta$ SSRCalc')
 plt.title( 'Difference-Plot: $R^2 = %0.4f$' % Rsquared[0] )
 #plt.legend(loc='best')
-plt.show()
+#plt.show()
 plt.savefig( 'difference_correlation.pdf', format='pdf' )
 plt.savefig( 'difference_correlation.png', format='png' )
+print "Created difference_correlation.pdf"
 
 #now we normalize the SSRcalc values so that they correspond to minutes
 #calculate a histogram of the difference between real and predicted value
@@ -259,18 +310,19 @@ plt.clf()
 norm_y = (y-c)/m
 norm_diff = (norm_y - x) #/ z
 #hist( norm_diff , 50, [-15,15]) 
-n, bins, patches = hist( norm_diff , 50, normed=True )
-title('Difference between RT and SSRCalc')
+n, bins, patches = plt.hist( norm_diff , 50, normed=True )
+plt.title('Difference between RT and SSRCalc')
 # add a 'best fit' line
-mu = numpy.mean( norm_diff )
-sigma = numpy.std( norm_diff )
+mu = np.mean( norm_diff )
+sigma = np.std( norm_diff )
 line_y = mlab.normpdf( bins, mu, sigma)
-l = plot(bins, line_y, 'r--', linewidth=1)
+l = plt.plot(bins, line_y, 'r--', linewidth=1)
 plt.xlabel('$\Delta$ RT - norm($\Delta$ SSRCalc)')
 plt.axis([-15, 15, 0, round(max(n)+0.01, 2) ])
 plt.grid(True)
-plt.show()
-savefig( 'difference_histogram.pdf', format='pdf' )
+#plt.show()
+plt.savefig( 'difference_histogram.pdf', format='pdf' )
+print "Created difference_histogram.pdf"
 
 
 #compare all against all
@@ -279,7 +331,7 @@ for i in range(1,27):
     rtpeps1 = [ [r[0] , r[1] / 60.0] for r in rtpeps_byfile if r[2] == i]
     rtpeps1 = dict( rtpeps1)
     for j in range(i+1,28):
-        corr = array([ [rtpeps1[ r[0] ],  r[1] / 60.0] for r in rtpeps_byfile if r[2] == j])
+        corr = np.array([ [rtpeps1[ r[0] ],  r[1] / 60.0] for r in rtpeps_byfile if r[2] == j])
         #
         x = corr[:,0]
         y = corr[:,1]
@@ -288,8 +340,8 @@ for i in range(1,27):
         #Rsquare is 1-SSE/SST 
         #where SSE is the squared residuals
         #and SST is the squared deviation from the mean
-        [m, c], SSE, d, dummy = numpy.linalg.lstsq( A, y )
-        SST = sum( ( y-numpy.mean( y )) * ( y-numpy.mean( y )) )
+        [m, c], SSE, d, dummy = np.linalg.lstsq( A, y )
+        SST = sum( ( y-np.mean( y )) * ( y-np.mean( y )) )
         Rsquared = 1- SSE/SST
         rsvalues.append( Rsquared )
 
@@ -300,13 +352,14 @@ plt.xlabel(r'$R^2$')
 plt.ylabel('Occurence')
 plt.title(r'$R^2$ values of RT peptides in 27 MS runs')
 plt.grid(True)
-savefig( 'Rsqaured.pdf', format='pdf' )
+plt.savefig( 'Rsqaured.pdf', format='pdf' )
+print "Created Rsquared.pdf"
 
 
 
 
 
-
+"""
 
 ###########################################################################
 mu, sigma = 100, 15
@@ -325,6 +378,7 @@ plt.title(r'$\mathrm{Histogram\ of\ IQ:}\ \mu=100,\ \sigma=15$')
 plt.axis([40, 160, 0, 0.03])
 plt.grid(True)
 
-plt.show()
+#plt.show()
+plt.savefig( 'test.pdf', format='pdf' )
+"""
 
-savefig( 'test.pdf', format='pdf' )
