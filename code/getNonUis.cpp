@@ -381,7 +381,10 @@ int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
         b_series[j] = (b_series[j] + (ch-1)*MASS_H)/ch;
 
     }
-    return scounter;
+    //subtract one because we do not count the last mass as a fragment
+    //the complete peptide can not undergo fragmentation and is thus not
+    //a fragment. We still compute it but just dont consider it
+    return --scounter;
 }
 
 
