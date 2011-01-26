@@ -1191,6 +1191,65 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
 
+
+def get_coll_per_peptide(self, transitions, par, pep):
+    q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
+    q3_low = par.get_q3_low()
+    if do_not_calculate:
+        # slowest =  1000
+        # only if we are forced to do that
+        # e.g. if the precomputed transitions are somehow special
+        # (from experimental data)
+        #
+        collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
+    else:
+        try:
+            try:
+                #use range tree, really fast = 50
+                #needs self.c_rangetree and self.parentid_lookup
+                import c_getnonuis
+                q1 = pep['q1']
+                ssrcalc = pep['q1']
+                q1_low = q1 - par.q1_window
+                q1_high = q1 + par.q1_window
+                ssrcalc_low = ssrcalc - par.ssrcalc_window
+                ssrcalc_high = ssrcalc + par.ssrcalc_window
+                #
+                precursor_ids = tuple(self.c_rangetree.query_tree( 
+                    q1_low, -9999, q1_high,  9999 )  )
+                precursors = tuple([self.parentid_lookup[myid[0]] for myid in precursor_ids
+                                    #dont select myself 
+                                   if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+                return c_getnonuis.calculate_collisions_per_peptide( 
+                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+
+
+            except AttributeError, ImportError:
+                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+                #fastest = 100 
+                import c_getnonuis
+                precursors = self._get_all_precursors(par, pep, cursor)
+                return c_getnonuis.calculate_collisions_per_peptide( 
+                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+        except ImportError:
+            #second-fastest = 522 
+            collisions = self._get_all_collisions_calculate(par, pep, cursor)
+
+    collisions_per_peptide = {}
+    q3_window_used = par.q3_window
+    for t in transitions:
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    return collisions_per_peptide 
+
+
+
 def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS):
     """ Get all combinations that are not UIS """
     #collisions
