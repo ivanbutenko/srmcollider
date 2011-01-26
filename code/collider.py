@@ -122,7 +122,12 @@ class SRM_parameters(object):
     def peptide_db(self): return self.peptide_table.split('.')[0]
 
     @property
-    def peptide_tbl(self): return self.peptide_table.split('.')[1]
+    def peptide_tbl(self): 
+        try:
+            return self.peptide_table.split('.')[1]
+        except IndexError:
+            #not in database.table format
+            return self.peptide_table
 
     @property
     def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
@@ -594,12 +599,11 @@ class SRMcollider(object):
         """ % (par.peptide_table, par.peptide_table, par.query_add )
         if ignore_genomeoccurence:
             query = """
-            select parent_id, q1, q1_charge, ssrcalc, peptide.id
+            select parent_id, q1, q1_charge, ssrcalc, peptide_key
              from %s
-             inner join
-             ddb.peptide on peptide.id = %s.peptide_key
+             where 4 = 4
              %s
-            """ % (par.peptide_table, par.peptide_table, par.query_add )
+            """ % (par.peptide_table, par.query_add )
         if par.print_query: print query
         cursor.execute( query )
         res = cursor.fetchall()
@@ -1177,7 +1181,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
         import c_getnonuis
         non_uis_list = [0 for i in range(MAX_UIS+1)]
         collisions_per_peptide = c_getnonuis.getnonuis(
-            transitions, collisions, par.q3window, par.ppm)
+            transitions, collisions, par.q3_window, par.ppm)
         for order in range(1,MAX_UIS+1):
             non_uis_list[order] = c_getnonuis.get_non_uis(
                 collisions_per_peptide, order)
