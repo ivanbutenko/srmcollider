@@ -80,18 +80,18 @@ class SRM_parameters(object):
         import copy
         return copy.deepcopy(self)
 
-    def get_q3_high(self, q1, q1_charge):
-        q3_high = self.q3_range[1]
-        if q3_high < 0: 
-            if not self.query1_add == 'and q1_charge = 2 and q3_charge = 1':
-                raise( 'relative q3_high not implemented for this combination')
-            q3_high = q1 * q1_charge + q3_high
-        return q3_high
+    def get_q3range_transitions(self):
+        return self.q3_range[0], self.q3_range[1]
 
-    def get_q3_low(self):
-        return self.q3_range[0]
+    def get_q3range_collisions(self):
+        if self.ppm:
+            return self.q3_range[0]-self.q3_window,\
+                   self.q3_range[1]+self.q3_window
+        else:
+            return self.q3_range[0]-self.q3_window*10**(-6)*self.q3_range[0],\
+                   self.q3_range[1]+self.q3_window*10**(-6)*self.q3_range[1]
 
-    def get_q3_window(self, q3):
+    def get_q3_window_transitions(self, q3):
         if self.ppm:
             return [q3 - self.q3_window * 10**(-6) *q3, q3 + self.q3_window * 10**(-6) * q3]
         else: return [q3 - self.q3_window, q3 + self.q3_window]
@@ -253,8 +253,7 @@ class SRMcollider(object):
         import silver
         import DDB 
         R = silver.Residues.Residues('mono')
-        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
-        q3_low = par.get_q3_low()
+        q3_low, q3_high = par.get_q3range_collisions()
         res = []
         start = time.time()
         for c in self._get_all_precursors(par, pep, cursor, values=values):
@@ -646,8 +645,7 @@ class SRMcollider(object):
         ]
 
     def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
-        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
-        q3_low = par.get_q3_low()
+        q3_low, q3_high = par.get_q3range_transitions()
         query1 = """
         select %(values)s
         from %(pep)s p 
@@ -669,8 +667,7 @@ class SRMcollider(object):
         return cursor.fetchall()
 
     def _get_all_transitions(self, par, pep, cursor, values = "q3, srm_id"):
-        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
-        q3_low = par.get_q3_low()
+        q3_low, q3_high = par.get_q3range_transitions()
         query1 = """
         select %(values)s
         from %(pep)s
@@ -700,8 +697,7 @@ class SRMcollider(object):
         the relevant values. It is not actually faster then the conventional
         table.
         """
-        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
-        q3_low = par.get_q3_low()
+        q3_low, q3_high = par.get_q3range_collisions()
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
         query2 = """
@@ -740,8 +736,7 @@ class SRMcollider(object):
 
     def _get_all_collisions(self, par, pep, cursor, 
                 values="q3, q1, srm_id, peptide_key", transitions=None):
-        q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
-        q3_low = par.get_q3_low()
+        q3_low, q3_high = par.get_q3range_collisions()
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
         query2 = """
@@ -1193,8 +1188,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
 
 
 def get_coll_per_peptide(self, transitions, par, pep):
-    q3_high = par.get_q3_high( pep['q1'], pep['q1_charge'])
-    q3_low = par.get_q3_low()
+    q3_low, q3_high = par.get_q3range_collisions()
     if do_not_calculate:
         # slowest =  1000
         # only if we are forced to do that
