@@ -84,7 +84,7 @@ class SRM_parameters(object):
         return self.q3_range[0], self.q3_range[1]
 
     def get_q3range_collisions(self):
-        if self.ppm:
+        if not self.ppm:
             return self.q3_range[0]-self.q3_window,\
                    self.q3_range[1]+self.q3_window
         else:
@@ -240,9 +240,7 @@ class SRMcollider(object):
                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                'pep' : par.peptide_table,
                'values' : values}
-        mystart = time.time()
         cursor.execute( query2 )
-        self.innermysql += time.time() - mystart
         return cursor.fetchall()
 
     def _get_all_collisions_calculate(self, par, pep, cursor, 
