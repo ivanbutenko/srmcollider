@@ -157,17 +157,21 @@ def get_cum_dist(original):
 class SRMcollider(object):
 
     def find_clashes_small(self, db, par, use_per_transition=False,
-                           UIS_only=False, exp_key=None, calc_collisions=False):
+                           UIS_only=False, exp_key=None, calc_collisions=False, 
+                           pepids=None):
         #make sure we only get unique peptides
         cursor = db.cursor()
-        self.pepids = self._get_unique_pepids(par, cursor)
+        if pepids is not None: self.pepids = pepids
+        else: self.pepids = self._get_unique_pepids(par, cursor)
         MAX_UIS = par.max_uis
         common_filename = par.get_common_filename()
         self.allpeps = {}
         self.non_unique_count = 0
         self.total_count = 0
-        start = time.time()
+        self.start = time.time()
         progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+        self.coll_time = 0
+        self.innermysql = 0
         for ii, pep in enumerate(self.pepids):
             p_id = pep['parent_id']
             q1 = pep['q1']
@@ -177,12 +181,14 @@ class SRMcollider(object):
             non_unique_clash = {}
             transitions = self._get_all_transitions(par, pep, cursor)
             nr_transitions = len( transitions )
+            mystart = time.time()
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(par, pep, transitions, cursor)
             elif calc_collisions: 
                 collisions = list(self._get_all_collisions_calculate(par, pep, cursor))
             else: collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
             #
+            self.coll_time += time.time() - mystart
             if UIS_only:
                 non_uis_list = get_non_UIS_from_transitions(transitions, 
                                             collisions, par, MAX_UIS)
@@ -192,7 +198,7 @@ class SRMcollider(object):
                                    parent_key, uisorder, exp_key) values " % restable +\
                                    "(%s,%s,%s,%s,%s)" % (len(non_uis_list[i]) , 
                                        choose(nr_transitions, i), p_id , i, exp_key) )
-                end = time.time()
+                self.end = time.time()
                 progressm.update(1)
                 continue
             #here we loop through all possible combinations of transitions and
@@ -207,11 +213,11 @@ class SRMcollider(object):
             self.allpeps[ p_id ] = 1.0 - len( non_unique ) * 1.0  / nr_transitions
             self.non_unique_count += len( non_unique )
             self.total_count += len( transitions)
-            end = time.time()
+            self.end = time.time()
             progressm.update(1)
-        self.total_time = end - start
+        self.total_time = self.end - self.start
 
-    def __get_all_precursors(self, par, pep, cursor, 
+    def _get_all_precursors(self, par, pep, cursor, 
          values="q1, modified_sequence, peptide_key, q1_charge"):
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
@@ -229,7 +235,9 @@ class SRMcollider(object):
                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                'pep' : par.peptide_table,
                'values' : values}
+        mystart = time.time()
         cursor.execute( query2 )
+        self.innermysql += time.time() - mystart
         return cursor.fetchall()
 
     def _get_all_collisions_calculate(self, par, pep, cursor, 
@@ -249,8 +257,7 @@ class SRMcollider(object):
         q3_low = par.get_q3_low()
         res = []
         start = time.time()
-        #for c in __get_all_precursors(self, par, pep, cursor, values=values):
-        for c in self.__get_all_precursors(par, pep, cursor, values=values):
+        for c in self._get_all_precursors(par, pep, cursor, values=values):
             q1 = c[0]
             peptide_key = c[2]
             peptide = DDB.Peptide()
@@ -432,8 +439,8 @@ class SRMcollider(object):
         self.q1all_hist += numpy.histogram( self.q1all_distr, 1000, q1r)[0]
         self.q3all_hist += numpy.histogram( self.q3all_distr, 1000, q3r)[0]
 
-    def find_clashes_toptrans_paola(self, db, par, use_per_transition=False, 
-                                    bgpar=None):
+    def find_clashes_toptrans_paola(self, db, par,
+        use_per_transition=False, bgpar=None):
         """
         We find interferences the following way:
             Single for the top transition
@@ -442,6 +449,9 @@ class SRMcollider(object):
         We stop at par.max_uis
         """
         #make sure we only get unique peptides
+        assert par.query1_add.find( ' order by Intensity DESC') != -1 
+        assert not par.do_1vs 
+        assert par.max_uis > 0
         cursor = db.cursor()
         if bgpar == None: bgpar = par
         self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
@@ -459,7 +469,6 @@ class SRMcollider(object):
             if use_per_transition: collisions = self._get_all_collisions_per_transition(
                 bgpar, pep, transitions, cursor)
             else: collisions = self._get_all_collisions(bgpar, pep, cursor)
-            min_required = par.max_uis
             #speci = [0 for i in range(par.max_uis+1)]
             nr_used_tr = min(par.max_uis+1, nr_transitions)
             mytransitions = transitions[:nr_used_tr]
@@ -479,6 +488,7 @@ class SRMcollider(object):
             #shared
             min_needed = par.max_uis
             for j in range(par.max_uis,0,-1): 
+                #take top j transitions
                 mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
                 unuseable = False
                 for k,v in collisions_per_peptide.iteritems():
@@ -619,7 +629,7 @@ class SRMcollider(object):
          %s
          group by parent_id
         """ % (par.peptide_table, par.query_add )
-        #print query
+        if par.print_query: print query
         cursor.execute( query )
         res = cursor.fetchall()
         return [
@@ -653,6 +663,7 @@ class SRMcollider(object):
                'pep' : par.peptide_table, 'trans' : par.transition_table, 
                'values' : values, 'q1_charge' : pep['q1_charge'], 
                'mod_seq' : pep['mod_sequence'] }
+        if par.print_query: print query1
         cursor.execute( query1 )
         return cursor.fetchall()
 
@@ -1500,6 +1511,8 @@ def get_uis(srm_ids, non_uis, order):
 
 def permutations(iterable, r=None):
     #use itertools in 2.6
+    #see
+    #http://svn.python.org/view/python/trunk/Modules/itertoolsmodule.c?view=markup&pathrev=81889
     import itertools
     try:
         return itertools.permutations( iterable, r)
