@@ -47,6 +47,13 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) ;
 /* Input
  * transitions: (q3, srm_id)
  * collisions: (q3, q1, srm_id, peptide_key)
+ *
+ * Function to calculate the collisions_per_peptide out of a set of 
+ * transitions and collisions. It will return a dictionary 
+ * where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held.
+ * Transitions are tuples of the form (q3, srm_id), collisions are tuples of the
+ * form (q3, q1, srm_id, peptide_key).
  */
 python::dict _getnonuis_wrapper(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm) {
@@ -131,6 +138,12 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
 
 /* Input
  * precursors: (q1, sequence, peptide_key)
+ *
+ * Function to calculate all transitions of a list of precursor peptides and
+ * allows to select the charge states of these precursors.
+ * Precursors are tuples of the form (q1, sequence, peptide_key).
+ * It will return a list of tuples that are of the form 
+ * (q3, q1, 0, peptide_key) 
  */
 python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
         python::list charges, double q3_low, double q3_high ) {
@@ -176,10 +189,13 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
 }        
 
 
-
-
 /* Input
  * precursors: (q1, sequence, peptide_key)
+ *
+ * Function to calculate all transitions of a list of precursor peptides.
+ * Precursors are tuples of the form (q1, sequence, peptide_key).
+ * It will return a list of tuples that are of the form 
+ * (q3, q1, 0, peptide_key) 
  */
 python::list _find_clashes_calculate_clashes(python::tuple precursors,
         double q3_low, double q3_high ) {
@@ -247,9 +263,13 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
 
 
 
-/* Input
- * transitions: (q3, srm_id)
- * precursors: (q1, sequence, peptide_key)
+/*
+ * Function to calculate the collisions_per_peptide out of a set of transitions
+ * and precursor peptides that are colliding peptides.  It will return a
+ * dictionary where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held.
+ * Transitions are tuples of the form (q3, srm_id), precursors are tuples of
+ * the form (q1, sequence, peptide_key).
  */
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
@@ -318,6 +338,14 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
 
 
 
+/* Input
+ * precursors: (q1, sequence, peptide_key)
+ *
+ * Function to calculate all transitions of a precursor peptide ion of a
+ * defined charge state.  The input is a tuple of the form (q1, sequence,
+ * peptide_key) and the charge state.  It will return a list containing the b
+ * and y fragments.
+ */
 
 python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge) {
 
@@ -459,6 +487,12 @@ int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
 /* Input
  * transitions: (q3, srm_id)
  * collisions: (q3, q1, srm_id, peptide_key)
+ *
+ * Function to calculate the closest collision in q3-space for each transition.
+ * Transitions are tuples of the form (q3, srm_id), collisions are tuples of
+ * the form (q3, q1, srm_id, peptide_key).
+ * It will return a dictionary that contains for each srm_id the distance to
+ * the closest hit.
  */
 
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
@@ -488,7 +522,7 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
             clist = python::extract< python::tuple >(collisions[j]);
             c0 = python::extract< double >(clist[0]);
 
-            if(fabs(t0-c0) <  this_min) {
+            if(fabs(t0-c0) < this_min) {
 
                 t1 = python::extract<long>(tlist[1]);
                 this_min = fabs(t0-c0);
@@ -573,6 +607,14 @@ void _combinations(int M, int N, const python::list &mapping,
 }
 
 
+
+/*
+ * Function to calculate all non-UIS transitions from a dictionary
+ * where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held
+ * (collisions_per_peptide dictionary)
+ * It will return a list of all non UIS of the requested order.
+ */
 python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
 
     python::list tmplist;
@@ -653,27 +695,89 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 {
 
     def("getnonuis", _getnonuis_wrapper, 
- "getnonuis(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
-           );
+ "Function to calculate the collisions_per_peptide out of a set of \n"
+ "transitions and collisions. It will return a dictionary \n"
+ "where for each key (colliding peptide key) the set of transitions\n"
+ "of the query peptide are stored that are interfered with is held.\n"
+ "Transitions are tuples of the form (q3, srm_id), collisions are tuples of the\n"
+ "form (q3, q1, srm_id, peptide_key)\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "dict getnonuis(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
+ );
 
     def("get_non_uis", get_non_uis, 
- "void get_non_uis(dict collisions_per_peptide, int order)\n"
-           );
+ "Function to calculate all non-UIS transitions from a dictionary \n"
+ "where for each key (colliding peptide key) the set of transitions\n"
+ "of the query peptide are stored that are interfered with is held\n"
+ "(collisions_per_peptide dictionary)\n"
+ "It will return a list of all non UIS of the requested order.\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list get_non_uis(dict collisions_per_peptide, int order)\n"
+ );
+
     def("calculate_collisions_per_peptide", _find_clashes_calculate_collperpeptide, 
- ""
-           );
+ "Function to calculate the collisions_per_peptide out of a set of transitions\n"
+ "and precursor peptides that are colliding peptides.  It will return a\n"
+ "dictionary where for each key (colliding peptide key) the set of transitions\n"
+ "of the query peptide are stored that are interfered with is held.\n"
+ "Transitions are tuples of the form (q3, srm_id), precursors are tuples of\n"
+ "the form (q1, sequence, peptide_key).\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "dict calculate_collisions_per_peptide(tuple transitions, tuple precursors, \n"
+ "       double q3_low, double q3_high, double q3window, bool ppm)\n"
+ );
 
     def("core_non_unique", _find_clashes_core_non_unique, 
- "core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
-           );
+ "Function to calculate the closest collision in q3-space for each transition.\n"
+ "Transitions are tuples of the form (q3, srm_id), collisions are tuples of\n"
+ "the form (q3, q1, srm_id, peptide_key).\n"
+ "It will return a dictionary that contains for each srm_id the distance to\n"
+ "the closest hit.\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "dict core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
+ );
 
-    def("calculate_transitions", _find_clashes_calculate_clashes, "");
-    def("calculate_transitions_ch", _find_clashes_calculate_clashes_ch, "");
-    def("calculate_transitions_inner", _calculate_clashes_wrapper, "");
+    def("calculate_transitions", _find_clashes_calculate_clashes, 
+ "Function to calculate all transitions of a list of precursor peptides.\n"
+ "Precursors are tuples of the form (q1, sequence, peptide_key).\n"
+ "It will return a list of tuples that are of the form \n"
+ "(q3, q1, 0, peptide_key) \n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list calculate_transitions(tuple precursors, double q3_low, double q3_high ) \n"
+ );
+    def("calculate_transitions_ch", _find_clashes_calculate_clashes_ch,
+ "Function to calculate all transitions of a list of precursor peptides and \n"
+ "allows to select the charge states of these precursors.\n"
+ "Precursors are tuples of the form (q1, sequence, peptide_key).\n"
+ "It will return a list of tuples that are of the form \n"
+ "(q3, q1, 0, peptide_key) \n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list calculate_transitions(tuple precursors, list charges, double q3_low, double q3_high ) \n"
+ );
 
-
-
-
+    def("calculate_transitions_inner", _calculate_clashes_wrapper, 
+ "Function to calculate all transitions of a precursor peptide ion of a"
+ "defined charge state.  The input is a tuple of the form (q1, sequence,"
+ "peptide_key) and the charge state.  It will return a list containing the b"
+ "and y fragments."
+ "\n"
+ "\n"
+ " Signature\n"
+ "list calculate_transitions_inner(tuple precursor, double charge) \n"
+            "");
 
 }
+
 
