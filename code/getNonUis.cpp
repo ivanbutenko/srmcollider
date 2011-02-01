@@ -532,20 +532,21 @@ void _combinations(int M, int N, const python::list &mapping,
     while (index[0] <= N-M) {
 
         //EVALUATE THE RESULT
-        python::list tmplist;
-        for(int i=0; i<M; ++i) tmplist.append( mapping[index[i]] ); 
-        tmplist.sort();
-        //this doesnt work for some reason
-        //tmptuple = python::make_tuple( tmplist );
+        //only works for M up to order 5
         switch(M) {
-            case 1: tmptuple = python::make_tuple( tmplist[0] ); break;
-            case 2: tmptuple = python::make_tuple( tmplist[0], tmplist[1] ); break;
-            case 3: tmptuple = python::make_tuple( tmplist[0], tmplist[1],
-                            tmplist[2]); break;
-            case 4: tmptuple = python::make_tuple( tmplist[0], tmplist[1], 
-                            tmplist[2], tmplist[3]); break;
-            case 5: tmptuple = python::make_tuple( tmplist[0], tmplist[1], 
-                            tmplist[2], tmplist[3], tmplist[4]); break;
+            case 1: tmptuple = python::make_tuple( mapping[index[0]] ); break;
+            case 2: tmptuple = python::make_tuple( mapping[index[0]], mapping[index[1]]); break;
+            case 3: tmptuple = python::make_tuple( mapping[index[0]], mapping[index[1]], 
+                            mapping[index[2]]); break;
+            case 4: tmptuple = python::make_tuple( mapping[index[0]], mapping[index[1]], 
+                            mapping[index[2]], mapping[index[3]]); break;
+            case 5: tmptuple = python::make_tuple( mapping[index[0]], mapping[index[1]], 
+                            mapping[index[2]], mapping[index[3]], mapping[index[4]]); break;
+            default:
+                PyErr_SetString(PyExc_ValueError, 
+                    "Order (M) larger than 5 is not implemented");
+                boost::python::throw_error_already_set();
+                return;
         }
         result[ tmptuple ] = 0; //append to result dict
 
@@ -666,9 +667,13 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
            );
 
-    def("calculate_transitions", _find_clashes_calculate_clashes, 
- ""
-           );
+    def("calculate_transitions", _find_clashes_calculate_clashes, "");
+    def("calculate_transitions_ch", _find_clashes_calculate_clashes_ch, "");
+    def("calculate_transitions_inner", _calculate_clashes_wrapper, "");
+
+
+
+
 
 }
 
