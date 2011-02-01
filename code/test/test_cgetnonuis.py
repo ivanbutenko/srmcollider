@@ -3,6 +3,7 @@ import test_shared
 
 import sys
 sys.path.append( '..')
+import collider
 
 try:
     import c_getnonuis
@@ -176,10 +177,11 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
         #it should still work
         try:
             import c_getnonuis
-            self.transitions = transitions_def2_unsorted
-            self.collisions  = collisions_def2
+            self.transitions = test_shared.transitions_def2_unsorted
+            self.collisions  = test_shared.collisions_def2
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
+            newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
             self.assertEqual(newnon_uis, test_shared.refnonuis2_unsorted)
         except ImportError: pass
@@ -187,10 +189,11 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions3(self): 
         try:
             import c_getnonuis
-            self.transitions = transitions_def3
-            self.collisions  = collisions_def3
+            self.transitions = test_shared.transitions_def3
+            self.collisions  = test_shared.collisions_def3
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
+            newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis3)
             self.assertEqual(newnon_uis, test_shared.refnonuis3)
         except ImportError: pass
@@ -198,10 +201,11 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions4(self): 
         try:
             import c_getnonuis
-            self.transitions = transitions_def4
-            self.collisions  = collisions_def4
+            self.transitions = test_shared.transitions_def4
+            self.collisions  = test_shared.collisions_def4
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
+            newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)
             self.assertEqual(newnon_uis, test_shared.refnonuis4)
         except ImportError: pass
