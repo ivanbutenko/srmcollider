@@ -30,27 +30,6 @@ class Test_cgetnonuis(unittest.TestCase):
             tuples.append(self.pep2)
             self.tuples = tuple( tuples)
 
-            #self.pep1 = (500, 'PEPTIDE', 1, 1)
-            #self.pep2 = (400, 'CEPC[160]IDM[147]E',2,2)
-            #for peptide 1
-            #self.transitions_12_between300_1500 = [703.31500971599996,
-            #                                       574.27241971600006,
-            #                                       477.21965971600002,
-            #                                       376.17197971600001,
-            #                                       324.155935032,
-            #                                       425.20361503200002,
-            #                                       538.28767503200004,
-            #                                       653.31461503200001,
-            #                                       352.161417374,
-            #                                       327.16122003200002]
-            ##this is the double charged b and y series (peptide 1)
-            #self.pep1_yseries = [352.161417374, 287.64012237400004,
-            #                     239.11374237400003, 188.58990237400002,
-            #                     132.04787237400001, 74.53440237400001]
-            #self.pep1_bseries = [49.534205032000003, 114.055500032,
-            #                     162.58188003200002, 213.10572003200002,
-            #                     269.64775003200003, 327.16122003200002]
-
         except ImportError:
             pass
 
@@ -156,6 +135,75 @@ class Test_cgetnonuis(unittest.TestCase):
                 self.assertTrue(abs(calc - ref) < 1e-3)
             for calc, ref in zip(b_series, self.pep1_bseries):
                 self.assertTrue(abs(calc - ref) < 1e-3)
+        except ImportError: pass
+
+
+class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
+
+    def setUp(self):
+        class Minimal: pass
+        self.par = Minimal()
+        self.par.q3_window = 4.0
+        self.par.ppm = False
+        self.MAX_UIS = 5
+
+    def test_get_non_UIS_from_transitions1(self): 
+        try:
+            import c_getnonuis
+            self.transitions = test_shared.transitions_def1
+            self.collisions  = test_shared.collisions_def1
+            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+                self.collisions, self.par, self.MAX_UIS)
+            newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
+            self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis1)
+            self.assertEqual(newnon_uis, test_shared.refnonuis1)
+        except ImportError: pass
+
+    def test_get_non_UIS_from_transitions2(self): 
+        try:
+            import c_getnonuis
+            self.transitions = test_shared.transitions_def2
+            self.collisions  = test_shared.collisions_def2
+            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+                self.collisions, self.par, self.MAX_UIS)
+            newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
+            self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
+            self.assertEqual(newnon_uis, test_shared.refnonuis2_sorted)
+        except ImportError: pass
+
+    def test_get_non_UIS_from_transitions2_unsorted(self): 
+        #here we have the transitions in the wrong order
+        #it should still work
+        try:
+            import c_getnonuis
+            self.transitions = transitions_def2_unsorted
+            self.collisions  = collisions_def2
+            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+                self.collisions, self.par, self.MAX_UIS)
+            self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
+            self.assertEqual(newnon_uis, test_shared.refnonuis2_unsorted)
+        except ImportError: pass
+
+    def test_get_non_UIS_from_transitions3(self): 
+        try:
+            import c_getnonuis
+            self.transitions = transitions_def3
+            self.collisions  = collisions_def3
+            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+                self.collisions, self.par, self.MAX_UIS)
+            self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis3)
+            self.assertEqual(newnon_uis, test_shared.refnonuis3)
+        except ImportError: pass
+
+    def test_get_non_UIS_from_transitions4(self): 
+        try:
+            import c_getnonuis
+            self.transitions = transitions_def4
+            self.collisions  = collisions_def4
+            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+                self.collisions, self.par, self.MAX_UIS)
+            self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)
+            self.assertEqual(newnon_uis, test_shared.refnonuis4)
         except ImportError: pass
 
 
