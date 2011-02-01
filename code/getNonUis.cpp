@@ -29,13 +29,14 @@ using namespace std;
 
 namespace python = boost::python;
 
-int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series, double ch);
 python::dict _getnonuis_wrapper(python::tuple transitions, python::tuple
         collisions, double q3window, bool ppm);
 python::list _find_clashes_calculate_clashes(python::tuple precursors,
         double q3_low, double q3_high );
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         python::tuple precursors, double q3_low, double q3_high, double q3window, bool ppm);
+python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge);
+int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series, double ch);
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm);
 void _combinations(int M, int N, const python::list &mapping, python::dict &result) ;
@@ -131,6 +132,55 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
 /* Input
  * precursors: (q1, sequence, peptide_key)
  */
+python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
+        python::list charges, double q3_low, double q3_high ) {
+
+    python::tuple clist;
+    python::list result;
+
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int charges_length = python::extract<int>(charges.attr("__len__")());
+    long peptide_key;
+    int ch, fragcount, k;
+    double q3, q1;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    for (int i=0; i<precursor_length; i++) {
+        clist = python::extract< python::tuple >(precursors[i]);
+        q1 = python::extract< double >(clist[0]);
+        peptide_key = python::extract< long >(clist[2]);
+
+        for (int kk=0; kk<charges_length; kk++) {
+            ch = python::extract< int >(charges[kk]);
+            fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+            // go through all fragments of this precursor
+            for (k=0; k<fragcount; k++) {
+                q3 = y_series[k];
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+            for (k=0; k<fragcount; k++) {
+                q3 = b_series[k];
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+        }
+    }
+
+    delete [] b_series;
+    delete [] y_series;
+
+    return result;
+}        
+
+
+
+
+/* Input
+ * precursors: (q1, sequence, peptide_key)
+ */
 python::list _find_clashes_calculate_clashes(python::tuple precursors,
         double q3_low, double q3_high ) {
 
@@ -213,8 +263,8 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    int tmplen, fragcount, i, j, k, ch, listmembers = 0;
-    long t1, tmplong, peptide_key;
+    int fragcount, i, j, k, ch, listmembers = 0;
+    long t1, peptide_key;
     bool append_to_list;
     double t0, q3used = q3window;
 
@@ -266,6 +316,24 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     return collisions_per_peptide;
 }
 
+
+
+
+python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge) {
+
+    python::list result;
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+    int k;
+
+    int fragcount = _calculate_clashes(tlist, b_series, y_series, charge);
+
+    for (k=0; k<fragcount; k++) result.append(y_series[k]);
+    for (k=0; k<fragcount; k++) result.append(b_series[k]);
+
+    return result;
+
+}
 
 int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
         double ch) {
@@ -501,7 +569,6 @@ void _combinations(int M, int N, const python::list &mapping,
     }
 
     delete [] index;
-
 }
 
 
@@ -578,6 +645,7 @@ int main() {
 void initgetnonuis() {;}
 void initcore_non_unique() {;}
 void initget_non_uis() {;}
+void initcalculate_transitions_inner() {;}
 
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
