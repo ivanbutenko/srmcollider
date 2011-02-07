@@ -119,9 +119,11 @@ void _combinations(int M, int N, ofstream &myfile, const vector<string>&
     mystrings[2] =  "Bacon";
     mystrings[3] =  "Sausage";
 
+    vector<vector<int> > exclude(0);
+
     ofstream myfile;
     myfile.open ("test.out");
-    _combinations( 2, 4, myfile, mystrings);
+    _combinations( 2, 4, myfile, mystrings, exclude);
     myfile.close();
 
     cout << "done \n";
@@ -131,7 +133,7 @@ void _combinations(int M, int N, ofstream &myfile, const vector<string>&
     cout << ( (finish - start) * 1.0 /CLOCKS_PER_SEC ) << endl;
 
 return 0;
-} */
+}  */
 
 
 

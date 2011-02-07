@@ -1,6 +1,15 @@
 import random
 import unittest
 
+import sys
+sys.path.append( '..')
+
+try:
+    import c_getnonuis
+except ImportError:
+    print "=" * 75, """
+Module c_rangetree is not available. Please compile it if you want to use it.
+""", "=" * 75
 
 class Test_crangetree(unittest.TestCase):
 
@@ -14,9 +23,7 @@ class Test_crangetree(unittest.TestCase):
                 ('PEPTIDE', 1, self.parent_id, 2, self.q1, self.ssrcalc),
             )
         except ImportError:
-            print """Module c_rangetree is not available.
-
-            Please compile it if you want to use it."""
+            pass
 
     def test_rangetree(self):
         try:

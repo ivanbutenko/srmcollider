@@ -17,6 +17,13 @@ class Test_collider_function(unittest.TestCase):
         self.par.q3_window = 4.0
         self.par.ppm = False
         self.MAX_UIS = 5
+        self.q3_high = 1500
+        self.q3_low = 300
+
+        import sys
+        sys.path.append( '/home/hroest/projects/' )
+        import silver
+        self.R = silver.Residues.Residues('mono')
 
     def test_get_non_UIS_from_transitions1(self): 
         oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions, self.collisions, 
@@ -98,6 +105,61 @@ class Test_collider_function(unittest.TestCase):
         res = collider.get_UIS_from_transitions(self.transitions,
             self.collisions, self.par, self.MAX_UIS)
         self.assertEqual( [len(r) for r in res] , [0, 0, 7, 17, 15, 6])
+
+    def test_calculate_collisions_1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in transitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: 
+                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
+
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_calculate_collisions_2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in transitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: 
+                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
+
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
 
 if __name__ == '__main__':
     unittest.main()

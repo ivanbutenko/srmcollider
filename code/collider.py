@@ -47,6 +47,7 @@ class SRM_parameters(object):
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
         self.print_query = False
         self.select_floor = False
+        self.quiet = False
 
     def eval(self):
         #query will get all parent ions to consider
@@ -204,7 +205,7 @@ class SRMcollider(object):
                                    "(%s,%s,%s,%s,%s)" % (len(non_uis_list[i]) , 
                                        choose(nr_transitions, i), p_id , i, exp_key) )
                 self.end = time.time()
-                progressm.update(1)
+                if not par.quiet: progressm.update(1)
                 continue
             #here we loop through all possible combinations of transitions and
             #potential collisions and check whether we really have a collision
@@ -219,7 +220,7 @@ class SRMcollider(object):
             self.non_unique_count += len( non_unique )
             self.total_count += len( transitions)
             self.end = time.time()
-            progressm.update(1)
+            if not par.quiet: progressm.update(1)
         self.total_time = self.end - self.start
 
     def _get_all_precursors(self, par, pep, cursor, 
@@ -422,7 +423,7 @@ class SRMcollider(object):
             self.total_count += len( transitions)
             self.count_analysed += 1
             self.end = time.time()
-            progressm.update(1)
+            if not par.quiet: progressm.update(1)
             #print "This run took %ss" % (time.time() - one_runstart )
             if ii > 0 and ii % 100 == 0 and exp_key is not None: 
 
@@ -517,7 +518,7 @@ class SRMcollider(object):
                 if not unuseable: min_needed = j
             self.min_transitions.append( [p_id, min_needed] )
             end = time.time()
-            progressm.update(1)
+            if not par.quiet: progressm.update(1)
         self.total_time = end - start
 
     def find_clashes_toptrans_3strike(self, db, par, pepids=None, 
@@ -599,7 +600,7 @@ class SRMcollider(object):
 
             self.count_analysed += 1
             end = time.time()
-            progressm.update(1)
+            if not par.quiet: progressm.update(1)
         f.close()
         self.total_time = end - start
 
@@ -1205,6 +1206,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
     except ImportError:
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
+
 
 
 def get_coll_per_peptide(self, transitions, par, pep):

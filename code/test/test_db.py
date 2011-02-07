@@ -27,6 +27,7 @@ class Test_collider_mysql(unittest.TestCase):
     def test_1(self):
 
         par  = collider.testcase()
+        par.quiet = True
         mycollider = collider.SRMcollider()
         mycollider.find_clashes_small(self.db, par) 
         self.assertTrue( abs(sum( mycollider.allpeps.values() ) - 975.6326447245566) < 10**(-3) )
@@ -59,6 +60,7 @@ class Test_collider_mysql(unittest.TestCase):
     def test_2(self):
         #verify that with toptrans=False we get the same results
         par  = collider.testcase()
+        par.quiet = True
         mycollider = collider.SRMcollider()
         mycollider.find_clashes(self.db, par, toptrans=False) 
         self.assertTrue (abs(sum( mycollider.allpeps.values() ) - 975.6326447245566) < 10**(-3) )
@@ -72,6 +74,7 @@ class Test_collider_mysql(unittest.TestCase):
     def test_3(self):
         #now test with isotopes enabled
         par  = collider.testcase()
+        par.quiet = True
         par.considerIsotopes = True
         par.eval()
         mycollider = collider.SRMcollider()
@@ -110,12 +113,13 @@ class Test_collider_sqlite(unittest.TestCase):
             print "=" * 75
             print """The sqlite database is not available.
             
-            Please run the sqlite_setupdb.py first."""
+            Please run the sqlite_setupdb.py script first."""
 
 
     def test_1(self):
 
         par = collider.testcase()
+        par.quiet = True
         par.transition_table = 'srmTransitions_test'
         par.peptide_table = 'srmPeptides_test'
         cursor = self.db.cursor()
