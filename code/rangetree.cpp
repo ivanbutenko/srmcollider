@@ -53,10 +53,9 @@ void create_tree(python::tuple pepids) {
 
     python::tuple tlist;
     std::vector<Key> InputList;
-    int i, q1_charge;
-    long parent_id, peptide_key;
+    int i;
+    long parent_id;
     double ssrcalc, q1;
-    char* sequence;
 
     int pepids_length = python::extract<int>(pepids.attr("__len__")());
     for (i=0; i<pepids_length; i++) {
@@ -66,7 +65,6 @@ void create_tree(python::tuple pepids) {
         q1 = python::extract<double>(tlist[4]);
         ssrcalc = python::extract<double>(tlist[5]);
 
-        //struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge};
         InputList.push_back(Key(K::Point_2(q1,ssrcalc), parent_id));
     }
     Range_tree_2->make_tree(InputList.begin(),InputList.end());
