@@ -84,7 +84,7 @@ class SRM_parameters(object):
         return self.q3_range[0], self.q3_range[1]
 
     def get_q3range_collisions(self):
-        if self.ppm:
+        if not self.ppm:
             return self.q3_range[0]-self.q3_window,\
                    self.q3_range[1]+self.q3_window
         else:
@@ -240,9 +240,7 @@ class SRMcollider(object):
                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                'pep' : par.peptide_table,
                'values' : values}
-        mystart = time.time()
         cursor.execute( query2 )
-        self.innermysql += time.time() - mystart
         return cursor.fetchall()
 
     def _get_all_collisions_calculate(self, par, pep, cursor, 
@@ -259,9 +257,27 @@ class SRMcollider(object):
         import DDB 
         R = silver.Residues.Residues('mono')
         q3_low, q3_high = par.get_q3range_collisions()
-        res = []
-        start = time.time()
         for c in self._get_all_precursors(par, pep, cursor, values=values):
+            q1 = c[0]
+            peptide_key = c[2]
+            peptide = DDB.Peptide()
+            peptide.set_sequence(c[1])
+            peptide.charge = c[3]
+            peptide.create_fragmentation_pattern(R)
+            b_series = peptide.b_series
+            y_series = peptide.y_series
+            for ch in [1,2]:
+                for pred in y_series:
+                    q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    if q3 < q3_low or q3 > q3_high: continue
+                    yield (q3, q1, 0, peptide_key)
+                for pred in b_series:
+                    q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    if q3 < q3_low or q3 > q3_high: continue
+                    yield (q3, q1, 0, peptide_key)
+
+    def _get_all_collisions_calculate_sub(self, precursors, R, q3_low, q3_high):
+        for c in precursors:
             q1 = c[0]
             peptide_key = c[2]
             peptide = DDB.Peptide()
@@ -1179,7 +1195,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
     try: 
         #using C++ functions for this == faster
         import c_getnonuis
-        non_uis_list = [0 for i in range(MAX_UIS+1)]
+        non_uis_list = [{} for i in range(MAX_UIS+1)]
         collisions_per_peptide = c_getnonuis.getnonuis(
             transitions, collisions, par.q3_window, par.ppm)
         for order in range(1,MAX_UIS+1):
@@ -1231,7 +1247,7 @@ def get_coll_per_peptide(self, transitions, par, pep):
                     transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
         except ImportError:
             #second-fastest = 522 
-            collisions = self._get_all_collisions_calculate(par, pep, cursor)
+            collisions = list(self._get_all_collisions_calculate(par, pep, cursor))
 
     collisions_per_peptide = {}
     q3_window_used = par.q3_window
@@ -1248,7 +1264,7 @@ def get_coll_per_peptide(self, transitions, par, pep):
 
 
 
-def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS):
+def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
     """ Get all combinations that are not UIS """
     #collisions
     #q3, q1, srm_id, peptide_key
@@ -1270,7 +1286,8 @@ def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS):
     #here we calculate the UIS for this peptide with the given RT-range
     for pepc in collisions_per_peptide.values():
         for i in range(1,MAX_UIS+1):
-            get_non_uis(pepc, non_uis_list[i], i)
+            if unsorted: get_non_uis_unsorted(pepc, non_uis_list[i], i)
+            else: get_non_uis(pepc, non_uis_list[i], i)
     return non_uis_list
 
 def get_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
@@ -1540,6 +1557,10 @@ def get_non_uis(pepc, non_uis, order):
     if len( pepc ) >= order: 
         non_uis.update( [tuple(sorted(p)) for p in combinations(pepc, order)] )
 
+def get_non_uis_unsorted(pepc, non_uis, order):
+    if len( pepc ) >= order: 
+        non_uis.update( [tuple(p) for p in combinations(pepc, order)] )
+
 def test_get_non_uis():
     test = set()
     get_non_uis( [1,2,3], test,2 )
@@ -1559,7 +1580,7 @@ def choose(i,r):
 
 def get_uis(srm_ids, non_uis, order):
     #prepare input, make sure its sorted
-    non_uis = [ sorted(list(i)) for i in non_uis]
+    non_uis = [ tuple(sorted(list(i))) for i in non_uis]
     srm_ids = sorted( srm_ids )
     #
     #the output of combinations is guaranteed to be sorted, if the input was sorted
