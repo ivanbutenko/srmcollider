@@ -202,15 +202,6 @@ class Test_speed(unittest.TestCase):
             assert abs(o -n) < 1e-5
 
 
-#f = open('/tmp/tst.py', 'w')
-#f.write('collpepresult = {')
-#for k,v in collisions_per_peptide.iteritems():
-#    f.write('%s : %s,\n' % (k,repr(v)))
-#
-#f.write('}')
-#f.close()
-#
-
 if __name__ == '__main__':
     unittest.main()
 
