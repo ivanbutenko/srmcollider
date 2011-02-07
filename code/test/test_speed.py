@@ -251,19 +251,15 @@ class Test_speed(unittest.TestCase):
 class Test_speed_integrated(unittest.TestCase):
 
     def setUp(self):
-        self.limit = 100
+        self.limit = 300
         try:
             import MySQLdb
             import time
             import sys 
             sys.path.append( '/home/hroest/srm_clashes/code' )
             sys.path.append( '/home/hroest/lib/' )
-            sys.path.append( '/home/hroest/srm_clashes/code' )
-            sys.path.append( '/home/hroest/lib/' )
-            sys.path.append( '/home/hroest/lib/' )
             sys.path.append( '/home/hroest/projects/' )
             sys.path.append( '/home/hroest/projects/srm_clashes/code' )
-            sys.path.append( '/home/hroest/projects/srm_clashes/code/build/lib.linux-x86_64-2.6/' )
             #db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
             db = MySQLdb.connect(read_default_file="~/.my.cnf")
             cursor = db.cursor()
@@ -297,13 +293,10 @@ class Test_speed_integrated(unittest.TestCase):
             self.mycollider = collider.SRMcollider()
 
             self.par = par
-            start = time.time()
-
-            self.exp_key = -123
             self.min_q1 = 440
             self.max_q1 = 450
-            self.ssrcalcwin = 9999
 
+            start = time.time()
             cursor.execute( """
             select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
             from hroest.srmPeptides_yeast 
@@ -370,6 +363,7 @@ class Test_speed_integrated(unittest.TestCase):
             #progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
             prepare  = []
             self._cursor = False
+            print '\n'*2
             print "new = use fast SQL to get precursors, use C++ code to get collperpep"
             print "old = use rangetree to get precursors, use C++ code to get collperpep"
             print "i\tnew_prec_tot\trangetree\tnewcollper\ttotalnew\t>>\ttotalold\tspeedup"
@@ -435,38 +429,6 @@ class Test_speed_integrated(unittest.TestCase):
                 ctime += time.time() - mystart
                 non_uis_list_len_old = [len(kk) for kk in non_uis_list]
 
-
-                """
-                print '0' * 75
-                print  len(precursors), len(precursor_new) 
-                print pep
-                print ssrcalc_high, ssrcalc_low
-                """
-
-
-                """
-                for pnew in precursor_new:
-                    found = False
-                    for p in precursors:
-                        if pnew[1] == p[1]: found = True
-                    if found == False: print pnew
-
-
-                for p in precursors:
-                    found = False
-                    for pnew in precursor_new:
-                        if pnew[1] == p[1]: found = True
-                    if found == False: print p
-                """
-
-
-                """
-                print pep
-                print pep['ssrcalc']
-                print int(pep['ssrcalc']*100) / 100.0
-                print ssrcalc_high, ssrcalc_low
-                """
-
                 self.assertEqual( len(precursors), len(precursor_new) )
                 self.assertEqual( non_uis_list_len_old , non_uis_list_len) 
 
@@ -488,6 +450,7 @@ class Test_speed_integrated(unittest.TestCase):
                 sys.stdout.write(self.ESC + '[s')
                 sys.stdout.write(mys)
                 sys.stdout.flush()
+
 
         except Exception as inst:
             print "something went wrong"
@@ -511,11 +474,10 @@ class Test_speed_integrated(unittest.TestCase):
             oldsql = 0; newsql = 0
             oldcalctime = 0; localsql = 0
             self._cursor = False
+            print '\n'*2
             print "new = use fast SQL and C++ code"
             print "old = use slow SQL and Python code"
             print "i\toldtime\tcuis+oldsql\tnewsql\tctime+newsql\tunused\t>>>\toldsql\tnewsql\tunused\t...\tspeedup"
-
-
             for kk, pep in enumerate(self.mycollider.pepids):
                 ii = kk + 1
                 p_id = pep['parent_id']
@@ -525,11 +487,13 @@ class Test_speed_integrated(unittest.TestCase):
                 if nr_transitions == 0: continue #no transitions in this window
                 #
                 mystart = time.time()
-                collisions = self.mycollider._get_all_collisions_calculate(par, pep, cursor)
+                collisions = list(self.mycollider._get_all_collisions_calculate(par, pep, cursor))
+                oldcolllen = len(collisions)
                 oldcalctime += time.time() - mystart
                 #
                 mystart = time.time()
                 collisions = self.mycollider._get_all_collisions(par, pep, cursor, transitions = transitions)
+                oldcsqllen = len(collisions)
                 oldsql += time.time() - mystart
                 #
                 mystart = time.time()
@@ -544,11 +508,13 @@ class Test_speed_integrated(unittest.TestCase):
                 mystart = time.time()
                 non_uis_list = collider.get_non_UIS_from_transitions(transitions, 
                                             tuple(collisions), par, MAX_UIS)
+                cnewuis = non_uis_list
                 c_newuistime += time.time() - mystart
                 #
                 mystart = time.time()
                 non_uis_list = collider.get_non_UIS_from_transitions_old(transitions, 
                                             collisions, par, MAX_UIS)
+                oldnonuislist = non_uis_list
                 oldtime += time.time() - mystart
                 #
                 mystart = time.time()
@@ -556,13 +522,24 @@ class Test_speed_integrated(unittest.TestCase):
                 collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
                     transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
                 #print collisions_per_peptide;
+                non_uis_list = [ {} for i in range(MAX_UIS+1)]
                 for order in range(1,MAX_UIS+1):
                     non_uis_list[order] = c_getnonuis.get_non_uis(
                         collisions_per_peptide, order)
                 c_fromprecursortime += time.time() - mystart
                 #print ii, len(collisions), oldtime + oldsql , newtime + oldsql, ctime + newsql, ">>>>" , oldsql, newsql
 
-                mys =  "%s\t%0.fms\t%0.fms\t\t%0.2fms\t%0.2fms\t\t%0.2f\t>>>\t%0.fms\t%0.2fms\t%0.2f\t...\t%0.2f" % \
+                newl = [len(n) for n in non_uis_list]
+                self.assertEqual(newl, [len(o) for o in cnewuis])
+                self.assertEqual(newl, [len(o) for o in oldnonuislist])
+
+                non_uis_list = [set(k.keys()) for k in non_uis_list]
+                cnewuis = [set(k.keys()) for k in cnewuis]
+
+                self.assertEqual(non_uis_list, cnewuis)
+                self.assertEqual(non_uis_list, oldnonuislist)
+
+                mys =  "%s\t%0.fms\t%0.fms\t\t%0.fms\t%0.2fms\t\t%0.2f\t>>>\t%0.fms\t%0.2fms\t%0.2f\t...\t%0.2f" % \
                 (ii, 
                  (oldtime + oldsql)*1000/ii, 
                  (c_newuistime+oldsql)*1000/ii,

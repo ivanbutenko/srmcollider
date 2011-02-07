@@ -241,6 +241,7 @@ class SRMcollider(object):
                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                'pep' : par.peptide_table,
                'values' : values}
+        if par.print_query: print query2
         cursor.execute( query2 )
         return cursor.fetchall()
 
@@ -1191,8 +1192,13 @@ def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
         trpep.transitions.append( trans )
     return trpep
 
-def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
-    """ Get all combinations that are not UIS """
+def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
+                                forceset=False):
+    """ Get all combinations that are not UIS 
+    
+    Note that the new version returns a dictionary. To convert it to a set, one 
+    needs to force the function to return a set.
+    """
     try: 
         #using C++ functions for this == faster
         import c_getnonuis
@@ -1202,12 +1208,13 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
         for order in range(1,MAX_UIS+1):
             non_uis_list[order] = c_getnonuis.get_non_uis(
                 collisions_per_peptide, order)
+
+        if forceset: return [set(k.keys()) for k in non_uis_list]
         return non_uis_list
+
     except ImportError:
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
-
-
 
 def get_coll_per_peptide(self, transitions, par, pep):
     q3_low, q3_high = par.get_q3range_collisions()
