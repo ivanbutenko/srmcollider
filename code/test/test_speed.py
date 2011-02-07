@@ -16,6 +16,13 @@ except ImportError:
 Module c_getnonuis is not available. Please compile it if you want to use it.
 """, "=" * 75
 
+try:
+    import c_rangetree
+except ImportError:
+    print "=" * 75, """
+Module c_rangetree is not available. Please compile it if you want to use it.
+""", "=" * 75
+
 
 def runcpp(self, pep, transitions, precursors):
     #first we run the C++ version
@@ -80,7 +87,6 @@ class Test_speed(unittest.TestCase):
 
     def test_calculatetrans1(self):
         print '\nTesting calculate_transitions 1'
-        print "old vs new time"
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
         precursors = test_shared.runprecursors1
@@ -105,7 +111,6 @@ class Test_speed(unittest.TestCase):
 
     def test_calculatetrans2(self):
         print '\nTesting calculate_transitions 2'
-        print "old vs new time"
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
@@ -130,7 +135,6 @@ class Test_speed(unittest.TestCase):
 
     def test_collperpeptide1(self):
         print '\nTesting collisions_per_peptide'
-        print "old vs new time"
 
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
@@ -146,7 +150,6 @@ class Test_speed(unittest.TestCase):
 
     def test_collperpeptide2(self):
         print '\nTesting collisions_per_peptide'
-        print "old vs new time"
 
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
@@ -162,7 +165,6 @@ class Test_speed(unittest.TestCase):
         
     def test_get_non_uis1(self):
         print '\nTesting non_uis_list'
-        print "old vs new time"
 
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
@@ -196,7 +198,6 @@ class Test_speed(unittest.TestCase):
 
     def test_get_non_uis2(self):
         print '\nTesting non_uis_list'
-        print "old vs new time"
 
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
@@ -230,7 +231,6 @@ class Test_speed(unittest.TestCase):
 
     def test_calculatetrans(self):
         print '\nTesting calculate_transitions'
-        print "old vs new time"
 
         myprecursors = ((500, 'PEPTIDE', 1, 1), (400, 'CEPC[160]IDM[147]E',2,2))
         st = time.time()
@@ -247,6 +247,347 @@ class Test_speed(unittest.TestCase):
         self.assertEqual(tr_new, tr_old)
         print ctime, oldtime
         print "Speedup:", oldtime / ctime
+
+class Test_speed_integrated(unittest.TestCase):
+
+    def setUp(self):
+        self.limit = 100
+        try:
+            import MySQLdb
+            import time
+            import sys 
+            sys.path.append( '/home/hroest/srm_clashes/code' )
+            sys.path.append( '/home/hroest/lib/' )
+            sys.path.append( '/home/hroest/srm_clashes/code' )
+            sys.path.append( '/home/hroest/lib/' )
+            sys.path.append( '/home/hroest/lib/' )
+            sys.path.append( '/home/hroest/projects/' )
+            sys.path.append( '/home/hroest/projects/srm_clashes/code' )
+            sys.path.append( '/home/hroest/projects/srm_clashes/code/build/lib.linux-x86_64-2.6/' )
+            #db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
+            db = MySQLdb.connect(read_default_file="~/.my.cnf")
+            cursor = db.cursor()
+            #cursor_l = db_l.cursor()
+            #cursor = cursor_l
+            import collider
+            import progress
+            import hlib
+            import copy
+            #Run the collider
+            ###########################################################################
+            par = collider.SRM_parameters()
+            par.q1_window = 20 / 2.0 #UIS paper = 1.2
+            par.q3_window = 20.0 / 2.0 #UIS paper = 2.0
+            par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
+            par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
+            #12 = 90%TPR, 8 = 80%TPR 
+            par.ssrcalc_window = 4 / 2.0 #for paola do 9999 and 4
+            par.ssrcalc_window = 9999 / 2.0 #for paola do 9999 and 4
+            par.ppm = False
+            par.considerIsotopes = True
+            par.do_1vs = False
+            par.dontdo2p2f = False #important for precursor to work
+            par.transition_table = 'hroest.srmTransitions_yeast'
+            par.peptide_table = 'hroest.srmPeptides_yeast'
+            par.max_uis = 5 #turn off uis if set to 0
+            par.q3_range = [400, 1400]
+            par.eval()
+            #print par.experiment_type
+            #print par.get_common_filename()
+            self.mycollider = collider.SRMcollider()
+
+            self.par = par
+            start = time.time()
+
+            self.exp_key = -123
+            self.min_q1 = 440
+            self.max_q1 = 450
+            self.ssrcalcwin = 9999
+
+            cursor.execute( """
+            select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
+            from hroest.srmPeptides_yeast 
+                           where q1 between %s and %s
+                           """ % (self.min_q1 - par.q1_window, self.max_q1 + par.q1_window) )
+
+            #print "finished query execution: ", time.time() - start
+            self.alltuples =  list(cursor.fetchall() )
+            self.cursor = cursor
+
+        except Exception as inst:
+            print "something went wrong"
+            print inst
+
+    def test_integrated_range(self):
+
+        try:
+            par = self.par
+            cursor = self.cursor
+
+            from random import shuffle
+            start = time.time()
+            #shuffle(self.alltuples)
+            #print "finished query fetch: ", time.time() - start
+
+            mypepids = [
+                        {
+                            'sequence'  :  r[0],
+                            'peptide_key' :r[1],
+                            'parent_id' :  r[2],
+                            'q1_charge' :  r[3],
+                            'q1' :         r[4],
+                            'ssrcalc' :    r[5],
+                        }
+                        for r in self.alltuples
+                if r[3] == 2 #charge is 2
+                and r[6] == 0 #isotope is 0
+                and r[4] >= self.min_q1
+                and r[4] < self.max_q1
+            ]
+
+            parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
+                        for r in self.alltuples
+                #if r[3] == 2 and r[6] == 0
+            ]
+            parentid_lookup  = dict(parentid_lookup)
+            #print "finished python lookups: ", time.time() - start
+
+            mystart = time.time()
+            #c_rangetree.create_tree(alltuples[:100000])
+            #print "building tree with : %s nodes " % len(self.alltuples)
+            c_rangetree.create_tree(tuple(self.alltuples))
+            #print "finished build tree : ", time.time() - start
+            #print "tree time ", time.time() - mystart
+
+
+            self.mycollider.pepids = mypepids
+            MAX_UIS = 5
+            newtime = 0; oldtime = 0; ctime = 0
+            oldsql = 0; newsql = 0
+            alllocaltime = 0
+            localprecursor = 0
+            c_fromprecursortime = 0
+            #progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+            prepare  = []
+            self._cursor = False
+            print "new = use fast SQL to get precursors, use C++ code to get collperpep"
+            print "old = use rangetree to get precursors, use C++ code to get collperpep"
+            print "i\tnew_prec_tot\trangetree\tnewcollper\ttotalnew\t>>\ttotalold\tspeedup"
+            for kk, pep in enumerate(self.mycollider.pepids):
+                ii = kk + 1
+                p_id = pep['parent_id']
+                q1 = pep['q1']
+                ssrcalc = pep['ssrcalc']
+                q3_low, q3_high = par.get_q3range_transitions()
+                #
+                #new way to calculate the precursors
+                mystart = time.time()
+                transitions = c_getnonuis.calculate_transitions(
+                    ((q1, pep['sequence'], p_id),), q3_low, q3_high)
+                #fake some srm_id for the transitions
+                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+                q1_low = q1 - par.q1_window 
+                q1_high = q1 + par.q1_window
+                innerstart = time.time()
+                #correct rounding errors, s.t. we get the same results as before!
+                ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
+                ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
+                precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
+                                                             q1_high,  ssrcalc_high )  )
+                localprecursor += time.time() - innerstart 
+                precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                                    #dont select myself 
+                                   if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+                alllocaltime += time.time() - mystart
+                #
+                #now calculate coll per peptide the new way
+                mystart = time.time()
+                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+                non_uis_list = [{} for i in range(MAX_UIS+1)]
+                for order in range(1,MAX_UIS+1):
+                    non_uis_list[order] = c_getnonuis.get_non_uis(
+                        collisions_per_peptide, order)
+                c_fromprecursortime += time.time() - mystart
+                precursor_new = precursors
+                non_uis_list_new = [set(kk.keys()) for kk in non_uis_list]
+                non_uis_list_len = [len(kk) for kk in non_uis_list]
+                transitions_before = transitions
+
+                ###################################
+                #old way to calculate the precursors
+                mystart = time.time()
+                transitions = self.mycollider._get_all_transitions(par, pep, cursor)
+                nr_transitions = len( transitions )
+                if nr_transitions == 0: continue #no transitions in this window
+                transitions = transitions_before
+                precursors = self.mycollider._get_all_precursors(par, pep, cursor)
+                newsql += time.time() - mystart
+                #
+                #now calculate coll per peptide the new way
+                mystart = time.time()
+                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+                non_uis_list = [ {} for i in range(MAX_UIS+1)]
+                for order in range(1,MAX_UIS+1):
+                    non_uis_list[order] = c_getnonuis.get_non_uis(
+                        collisions_per_peptide, order)
+                ctime += time.time() - mystart
+                non_uis_list_len_old = [len(kk) for kk in non_uis_list]
+
+
+                """
+                print '0' * 75
+                print  len(precursors), len(precursor_new) 
+                print pep
+                print ssrcalc_high, ssrcalc_low
+                """
+
+
+                """
+                for pnew in precursor_new:
+                    found = False
+                    for p in precursors:
+                        if pnew[1] == p[1]: found = True
+                    if found == False: print pnew
+
+
+                for p in precursors:
+                    found = False
+                    for pnew in precursor_new:
+                        if pnew[1] == p[1]: found = True
+                    if found == False: print p
+                """
+
+
+                """
+                print pep
+                print pep['ssrcalc']
+                print int(pep['ssrcalc']*100) / 100.0
+                print ssrcalc_high, ssrcalc_low
+                """
+
+                self.assertEqual( len(precursors), len(precursor_new) )
+                self.assertEqual( non_uis_list_len_old , non_uis_list_len) 
+
+                mys =  "%s\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t>>\t%0.2fms\t\t%0.2f" % \
+                (ii, alllocaltime *1000/ ii, \
+                        localprecursor*1000/ii, c_fromprecursortime*1000/ii, 
+                 (alllocaltime + c_fromprecursortime)*1000/ii, 
+                 (ctime + newsql)*1000/ii, 
+                 (ctime + newsql)/ (alllocaltime + c_fromprecursortime) )
+                #start a new line for each output?
+                #mys += '\t%s\t%s' % ( len(precursors), len(precursor_new) )
+                if False: mys += '\n'
+
+                self.ESC = chr(27)
+                sys.stdout.write(self.ESC + '[2K')
+                if self._cursor:
+                    sys.stdout.write(self.ESC + '[u')
+                self._cursor = True
+                sys.stdout.write(self.ESC + '[s')
+                sys.stdout.write(mys)
+                sys.stdout.flush()
+
+        except Exception as inst:
+            print "something went wrong"
+            print inst
+
+    def test_integreated_mysql(self):
+
+            par = self.par
+            cursor = self.cursor
+
+            mycollider = collider.SRMcollider()
+            mypepids = mycollider._get_unique_pepids(par, cursor)
+            self.mycollider.pepids = mypepids
+            self.mycollider.calcinner = 0
+            from random import shuffle
+            shuffle( self.mycollider.pepids )
+            self.mycollider.pepids = self.mycollider.pepids[:self.limit]
+
+            MAX_UIS = 5
+            c_newuistime = 0; oldtime = 0; c_fromprecursortime = 0
+            oldsql = 0; newsql = 0
+            oldcalctime = 0; localsql = 0
+            self._cursor = False
+            print "new = use fast SQL and C++ code"
+            print "old = use slow SQL and Python code"
+            print "i\toldtime\tcuis+oldsql\tnewsql\tctime+newsql\tunused\t>>>\toldsql\tnewsql\tunused\t...\tspeedup"
+
+
+            for kk, pep in enumerate(self.mycollider.pepids):
+                ii = kk + 1
+                p_id = pep['parent_id']
+                q1 = pep['q1']
+                transitions = self.mycollider._get_all_transitions(par, pep, cursor)
+                nr_transitions = len( transitions )
+                if nr_transitions == 0: continue #no transitions in this window
+                #
+                mystart = time.time()
+                collisions = self.mycollider._get_all_collisions_calculate(par, pep, cursor)
+                oldcalctime += time.time() - mystart
+                #
+                mystart = time.time()
+                collisions = self.mycollider._get_all_collisions(par, pep, cursor, transitions = transitions)
+                oldsql += time.time() - mystart
+                #
+                mystart = time.time()
+                self.mycollider.mysqlnewtime= 0
+                precursors = self.mycollider._get_all_precursors(par, pep, cursor)
+                newsql += time.time() - mystart
+                #
+                mystart = time.time()
+                #precursors = self.mycollider._get_all_precursors(par, pep, cursor_l)
+                localsql += time.time() - mystart
+                #
+                mystart = time.time()
+                non_uis_list = collider.get_non_UIS_from_transitions(transitions, 
+                                            tuple(collisions), par, MAX_UIS)
+                c_newuistime += time.time() - mystart
+                #
+                mystart = time.time()
+                non_uis_list = collider.get_non_UIS_from_transitions_old(transitions, 
+                                            collisions, par, MAX_UIS)
+                oldtime += time.time() - mystart
+                #
+                mystart = time.time()
+                q3_low, q3_high = par.get_q3range_transitions()
+                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+                #print collisions_per_peptide;
+                for order in range(1,MAX_UIS+1):
+                    non_uis_list[order] = c_getnonuis.get_non_uis(
+                        collisions_per_peptide, order)
+                c_fromprecursortime += time.time() - mystart
+                #print ii, len(collisions), oldtime + oldsql , newtime + oldsql, ctime + newsql, ">>>>" , oldsql, newsql
+
+                mys =  "%s\t%0.fms\t%0.fms\t\t%0.2fms\t%0.2fms\t\t%0.2f\t>>>\t%0.fms\t%0.2fms\t%0.2f\t...\t%0.2f" % \
+                (ii, 
+                 (oldtime + oldsql)*1000/ii, 
+                 (c_newuistime+oldsql)*1000/ii,
+                 (oldcalctime + newsql + oldtime)*1000/ii, 
+                 (c_fromprecursortime + newsql)*1000/ii, 
+                 #(c_fromprecursortime + localsql)*1000/ii,
+                 42.42,
+
+                 oldsql*1000/ii, 
+                 newsql*1000/ii,
+                 #localsql*1000/ii,
+                 42.42,
+
+                 #oldtime / c_newuistime
+                 (oldtime + oldsql) / (c_fromprecursortime + newsql)
+                )
+
+                self.ESC = chr(27)
+                sys.stdout.write(self.ESC + '[2K')
+                if self._cursor:
+                    sys.stdout.write(self.ESC + '[u')
+                self._cursor = True
+                sys.stdout.write(self.ESC + '[s')
+                sys.stdout.write(mys)
+                sys.stdout.flush()
 
 if __name__ == '__main__':
     unittest.main()
