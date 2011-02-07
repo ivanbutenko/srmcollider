@@ -24,7 +24,7 @@ setup(name="srmcollider",
             libraries = ["boost_python"]),
         Extension("c_getnonuis", ["getNonUis.cpp"],
             libraries = ["boost_python"]),
-        Extension("r_rangetree", ["rangetree.cpp"],
+        Extension("c_rangetree", ["rangetree.cpp"],
             libraries = ["boost_python", "CGAL"]),
     ]) 
 

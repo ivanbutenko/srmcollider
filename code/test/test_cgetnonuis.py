@@ -31,6 +31,13 @@ class Test_cgetnonuis(unittest.TestCase):
             tuples.append(self.pep2)
             self.tuples = tuple( tuples)
 
+            class Minimal: pass
+            self.par = Minimal()
+            self.par.q3_window = 4.0
+            self.par.ppm = False
+            self.q3_high = 1500
+            self.q3_low = 300
+
         except ImportError:
             pass
 
@@ -45,6 +52,7 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertTrue( result[201] == [1,2] )
             self.assertTrue( result[202] == [1,3] )
             self.assertTrue( result[203] == [1,2,3] )
+            self.assertEqual( result, test_shared.refcollperpep1)
             #Test 2
             transitions = test_shared.transitions_def2
             collisions = test_shared.collisions_def2
@@ -53,11 +61,17 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertTrue( result[202] == [2,3,4] )
         except ImportError: pass
 
-    def test_get_non_uis(self):
-        #non_uis_list[order] = c_getnonuis.get_non_uis(
-        #                            collisions_per_peptide, order)
+    def test_get_non_uis1(self):
+        for order in range(1,6):
+            res = c_getnonuis.get_non_uis(test_shared.refcollperpep1, order)
+            res = set( res.keys() )
+            self.assertEqual( res, test_shared.refnonuis1[order] )
 
-        pass
+    def test_get_non_uis2(self):
+        for order in range(1,6):
+            res = c_getnonuis.get_non_uis(test_shared.refcollperpep2, order)
+            res = set( res.keys() )
+            self.assertEqual( res, test_shared.refnonuis2_sorted[order] )
 
     def test_core_non_unique1(self):
     
@@ -138,8 +152,50 @@ class Test_cgetnonuis(unittest.TestCase):
                 self.assertTrue(abs(calc - ref) < 1e-3)
         except ImportError: pass
 
+    def test_calculate_calculate_collisions_per_peptide_1(self):
+        try:
+            import c_getnonuis
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            precursors = test_shared.runprecursors1
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
+            #
+            self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+        except ImportError: pass
+
+    def test_calculate_calculate_collisions_per_peptide_2(self):
+        try:
+            import c_getnonuis
+            pep = test_shared.runpep2
+            transitions = test_shared.runtransitions2
+            precursors = test_shared.runprecursors2
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
+            #
+            self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+        except ImportError: pass
 
 class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
+    """ Tests the c_getnonuis module over the collider.
+
+    By calling collider.get_non_UIS_from_transitions, we test the two functions
+
+        * c_getnonuis.getnonuis 
+        * c_getnonuis.get_non_uis
+
+    in tandem.
+    """
 
     def setUp(self):
         class Minimal: pass

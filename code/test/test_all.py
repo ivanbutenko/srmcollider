@@ -1,21 +1,36 @@
 import unittest
 import test_rangetree, test_cgetnonuis, test_collider, test_db
+import test_extra
 
-verbosity = 2
 
-cgetnonuis_suite = unittest.TestLoader().loadTestsFromTestCase(test_cgetnonuis.Test_cgetnonuis)
-cgetnonuis_tr_suite = unittest.TestLoader().loadTestsFromTestCase(test_cgetnonuis.Test_cgetnonuis_get_non_UIS_from_transitions)
-crangetree_suite = unittest.TestLoader().loadTestsFromTestCase(test_rangetree.Test_crangetree)
-collider_mysql_suite = unittest.TestLoader().loadTestsFromTestCase(test_db.Test_collider_mysql)
-collider_sqlite_suite = unittest.TestLoader().loadTestsFromTestCase(test_db.Test_collider_sqlite)
-collider_function_suite = unittest.TestLoader().loadTestsFromTestCase(test_collider.Test_collider_function)
 
-unittest.TextTestRunner(verbosity=verbosity).run(cgetnonuis_suite)
-unittest.TextTestRunner(verbosity=verbosity).run(cgetnonuis_tr_suite)
-unittest.TextTestRunner(verbosity=verbosity).run(crangetree_suite)
-unittest.TextTestRunner(verbosity=verbosity).run(collider_mysql_suite)
-unittest.TextTestRunner(verbosity=verbosity).run(collider_sqlite_suite)
-unittest.TextTestRunner(verbosity=verbosity).run(collider_function_suite)
+class Test_dummy(unittest.TestCase): pass
+
+
+verbosity = 1
+
+sharedtestloader = unittest.TestLoader()
+alltests = sharedtestloader.loadTestsFromTestCase(Test_dummy)
+independent_tests = sharedtestloader.loadTestsFromTestCase(Test_dummy)
+db_tests = sharedtestloader.loadTestsFromTestCase(Test_dummy)
+
+independent_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_cgetnonuis.Test_cgetnonuis) )
+independent_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_cgetnonuis.Test_cgetnonuis_get_non_UIS_from_transitions))
+independent_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_rangetree.Test_crangetree))
+independent_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_collider.Test_collider_function))
+
+db_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_db.Test_collider_mysql))
+db_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_db.Test_collider_sqlite))
+
+alltests.addTests( sharedtestloader.loadTestsFromTestCase(test_extra.Test_fragmentation))
+alltests.addTests( independent_tests )
+alltests.addTests( db_tests )
+
+
+if __name__ == '__main__':
+    unittest.TextTestRunner(verbosity=verbosity).run(alltests)
+
+
 
 
 

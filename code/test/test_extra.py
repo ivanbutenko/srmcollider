@@ -146,6 +146,5 @@ class Test_fragmentation(unittest.TestCase):
         for calc, ref in zip(res, self.transitions_12_between300_1500):
             self.assertTrue(abs(calc[0] - ref) < 1e-3)
 
-
 if __name__ == '__main__':
     unittest.main()
