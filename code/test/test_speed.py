@@ -78,6 +78,56 @@ class Test_speed(unittest.TestCase):
         except ImportError:
             pass
 
+    def test_calculatetrans1(self):
+        print '\nTesting calculate_transitions 1'
+        print "old vs new time"
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        st = time.time()
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, self.R, self.q3_low, self.q3_high))
+
+        oldtime = time.time() - st
+        st = time.time()
+        tr_new = c_getnonuis.calculate_transitions(tuple(precursors), self.q3_low, self.q3_high)
+        ctime = time.time() - st
+
+        self.assertEqual(len(tr_new), len(collisions))
+        for o,n in zip(collisions, tr_new):
+            for oo,nn in zip(o,n):
+                self.assertTrue(oo - nn < 1e-5)
+
+        print ctime, oldtime
+        print "Speedup:", oldtime / ctime
+
+    def test_calculatetrans2(self):
+        print '\nTesting calculate_transitions 2'
+        print "old vs new time"
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        st = time.time()
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, self.R, self.q3_low, self.q3_high))
+
+        oldtime = time.time() - st
+        st = time.time()
+        tr_new = c_getnonuis.calculate_transitions(tuple(precursors), self.q3_low, self.q3_high)
+        ctime = time.time() - st
+
+        self.assertEqual(len(tr_new), len(collisions))
+        for o,n in zip(collisions, tr_new):
+            for oo,nn in zip(o,n):
+                self.assertTrue(oo - nn < 1e-5)
+
+        print ctime, oldtime
+        print "Speedup:", oldtime / ctime
+
     def test_collperpeptide1(self):
         print '\nTesting collisions_per_peptide'
         print "old vs new time"
@@ -179,28 +229,24 @@ class Test_speed(unittest.TestCase):
         print "Speedup:", oldtime / ctime
 
     def test_calculatetrans(self):
-        pep = {'q1_charge': 2, 'q1': 417.21177749999998, 'sequence': 'HSISFDK', 'peptide_key': 11036419L, 'parent_id': 214997L, 'ssrcalc': 15.279999999999999}
+        print '\nTesting calculate_transitions'
+        print "old vs new time"
 
-        q3_high = self.q3_high
-        q3_low = self.q3_low
-        par = self.par 
+        myprecursors = ((500, 'PEPTIDE', 1, 1), (400, 'CEPC[160]IDM[147]E',2,2))
+        st = time.time()
+        for i in range(100000):
+            tr_new = c_getnonuis.calculate_transitions(myprecursors, self.q3_low, self.q3_high)
+        ctime = time.time() - st
+        st = time.time()
+        coll = collider.SRMcollider()
+        for i in range(100000):
+            tr_old = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                        coll, myprecursors, self.R, self.q3_low, self.q3_high))
+        oldtime = time.time() - st
 
-        p_id = pep['parent_id']
-        q1 = pep['q1']
-        transitions = c_getnonuis.calculate_transitions(
-                ((q1, pep['sequence'], p_id),), q3_low, q3_high)
-
-        tnew = [tt[0] for tt in transitions]
-        tnew.sort()
-        mycollider = collider.SRMcollider()
-        transitions = mycollider._get_all_transitions(par, pep, cursor)
-        told = [tt[0] for tt in transitions]
-        told.sort()
-
-        #old and new should be similar
-        for o,n in zip(told, tnew):
-            assert abs(o -n) < 1e-5
-
+        self.assertEqual(tr_new, tr_old)
+        print ctime, oldtime
+        print "Speedup:", oldtime / ctime
 
 if __name__ == '__main__':
     unittest.main()

@@ -764,7 +764,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "\n"
  "\n"
  " Signature\n"
- "list calculate_transitions(tuple precursors, list charges, double q3_low, double q3_high ) \n"
+ "list calculate_transitions_ch(tuple precursors, list charges, double q3_low, double q3_high ) \n"
  );
 
     def("calculate_transitions_inner", _calculate_clashes_wrapper, 
