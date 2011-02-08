@@ -162,7 +162,8 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
         MAX_UIS = uis
         pep = result[0]
         transitions = mycollider._get_all_transitions(par, pep, cursor, values="q3, srm_id, type, fragment_number")
-        collisions = mycollider._get_all_collisions(par, pep, cursor, values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc")
+        collisions = mycollider._get_all_collisions(par, pep, cursor, 
+            values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc, isotope_nr")
         non_uis_list = [set() for i in range(MAX_UIS+1)]
         collisions_per_peptide = {}
         q3_window_used = par.q3_window
@@ -203,7 +204,8 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
         non_unique = {}
         mysequence = pep['sequence']
         transitions = mycollider._get_all_transitions(par, pep, cursor, values="q3, srm_id, type, fragment_number")
-        collisions = mycollider._get_all_collisions(par, pep, cursor, values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc")
+        collisions = mycollider._get_all_collisions(par, pep, cursor, 
+            values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc, isotope_nr")
         q3_window_used = par.q3_window
         for t in transitions:
             #if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
@@ -242,7 +244,9 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
                 w.writerow( [ mysequence, pep['q1'], u[0], mytype ] )
                 print "</td></tr>"
             print "</table>"
-        else: print "<p>No useable transitions for this peptide!</p>"
+        else: 
+            print "<p>No useable transitions for this peptide!</p>"
+            w.writerow( ['"Sorry: no useable transitions for this peptide. Try to calculate UIS."' ] )
 
         print "<h3>Unuseable transitions (Collisions)</h3>"
         print "<table class='col_table'>"
@@ -260,7 +264,9 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
                 print '(', round(c[1], 2), round(c[0], 2),  ')'
                 print c[7]
                 print c[4] + str(c[5])
-                print c[6], ' </br>'
+                if c[8] != 0:
+                    print c[6], 'isotope', c[8], ' </br>'
+                else: print c[6], ' </br>'
                 #print tt.row(c, 'sequence') 
                 #print tt.row(c, 'type') 
                 #print round( tt.row(c, 'q1'), 2)
@@ -334,13 +340,13 @@ warm_welcome = """
 warm_welcome = """
 <div class="header">
 SRM Collider
+</div>
 <div class="version">
 version 0.1
 </br>
 alpha
 </br>
 Hannes Roest 2010
-</div>
 </div>
 """
 
@@ -406,7 +412,9 @@ if form.has_key('peptides'):
     high = float(form.getvalue('high_mass') )
     low = float(form.getvalue('low_mass') )
     genome = form.getvalue('genome') 
-    isotope = int(form.getvalue('isotope') )
+    #TODO 
+    #isotope = int(form.getvalue('isotope') )
+    isotope = 3
     uis = int(form.getvalue('uis') )
     #print peptides
     #peptides = input
@@ -457,10 +465,10 @@ else:
 
     <p class='input_field'>
         <label class="mylabel" for="isotope">Consider isotopes up to </label>
-        <input class="number_input" type="text" name="isotope" value="3"> amu
         <!-- >
-        <input class="number_input" type="text" disabled="False" name="isotope" value="3"> amu
+        <input class="number_input" type="text" name="isotope" value="3"> amu
         </!-->
+        <input class="number_input" type="text" disabled="False" name="isotope" value="3"> amu
     </p>
 
 
