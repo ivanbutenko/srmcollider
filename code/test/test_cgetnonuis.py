@@ -186,6 +186,20 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
         except ImportError: pass
 
+    def get_charged_mass(self):
+        try:
+            import c_getnonuis
+            res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 1)
+            self.assertTrue( abs(res - 978.57368) < 1e-5)
+            res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 2)
+            self.assertTrue( abs(res - 489.79078) < 1e-5)
+            res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 3)
+            self.assertTrue( abs(res - 326.86314) < 1e-5)
+            res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 4)
+            self.assertTrue( abs(res - 245.39932) < 1e-5)
+        except ImportError: pass
+
+
 class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     """ Tests the c_getnonuis module over the collider.
 

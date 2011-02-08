@@ -33,6 +33,7 @@ python::dict _getnonuis_wrapper(python::tuple transitions, python::tuple
         collisions, double q3window, bool ppm);
 python::list _find_clashes_calculate_clashes(python::tuple precursors,
         double q3_low, double q3_high );
+double calculate_charged_mass(python::tuple clist, int ch);
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         python::tuple precursors, double q3_low, double q3_high, double q3window, bool ppm);
 python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge);
@@ -187,6 +188,29 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
 
     return result;
 }        
+
+
+
+double calculate_charged_mass(python::tuple clist, int ch) {
+
+    double charged_mass;
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    int fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+
+    //In order to get the full mass, we need the "last" element of the b-series
+    //(which is not technically part of the b series) and add water as well as
+    //protons according to the charge to it. Then, the fragment has to be
+    //divided by the charge.
+    charged_mass = (b_series[fragcount] + MASS_H*ch + MASS_OH ) /ch  ;
+
+    delete [] b_series;
+    delete [] y_series;
+
+    return charged_mass;
+}        
+
 
 
 /* Input
@@ -363,6 +387,9 @@ python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge) {
 
 }
 
+/*
+ * Input is a tuple of (q1, sequence, peptide_key)
+*/
 int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
         double ch) {
 
@@ -778,6 +805,15 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "list calculate_transitions_inner(tuple precursor, double charge) \n"
             "");
 
+    def("calculate_charged_mass", calculate_charged_mass, 
+ "Function to return the mass of a peptide."
+ "\n"
+ "\n"
+ " Signature\n"
+ "double calculate_charged_mass(python::tuple clist, int ch)"
+
+            
+            );
 }
 
 
