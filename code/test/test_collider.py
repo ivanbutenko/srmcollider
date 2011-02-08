@@ -160,6 +160,19 @@ class Test_collider_function(unittest.TestCase):
 
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
 
+    def test_get_uis_extra1(self):
+
+        order =  1
+        nonuis = set([(1627247L,), (1627240L,), (1627241L,), (1627242L,), (1627248L,), (1627243L,), (1627238L,), (1627249L,), (1627244L,), (1627239L,), (1627250L,), (1627251L,), (1627252L,)])
+        srm_ids = [1627238L, 1627239L, 1627240L, 1627241L, 1627242L, 1627243L, 1627244L, 1627247L, 1627248L, 1627249L, 1627250L, 1627251L, 1627252L]
+        uis_list = collider.get_uis(srm_ids, nonuis, order)
+        self.assertEqual( len(uis_list), 0)
+
+
+
+
+
+
 
 if __name__ == '__main__':
     unittest.main()
