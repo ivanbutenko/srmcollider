@@ -12,26 +12,40 @@ cursor = db.cursor()
 import collider
 import hlib
 import copy
+
 #Run the collider
 ###########################################################################
 par = collider.SRM_parameters()
-par.q1_window = 0.7 / 2.0 #UIS paper = 1.2
-par.q3_window = 0.7 / 2.0 #UIS paper = 2.0
-#12 = 90%TPR, 8 = 80%TPR 
+par.q1_window = 1.2 / 2.0 #UIS paper = 1.2 => we do 0.7 and 1.0
+par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
+#par.q1_window = 1.0 / 2.0 #UIS paper = 1.2 => we do 0.7 and 1.0
+#par.q3_window = 1.0 / 2.0 #UIS paper = 2.0
+##12 = 90%TPR, 8 = 80%TPR 
+#par.ssrcalc_window = 2 / 2.0 #for pedro
 par.ssrcalc_window = 4 / 2.0 #for paola do 9999 and 4
 par.ssrcalc_window = 9999 / 2.0 #for paola do 9999 and 4
 par.ppm = False
 par.considerIsotopes = True
-par.do_1vs = False
+par.do_1vs = True
+par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
 par.transition_table = 'hroest.srmTransitions_yeast_top3'
 par.peptide_table = 'hroest.srmPeptides_yeast_top3'
 #contains only the actual mrm transitions (and not all b/y ions)
-par.transition_table = 'hroest.srmTransitions_yeast_mrmatlas'
-par.peptide_table = 'hroest.srmPeptides_yeast_mrmatlas'
+#par.transition_table = 'hroest.srmTransitions_yeast_mrmatlas'
+#par.peptide_table = 'hroest.srmPeptides_yeast_mrmatlas'
 par.transition_table = 'hroest.srmTransitions_yeast_mrmatlasall'
 par.peptide_table = 'hroest.srmPeptides_yeast_mrmatlasall'
 par.transition_table = 'hroest.srmTransitions_yeast'
 par.peptide_table = 'hroest.srmPeptides_yeast'
+#par.transition_table = 'hroest.srmTransitions_yeast_N14N15'
+#par.peptide_table = 'hroest.srmPeptides_yeast_N14N15'
+#par.transition_table = 'hroest.srmTransitions_yeast_pepatlas_union'
+#par.peptide_table = 'hroest.srmPeptides_yeast_pepatlas_union'
+##
+par.transition_table = 'hroest.srmTransitions_human'
+par.peptide_table = 'hroest.srmPeptides_human'
+par.transition_table = 'hroest.srmTransitions_mouse'
+par.peptide_table = 'hroest.srmPeptides_mouse'
 par.max_uis = 5 #turn off uis if set to 0
 par.q3_range = [400, 1400]
 par.eval()
@@ -494,6 +508,85 @@ mycollider.find_clashes_small(db, par, UIS_only=True, exp_key = myid,
 
 }}}
 
+{{{ diffdistribution analysis
+
+common_filename = par.get_common_filename()
+query = """
+insert into hroest.experiment  (name, short_description,
+description, comment1, comment2, super_experiment_key, ddb_experiment_key)
+VALUES (
+    'diffdistr', '%s', '%s', '%s', '%s', 24, 0
+)
+""" %( common_filename + '_' + par.peptide_table.split('.')[1], 
+      par.experiment_type, par.peptide_table, par.transition_table)
+cursor.execute(query)
+myid = db.insert_id()
+
+
+
+reload( collider )
+mycollider = collider.SRMcollider()
+pepids = mycollider._get_unique_pepids(par, cursor)
+
+import random
+random.shuffle(pepids)
+mycollider.find_clashes(db, par, pepids = pepids[:10000], exp_key = -100)
+
+
+
+
+
+q1r = [-par.q1_window, par.q1_window] 
+q3r = [-par.q3_window, par.q3_window] 
+
+import numpy
+self = mycollider
+#self.q1min_hist += numpy.histogram( self.q1min_distr, 1000, q1r)[0]
+bins = numpy.histogram( self.q1min_distr, 1000, q1r)[1]
+prepare = [[myid, b, v, 1] for b,v in zip(bins, self.q1min_hist)]
+cursor.executemany(
+""" insert into hroest.result_diffhist (exp_key, bin, value, type ) 
+    VALUES (%s,%s,%s,%s) """, prepare
+)
+
+
+#self.q3min_hist += numpy.histogram( self.q3min_distr, 1000, q3r)[0]
+bins = numpy.histogram( self.q3min_distr, 1000, q3r)[1]
+prepare = [[myid, b, v, 2] for b,v in zip(bins, self.q3min_hist)]
+cursor.executemany(
+""" insert into hroest.result_diffhist (exp_key, bin, value, type ) 
+    VALUES (%s,%s,%s,%s) """, prepare
+)
+
+
+
+#self.q1all_hist += numpy.histogram( self.q1all_distr, 1000, q1r)[0]
+bins = numpy.histogram( self.q1all_distr, 1000, q1r)[1]
+prepare = [[myid, b, v, 3] for b,v in zip(bins, self.q1all_hist)]
+cursor.executemany(
+""" insert into hroest.result_diffhist (exp_key, bin, value, type ) 
+    VALUES (%s,%s,%s,%s) """, prepare
+)
+
+#self.q3all_hist += numpy.histogram( self.q3all_distr, 1000, q3r)[0]
+bins = numpy.histogram( self.q3all_distr, 1000, q3r)[1]
+prepare = [[myid, b, v, 4] for b,v in zip(bins, self.q3all_hist)]
+cursor.executemany(
+""" insert into hroest.result_diffhist (exp_key, bin, value, type ) 
+    VALUES (%s,%s,%s,%s) """, prepare
+)
+
+
+create table hroest.result_diffhist 
+(
+exp_key int, 
+bin double,
+value double,
+type int(4)
+);
+alter table hroest.result_diffhist add index(exp_key, type);
+
+}}}
 
 ##Run the testcase => see test_run.py
 ###########################################################################
@@ -841,5 +934,5 @@ for myc in range(10):
     print get_latex_row( [myc, mylen_latex, prct_latex ] )
 
 }}}
-
+###########################################################################
 
