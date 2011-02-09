@@ -293,3 +293,22 @@ LINES TERMINATED BY '\n'
 ( sequence )
 SET experiment_key = 3352,
 peptide_type = 'norm';
+
+
+
+
+
+
+
+DROP TABLE hroest.openmsModel;
+CREATE TABLE hroest.openmsModel (
+sequence    VARCHAR(255), 
+openmsrt DOUBLE
+);
+
+
+LOAD DATA LOCAL INFILE
+'/tmp/modeltestout'
+INTO TABLE hroest.openmsModel 
+FIELDS TERMINATED BY ' '
+LINES TERMINATED BY '\n'

@@ -4,23 +4,19 @@
 #################################################################
 #Creating Paolas Special tables {{{
 
-#################################################################
-#START creating the MRM Atlas tables {{{
-
-
-#first link the MRM atlas table to the yeast genome
+#first link the MRM atlas table to the yeast genome {{{
 """
-drop table MRMPepLink;
-create table MRMPepLink (
+drop table if exists MRMPepLink_final;
+create table MRMPepLink_final (
  peptide_key int,
  mrm_key int,
  charge int
 );
-alter table MRMPepLink add index(peptide_key);
+alter table MRMPepLink_final add index(peptide_key);
 """
 
 
-c.execute( 'select id,sequence from hroest.MRMAtlas_yeast_qqq_201002_q2')
+c.execute( 'select id,sequence from hroest.MRMAtlas_qtrap_final_no_pyroGlu')
 mrm = c.fetchall()
 c.execute( 'select id,sequence from ddb.peptide where experiment_key = 3131')
 pep = c.fetchall()
@@ -33,7 +29,6 @@ for p in pep:
     pepd[p[1]] = p[0]
 
 
-#TODO filter out things like PEPT[160]IDE
 import re 
 res = []
 notfound_dict = {}
@@ -52,12 +47,21 @@ for m in mrm:
         if sequence.count('K') + sequence.count('R') < 2: print m; other +=1
         else: nontr += 1
 
+len(notfound_dict)
+len(res)
 #we have around 9511 nontryptic and 2321 other transitions
 #we found 323123A => 96.5 %
 
-q = "INSERT INTO hroest.MRMPepLink (mrm_key, peptide_key, charge)" + \
+q = "INSERT INTO hroest.MRMPepLink_final (mrm_key, peptide_key, charge)" + \
      " VALUES (%s,%s,%s) "
 c.executemany( q, res)
+
+#27345 peptides
+#42599 precursors out of 43822
+
+}}}
+#################################################################
+#START creating the MRM Atlas tables {{{
 
 
 
@@ -203,8 +207,6 @@ inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence = peptide.se
 where experiment_key = %s
 and length( peptide.sequence ) > 1
 """ % exp_key
-
-
 
 c2 = db.cursor()
 ###################################
@@ -386,6 +388,7 @@ alter table hroest.srmTransitions_yeast_top3 add index(q3);
 #################################################################
 #START creating the MRM Atlas (all transitions) tables {{{
 
+#will have matching parent_ids to hroest.srmPeptides_yeast
 drop table hroest.srmPeptides_yeast_mrmatlasall ;
 create table hroest.srmPeptides_yeast_mrmatlasall as
 select  distinct
@@ -397,8 +400,10 @@ s.q1               ,
 s.ssrcalc          ,
 s.isotope_nr       ,
 s.transition_group 
-from MRMAtlas_yeast_201009_final t inner join hroest.srmPeptides_yeast s
-on t.modified_sequence = CONCAT( s.modified_sequence, '/', s.q1_charge);
+from  hroest.MRMPepLink_final t inner join hroest.srmPeptides_yeast s
+on s.peptide_key = t.peptide_key;
+#from MRMAtlas_yeast_201009_final t inner join hroest.srmPeptides_yeast s
+#on t.modified_sequence = CONCAT( s.modified_sequence, '/', s.q1_charge);
 alter table hroest.srmPeptides_yeast_mrmatlasall add index(peptide_key);
 alter table hroest.srmPeptides_yeast_mrmatlasall add index(q1);
 alter table hroest.srmPeptides_yeast_mrmatlasall add index(ssrcalc);
@@ -419,7 +424,6 @@ alter table hroest.srmTransitions_yeast_mrmatlasall add index(group_id);
 alter table hroest.srmTransitions_yeast_mrmatlasall add index(q3);
 #END creating the MRM Atlas (all transitions) tables }}}
 #################################################################
-
 
 #################################################################
 #{{{ 2010,12,13 creating complete yeast digest + peptide_atlas
@@ -549,6 +553,23 @@ c.executemany( q, prepared)
 #}}}
 #################################################################
 
+create table
+hroest.srmPeptides_yeast_pI15
+select
+parent_id         ,
+peptide_key       ,
+modified_sequence ,
+q1_charge         ,
+q1                ,
+ssrcalc           ,
+isotope_nr        ,
+transition_group  
+from srmPeptides_yeast p
+inner join ddb.peptide d on d.id = p.peptide_key
+where pI >= 14 and pI < 15
+;
+
+
 #}}}
 #################################################################
 
@@ -658,6 +679,43 @@ count(*)
 from hroest.result_mrmfragment_analysis_final an
 #inner join hroest.MRMAtlas_yeast_201009_final at on at.id = an.id
 ;
+
+
+
+c.execute ( """
+select 
+#count(*) / @all * 100 as pcnt, 
+CONCAT( fragment, '^', charge) as frag,
+parent_charge ch, loss, gain , 
+count(*)  as occ
+from hroest.result_mrmfragment_analysis_final_best_expl an
+inner join hroest.MRMAtlas_yeast_201009_final at on at.id = an.id
+where Intensity > 2000
+group by fragment, parent_charge, charge, loss, gain
+order by occ desc
+; """ )
+result = c.fetchall()
+
+import latex
+sum( [r[4] for r in result])
+tbl = ''
+for r in result:
+    tbl += ' ' + latex.get_latex_row([ r'\url{' + r[0] + '}' , r[1], r[2], r[3], 
+                              latex.prepare_int( r[4], 6) ]  )   + '\n'
+
+mytable = latex.get_longtable(tbl, len(r), "Ion & Precursor Charge & Neutral Loss & Neutral Gain & Occurence", 
+          "Fragment Ion Abundances.", 
+          """ Abundance of individual fragment ions as determined on a synthetic 
+          set of 28357 peptides on a QQQ machine.
+          """, 'table:ion_abundance')
+
+f = open( '/home/hroest/phd/papers/srm_clashes/table_ion_abundance_data.tex', 'w')
+f.write( tbl ) 
+f.close()
+f = open( '/home/hroest/phd/papers/srm_clashes/table_ion_abundance.tex', 'w')
+f.write( mytable ) 
+f.close()
+
 
 }}}
 {{{#some analysis of the peptide atlas data
