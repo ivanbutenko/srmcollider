@@ -59,3 +59,11 @@ and experiment_key = 3061
 group by round(q1 / 0.7), round(q3) #order by count(*)
 ;
 
+
+create table result_srmuis (
+exp_key int, 
+parent_key int, 
+non_useable_UIS int,
+total_UIS int, 
+uisorder int(4)
+)
