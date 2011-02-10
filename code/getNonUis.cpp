@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <time.h>
 
 using namespace std;
 
@@ -37,7 +38,7 @@ double calculate_charged_mass(python::tuple clist, int ch);
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         python::tuple precursors, double q3_low, double q3_high, double q3window, bool ppm);
 python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge);
-int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series, double ch);
+int _calculate_clashes(const char* sequence, double* b_series, double* y_series, double ch);
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm);
 void _combinations(int M, int N, const python::list &mapping, python::dict &result) ;
@@ -157,6 +158,7 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
     long peptide_key;
     int ch, fragcount, k;
     double q3, q1;
+    char* sequence;
 
     double* b_series = new double[256];
     double* y_series = new double[256];
@@ -164,11 +166,12 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
     for (int i=0; i<precursor_length; i++) {
         clist = python::extract< python::tuple >(precursors[i]);
         q1 = python::extract< double >(clist[0]);
+        sequence = python::extract<char *>(clist[1]);
         peptide_key = python::extract< long >(clist[2]);
 
         for (int kk=0; kk<charges_length; kk++) {
             ch = python::extract< int >(charges[kk]);
-            fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
             // go through all fragments of this precursor
             for (k=0; k<fragcount; k++) {
                 q3 = y_series[k];
@@ -197,7 +200,8 @@ double calculate_charged_mass(python::tuple clist, int ch) {
     double* b_series = new double[256];
     double* y_series = new double[256];
 
-    int fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+    char* sequence = python::extract<char *>(clist[1]);
+    int fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
 
     //In order to get the full mass, we need the "last" element of the b-series
     //(which is not technically part of the b series) and add water as well as
@@ -231,6 +235,7 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
     long peptide_key;
     int ch, fragcount, k;
     double q3, q1;
+    char* sequence;
 
     double* b_series = new double[256];
     double* y_series = new double[256];
@@ -238,10 +243,11 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
     for (int i=0; i<precursor_length; i++) {
         clist = python::extract< python::tuple >(precursors[i]);
         q1 = python::extract< double >(clist[0]);
+        sequence = python::extract<char *>(clist[1]);
         peptide_key = python::extract< long >(clist[2]);
 
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
             // go through all fragments of this precursor
             for (k=0; k<fragcount; k++) {
                 q3 = y_series[k];
@@ -303,7 +309,6 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     python::tuple clist;
     python::tuple tlist;
     python::list tmplist;
-    //python::list result;
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
@@ -311,6 +316,7 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     long t1, peptide_key;
     bool append_to_list;
     double t0, q3used = q3window;
+    char* sequence;
 
 
     double* b_series = new double[256];
@@ -321,6 +327,7 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     // position 3 and 1 respectively)
     for (j=0; j<precursor_length; j++) {
         clist = python::extract< python::tuple >(precursors[j]);
+        sequence = python::extract<char *>(clist[1]);
 
         for (i=0; i<transitions_length; i++) {
             append_to_list = false;
@@ -330,7 +337,7 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
             if(ppm) {q3used = q3window / 1000000.0 * t0; } 
 
             for (ch=1; ch<=2; ch++) {
-                fragcount = _calculate_clashes(clist, b_series, y_series, ch);
+                fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
                 // go through all fragments of this precursor
                 for (k=0; k<fragcount; k++) {
                     if(fabs(t0-y_series[k])<q3used || 
@@ -355,8 +362,10 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         listmembers = 0;
 
     }
+
     delete [] b_series;
     delete [] y_series;
+
     return collisions_per_peptide;
 }
 
@@ -378,7 +387,8 @@ python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge) {
     double* y_series = new double[256];
     int k;
 
-    int fragcount = _calculate_clashes(tlist, b_series, y_series, charge);
+    char* sequence = python::extract<char *>(tlist[1]);
+    int fragcount = _calculate_clashes(sequence, b_series, y_series, charge);
 
     for (k=0; k<fragcount; k++) result.append(y_series[k]);
     for (k=0; k<fragcount; k++) result.append(b_series[k]);
@@ -390,23 +400,17 @@ python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge) {
 /*
  * Input is a tuple of (q1, sequence, peptide_key)
 */
-int _calculate_clashes(python::tuple &tlist, double* b_series, double* y_series,
+int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
         double ch) {
 
-    long peptide_key;
     int j, start, scounter;
-    double q1, acc_mass, res_mass;
-    char* sequence;
+    double acc_mass, res_mass;
     char c;
     bool inside;
 
     acc_mass = 0.0;
     res_mass = 0.0;
     scounter = 0;
-
-    q1 = python::extract< double >(tlist[0]);
-    sequence = python::extract<char *>(tlist[1]);
-    peptide_key = python::extract< long >(tlist[2]);
 
     inside = false;
     start = 0;
