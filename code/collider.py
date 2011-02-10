@@ -54,13 +54,13 @@ class SRM_parameters(object):
         group = OptionGroup(parser, "General Options",
                             "These are the general options for the SRM  Collider")
         #group.add_option( dest="q1_window", default=1, help="Q1 window (e.g. use 1 for +- 0.5 Da). Defaults to 1", metavar="Q1WIN")
-        group.add_option("--q1_window", dest="q1_window", default=1,
+        group.add_option("--q1_window", dest="q1_window", default=1, type="float",
                           help="Q1 window (e.g. use 1 for +- 0.5 Da). " + 
                           "Defaults to 1", metavar="Q1WIN")
-        group.add_option("--q3_window", dest="q3_window", default=1,
+        group.add_option("--q3_window", dest="q3_window", default=1, type="float",
                           help="Q3 window (e.g. use 1 for +- 0.5 Da). " + 
                           "Defaults to 1", metavar="Q3WIN")
-        group.add_option("--rt_window", dest="ssrcalc_window", default=9999,
+        group.add_option("--rt_window", dest="ssrcalc_window", default=9999, type="float",
                           help="RT (retention time) window (e.g. use 1 for +- 0.5 units)." + 
                           " Defaults to 9999 (infinite.)", metavar="RTWIN")
         group.add_option("--ppm", action="store_true", dest="ppm", default=False,
