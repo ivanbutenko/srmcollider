@@ -304,7 +304,7 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
     bool ppm) {
 
-    python::dict collisions_per_peptide;
+    python::dict collisions_per_peptide, tmpdict;
     python::tuple clist;
     python::tuple tlist;
     python::list tmplist;
@@ -343,17 +343,8 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
 
                         if(fabs(t0-y_series[k]) < q3used || 
                            fabs(t0-b_series[k]) < q3used) {
-
-                            //append to the list in the dictionary
-                            ///unless its already in the list
                             t1 = python::extract<long>(tlist[1]);
-                            tmplen = python::extract<int>(tmplist.attr("__len__")());
-                            already_in_list = false;
-                            for (int l=0; l<tmplen; l++) {
-                                tmplong = python::extract<long>(tmplist[l]);
-                                if(tmplong == t1) {already_in_list = true;}
-                            }
-                            if(not already_in_list) { tmplist.append(t1); }
+                            tmpdict[t1] = 0; //dummy dict
                             listmembers++; 
                         
                         }
@@ -369,10 +360,11 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         //is negligible.
         if (listmembers>0) {
             peptide_key = python::extract< long >(clist[2]);
+            tmplist = tmpdict.keys();
             tmplist.sort();
             collisions_per_peptide[peptide_key] = tmplist;
-            python::list newlist;
-            tmplist = newlist;
+            python::dict newlist;
+            tmpdict = newlist;
         }
         listmembers = 0;
 

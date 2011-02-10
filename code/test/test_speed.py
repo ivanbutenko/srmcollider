@@ -252,6 +252,7 @@ class Test_speed_integrated(unittest.TestCase):
 
     def setUp(self):
         self.limit = 300
+        self.limit_large = 600
         try:
             import MySQLdb
             import time
@@ -367,6 +368,7 @@ class Test_speed_integrated(unittest.TestCase):
             print "new = use fast SQL to get precursors, use C++ code to get collperpep"
             print "old = use rangetree to get precursors, use C++ code to get collperpep"
             print "i\tnew_prec_tot\trangetree\tnewcollper\ttotalnew\t>>\ttotalold\tspeedup"
+            self.mycollider.pepids = self.mycollider.pepids[:self.limit_large]
             for kk, pep in enumerate(self.mycollider.pepids):
                 ii = kk + 1
                 p_id = pep['parent_id']
