@@ -11,7 +11,6 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <time.h>
 
 using namespace std;
 
@@ -312,9 +311,10 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    int fragcount, i, j, k, ch, listmembers = 0;
-    long t1, peptide_key;
-    bool append_to_list;
+    int fragcount, i, j, k, ch, listmembers = 0, tmplen;
+
+    long t1, peptide_key, tmplong;
+    bool already_in_list;
     double t0, q3used = q3window;
     char* sequence;
 
@@ -329,43 +329,57 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         clist = python::extract< python::tuple >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
 
-        for (i=0; i<transitions_length; i++) {
-            append_to_list = false;
-            tlist = python::extract< python::tuple >(transitions[i]);
-            //ppm is 10^-6
-            t0 = python::extract< double >(tlist[0]);
-            if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
 
-            for (ch=1; ch<=2; ch++) {
-                fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-                // go through all fragments of this precursor
-                for (k=0; k<fragcount; k++) {
-                    if(fabs(t0-y_series[k])<q3used || 
-                       fabs(t0-b_series[k])<q3used) {append_to_list = true; }
-                }
-            }
-            //append if necessary
-            if(append_to_list) {
-                t1 = python::extract<long>(tlist[1]);
-                tmplist.append(t1);
-                listmembers++; 
-            }
-        }
+            for (i=0; i<transitions_length; i++) {
+                tlist = python::extract< python::tuple >(transitions[i]);
+                //ppm is 10^-6
+                t0 = python::extract< double >(tlist[0]);
+                if(ppm) {q3used = q3window / 1000000.0 * t0; } 
 
+                    // go through all fragments of this precursor
+                    for (k=0; k<fragcount; k++) {
+
+                        if(fabs(t0-y_series[k]) < q3used || 
+                           fabs(t0-b_series[k]) < q3used) {
+
+                            //append to the list in the dictionary
+                            ///unless its already in the list
+                            t1 = python::extract<long>(tlist[1]);
+                            tmplen = python::extract<int>(tmplist.attr("__len__")());
+                            already_in_list = false;
+                            for (int l=0; l<tmplen; l++) {
+                                tmplong = python::extract<long>(tmplist[l]);
+                                if(tmplong == t1) {already_in_list = true;}
+                            }
+                            if(not already_in_list) { tmplist.append(t1); }
+                            listmembers++; 
+                        
+                        }
+                    }
+                } //loop over all transitions
+            }
+
+        //we keep one empty list around since we hope that most precursors dont 
+        //use it. If it gets used, we store it in the result and create a new 
+        //list to use from then on.
+        //Sorting it costs something and could be done more efficiently since 
+        //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
+        //is negligible.
         if (listmembers>0) {
             peptide_key = python::extract< long >(clist[2]);
+            tmplist.sort();
             collisions_per_peptide[peptide_key] = tmplist;
-            //create new list
             python::list newlist;
             tmplist = newlist;
         }
         listmembers = 0;
 
-    }
+    } //end of loop over all precursors
 
     delete [] b_series;
     delete [] y_series;
-
     return collisions_per_peptide;
 }
 
