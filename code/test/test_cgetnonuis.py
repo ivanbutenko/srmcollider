@@ -3,6 +3,7 @@ import test_shared
 
 import sys
 sys.path.append( '..')
+sys.path.append( '.')
 import collider
 
 try:
@@ -150,6 +151,93 @@ class Test_cgetnonuis(unittest.TestCase):
                 self.assertTrue(abs(calc - ref) < 1e-3)
             for calc, ref in zip(b_series, self.pep1_bseries):
                 self.assertTrue(abs(calc - ref) < 1e-3)
+        except ImportError: pass
+
+    def test_calculate_calculate_collisions_per_peptide_debug1(self):
+        """
+        Debug test, if there is something wrong rather not use the big ones.
+
+        Is contained in the big test
+        """
+        try:
+            import c_getnonuis
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            #precursors = test_shared.runprecursors1
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            precursors = ( 
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+            )
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
+            #
+
+            self.assertEqual(collisions_per_peptide,
+                             { 11498839: [3]} )
+
+        except ImportError: pass
+
+    def test_calculate_calculate_collisions_per_peptide_debug2(self):
+        """
+        Debug test, if there is something wrong rather not use the big ones.
+
+        Is contained in the big test
+        """
+        try:
+            import c_getnonuis
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            #precursors = test_shared.runprecursors1
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            precursors = ( 
+                (450.57777992699999, 'GPGPALAGEPAGSLR', 10682370L, 3),
+            )
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
+            #
+
+            self.assertEqual(collisions_per_peptide,
+                             {10682370: [0, 1, 2, 7, 8, 9, 11],
+                             })
+
+        except ImportError: pass
+
+    def test_calculate_calculate_collisions_per_peptide_debug1and2(self):
+        """
+        Debug test, if there is something wrong rather not use the big ones.
+
+        Is contained in the big test
+        """
+        try:
+            import c_getnonuis
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            #precursors = test_shared.runprecursors1
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            precursors = ( 
+                (450.57777992699999, 'GPGPALAGEPAGSLR', 10682370L, 3),
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+            )
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
+            #
+
+            self.assertEqual(collisions_per_peptide,
+                             {10682370: [0, 1, 2, 7, 8, 9, 11],
+                              11498839: [3]} )
+
         except ImportError: pass
 
     def test_calculate_calculate_collisions_per_peptide_1(self):
