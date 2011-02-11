@@ -33,30 +33,54 @@ ssrcalcwin = 0.25
 #11234556 1047 1205 0.25 hroest.srmPeptides_yeast
 
 
-exp_key = sys.argv[1]
-min_q1 = float(sys.argv[2])
-max_q1 = float(sys.argv[3])
-ssrcalcwin = float(sys.argv[4])
-peptide_table = sys.argv[5]
 
-print 'Running with', exp_key, min_q1, max_q1, ssrcalcwin, peptide_table
+from optparse import OptionParser, OptionGroup
+usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
+parser = OptionParser(usage=usage)
+group = OptionGroup(parser, "Run uis Options",
+                    "None yet")
+parser.add_option_group(group)
+
+
 
 #Run the collider
 ###########################################################################
+#Parse options
+db = MySQLdb.connect(read_default_file="~/.my.cnf")
+cursor = db.cursor()
 par = collider.SRM_parameters()
-par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
-par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
-par.ssrcalc_window = ssrcalcwin / 2.0
-par.ppm = False
-par.considerIsotopes = True
-par.max_uis = 5 #turn off uis if set to 0
-par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
-par.q3_range = [400, 1400]
+par.parse_cmdl_args(parser)
+options, args = parser.parse_args(sys.argv[1:])
+
+#local arguments
+exp_key = sys.argv[1]
+min_q1 = float(sys.argv[2])
+max_q1 = float(sys.argv[3])
+#ssrcalcwin = float(sys.argv[4])
+#peptide_table = sys.argv[5]
+par.__dict__.update( options.__dict__ )
+par.q3_range = [options.q3_low, options.q3_high]
+par.q1_window /= 2.0
+par.q3_window /= 2.0
+par.ssrcalc_window /= 2.0
+if par.ppm == 'True': par.ppm = True
+elif par.ppm == 'False': par.ppm = False
+#par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
+#par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
+#par.ssrcalc_window = ssrcalcwin / 2.0
+#par.ppm = False
+#par.considerIsotopes = True
+#par.max_uis = 5 #turn off uis if set to 0
+#par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
+#par.q3_range = [400, 1400]
 par.eval()
 #print par.experiment_type
-par.peptide_table = peptide_table
+#par.peptide_table = peptide_table
 print par.get_common_filename()
 mycollider = collider.SRMcollider()
+
+print par.ppm
+print par.considerIsotopes
 
 qadd = ''
 if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
@@ -66,7 +90,7 @@ cursor.execute( """
 select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
 %(qadd)s
-""" % {'peptide_table' : peptide_table, 
+""" % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
               'qadd'   : qadd

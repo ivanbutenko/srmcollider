@@ -5,7 +5,7 @@ import MySQLdb, sys; sys.path.extend(['..', '.']);
 import collider
                          
 from optparse import OptionParser, OptionGroup
-usage = "usage: %prog [options] experiment_key max_batch"
+usage = "usage: %prog experiment_key max_batch [options]"
 parser = OptionParser(usage=usage)
 group = OptionGroup(parser, "Prepare Rangetree Options",
                     "These are the options to prepare a rangetree run")
@@ -29,31 +29,46 @@ filename = options.outfile
 exp_key = args[0]
 max_batch = float(args[1])
 par.__dict__.update( options.__dict__ )
-par.q3_range = [400, 1400]
+par.q3_range = [options.q3_low, options.q3_high]
 par.q1_window /= 2.0
 par.q3_window /= 2.0
 par.ssrcalc_window /= 2.0
+if par.ppm == 'True': par.ppm = True
+elif par.ppm == 'False': par.ppm = False
 
 par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 par.eval()
 mycollider = collider.SRMcollider()
-
 
 print par.peptide_table
 print par.get_common_filename()
 print par.experiment_type
 print options.insert_mysql
 
+
+if par.ppm: print 'ppm here'
+
+newoptionsstring = ''
+for k,v in options.__dict__.iteritems():
+    if k in ['insert_mysql', 'outfile']: continue
+    newoptionsstring += '--%s %s ' % (k,v)
+
+
+print newoptionsstring
+
+
 if options.insert_mysql:
     common_filename = par.get_common_filename()
+    superkey = 31
+    if common_filename.split('_')[0] == 'human': superkey = 34
     query = """
     insert into hroest.experiment  (name, short_description,
     description, comment1, comment2, super_experiment_key, ddb_experiment_key)
     VALUES (
-        'uis_perpeptide', '%s', '%s', '%s', '%s', 31, 0
+        'uis_perpeptide', '%s', '%s', '%s', '%s', %s, 0
     )
     """ %( common_filename + '_' + par.peptide_table.split('.')[1], 
-          par.experiment_type, par.peptide_table, par.transition_table)
+          par.experiment_type, par.peptide_table, par.transition_table, superkey)
     cursor.execute(query)
     exp_key = db.insert_id()
 
@@ -81,7 +96,7 @@ for i in range(1,len(myrange)):
     #print myrange[i-1], myrange[i]
     f.write("echo 'Starting CHUNK %s of %s at' `uptime | cut -c-9` '[START:' $START']'\n" 
             % (i, len(myrange)-1))
-    f.write('python run_uis.py %s %s %s %s %s\n' % (exp_key, myrange[i-1], 
-                                 myrange[i], par.ssrcalc_window*2, par.peptide_table))
+    f.write('python run_uis.py %s %s %s %s\n' % (exp_key, myrange[i-1], 
+                                 myrange[i], newoptionsstring) )
 f.close()
 

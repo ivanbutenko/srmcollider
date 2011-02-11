@@ -60,27 +60,26 @@ class SRM_parameters(object):
         group.add_option("--q3_window", dest="q3_window", default=1, type="float",
                           help="Q3 window (e.g. use 1 for +- 0.5 Da). " + 
                           "Defaults to 1", metavar="Q3WIN")
-        group.add_option("--rt_window", dest="ssrcalc_window", default=9999, type="float",
+        group.add_option("--ssrcalc_window", dest="ssrcalc_window", default=9999, type="float",
                           help="RT (retention time) window (e.g. use 1 for +- 0.5 units)." + 
                           " Defaults to 9999 (infinite.)", metavar="RTWIN")
-        group.add_option("--ppm", action="store_true", dest="ppm", default=False,
+        group.add_option("--ppm", dest="ppm", default=False, 
                           help="Interpret Q3 window as PPM (default False)")
-        group.add_option("-i", "--no_isotopes", action="store_false", dest="considerIsotopes", default=True,
+        group.add_option("-i", "--considerIsotopes", dest="considerIsotopes", default=True,
                           help="Consider isotopes of the precursors, up to 3amu " +
                           "(default True)")
-        group.add_option("--range_low", dest="q3_low", default=400,
+        group.add_option("--q3_low", dest="q3_low", default=400, type="float",
                           help="Start of transition range to analyse (default 400)", metavar="Q3LOW")
-        group.add_option("--range_high", dest="q3_high", default=1400,
+        group.add_option("--q3_high", dest="q3_high", default=1400, type="float",
                           help="End of transition range to analyse (default 1400)", metavar="Q3HIGH")
-        group.add_option("--max_uis", dest="max_uis", default=0,
+        group.add_option("--max_uis", dest="max_uis", default=0, type='int',
                           help="maximal order of UIS to calculate " +
                           "(defaults to 0 == no UIS)" )
-        group.add_option("--p_table", dest="peptide_table", default='hroest.srmPeptides_yeast',
+        group.add_option("--peptide_table", dest="peptide_table", default='hroest.srmPeptides_yeast',
                           help="MySQL table containing the peptides" )
-        group.add_option("--t_table", dest="transition_table", default='hroest.srmTransitions_yeast',
+        group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_yeast',
                           help="MySQL table containing the transitions" )
-        group.add_option("-q", "--quiet",
-                          action="store_true", dest="quiet", default=False,
+        group.add_option("-q", "--quiet", dest="quiet", default=False,
                           help="don't print status messages to stdout")
         parser.add_option_group(group)
 
