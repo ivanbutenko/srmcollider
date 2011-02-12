@@ -140,6 +140,7 @@ self.pepids = mypepids
 MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 prepare  = []
+import time
 for kk, pep in enumerate(self.pepids):
     p_id = pep['parent_id']
     q1 = pep['q1']
@@ -158,13 +159,20 @@ for kk, pep in enumerate(self.pepids):
     ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
     ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
 
-    newres = c_integrated.wrap_all(transitions, q1_low, ssrcalc_low, q1_high,  ssrcalc_high, 
+    st = time.time()
+    result = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low, q1_high,  ssrcalc_high, 
                          pep['peptide_key'],  min(MAX_UIS,nr_transitions) , 
                                    par.q3_window, #q3_low, q3_high,
-                                   par.ppm)
+                                   par.ppm )
 
+    for order in range(1, len(result)): 
+        prepare.append( (result[order], collider.choose(nr_transitions, 
+            order), p_id , order, exp_key)  )
+    #print "That took " , time.time() - st
+    #print "0"*75
     progressm.update(1)
     continue
+    newres = result
     ##
     ##
     ##
@@ -179,7 +187,6 @@ for kk, pep in enumerate(self.pepids):
     #now calculate coll per peptide the new way
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
         transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-    fkey =  collisions_per_peptide.keys()[0]
     
     non_uis_list = [{} for i in range(MAX_UIS+1)]
     for order in range(1,MAX_UIS+1):
@@ -190,7 +197,11 @@ for kk, pep in enumerate(self.pepids):
         prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
             order), p_id , order, exp_key) )
     oldres = [len(non_uis_list[order]) for order in range(1,min(MAX_UIS+1, nr_transitions+1))]
+    #print oldres, newres
     assert oldres == newres
+    fkey =  collisions_per_peptide.keys()[1]
+    #print "0"*75
+    #print 'fkey', fkey, collisions_per_peptide[fkey]
 
 
 print len(prepare)

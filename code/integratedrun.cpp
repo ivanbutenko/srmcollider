@@ -27,6 +27,9 @@ using namespace std;
 #define MASS_H 1.007825032
 #define MASS_OH 17.002739651999999
 
+//assume that there are never more than 32 transitions in an assay
+#define COMBINT uint32_t
+
 
 /*
 CGAL
@@ -101,15 +104,209 @@ void create_tree(python::tuple pepids) {
 }
 
 
+
+//M is the order
+//N is the length of the input vector
+
+void _combinations_magic(int M, int N, int* mapping,
+        python::dict &result) {
+    // The basic idea is to create an index array of length M that contains
+    // numbers between 0 and N. The indices denote the combination produced and
+    // we always increment the rightmost index. If it goes above N, we try to
+    // increase the one left to it until we find one that still can be
+    // increased. We stop when the rightmost index hits N-M, we thus go from
+    // (0,1,2,3...M-1) to (N-M,N-M+1,N-M+2...N-1)
+
+    int j, k;
+    int* index = new int[M];
+    COMBINT tmpres;
+
+    python::tuple tmptuple;
+    //initialize with numbers from 0 to M = range( M )
+    for(int k=0;k<M;k++) index[k] = k;
+    while (index[0] <= N-M) {
+
+        //EVALUATE THE RESULT
+        tmpres = 0;
+        for(k=0;k<M;k++) 
+            tmpres |= mapping[index[k]];
+        result[tmpres] = 0;
+
+        // We need to break if index[0] has the final value
+        // The other option is to make the while condition (index[0] < N-M) 
+        // and add an additional evaluation of the result to the end of the 
+        // function (that would probably be faster).
+        if(index[0] == N-M) break;
+
+        index[ M-1 ] += 1;
+        if (index[ M-1 ] >= N) {
+            //#now we hit the end, need to increment other positions than last
+            //#the last position may reach N-1, the second last only N-2 etc.
+            j = M-1;
+            while (j >= 0 and index[j] >= N-M+j) j -= 1;
+            //#j contains the value of the index that needs to be incremented
+            index[j] += 1;
+            k = j + 1;
+            while (k < M) { index[k] = index[k-1] + 1; k += 1; } 
+        }
+    }
+
+    delete [] index;
+}
+
+
+
+/*
+ * Function to calculate all non-UIS transitions from a dictionary
+ * where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held
+ * (collisions_per_peptide dictionary)
+ * It will return a list of all non UIS of the requested order.
+ */
+python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int order) {
+
+    python::dict result;
+
+    int onecounter;
+    COMBINT tmparr;
+    COMBINT mask;
+    int* mapping = new int[max_tr];
+
+    for (uint i=0; i<newcollperpep.size(); i++) {
+
+        //count the number of binary ones in the bitarray
+        mask = 1;
+        onecounter = 0;
+        tmparr = newcollperpep[i];
+
+        //we know that there cannot be bits populated past max nr transitions
+        for(int j=0; j<max_tr; j++) {
+            //true if nonzero
+            if(tmparr & mask) 
+                mapping[onecounter++] = mask;
+            mask <<=1;
+        }
+
+        /* The other way to do it
+         * we shift the tmparr to the right
+        for(int j=0; tmparr != 0; tmparr >>= 1) {
+            onecounter += tmparr & mask;
+        }
+        */
+
+        _combinations_magic(order, onecounter, mapping, result);
+    }
+
+    delete [] mapping;
+    return result;
+}
+
+
+python::list wrap_all_magic(python::tuple transitions, double a, double b,
+        double c, double d, long thispeptide_key, int max_uis, double q3window,
+        bool ppm )   {
+
+    //use the defined COMBINT (default 32bit int) and some magic to do this :-)
+    COMBINT one;
+    COMBINT currenttmp = 0;
+    std::vector<COMBINT> newcollperpep;
+
+
+    int fragcount, i, k, ch;
+    long srm_id;
+    double q3, q3used = q3window;
+    char* sequence;
+
+    Transition transition;
+    Precursor precursor;
+    std::vector<Key> OutputList;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    /*
+    * Transitions are tuples of the form (q3, srm_id)
+    * convert to our struct.
+    */
+    python::tuple tlist;
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    vector<Transition> mytransitions(transitions_length);
+    for (i=0; i<transitions_length; i++) {
+        tlist = python::extract< python::tuple >(transitions[i]);
+        q3 = python::extract<double>(tlist[0]);
+        srm_id = python::extract<long>(tlist[1]);
+        struct Transition entry = {q3, srm_id};
+        mytransitions[i] = entry;
+    }
+
+    Interval win(Interval(K::Point_2(a,b),K::Point_2(c,d)));
+    Range_tree_2->window_query(win, std::back_inserter(OutputList));
+    std::vector<Key>::iterator current=OutputList.begin();
+
+    // Go through all (potential) collisions we just extracted from the rangetree
+    //
+    // This assumes that we do not have peptide_keys mapped to different
+    // colliding transitions. In fact we do not have this situation even though
+    // we have duplicate peptide_keys (from the isotopes). But they will
+    // produce the same interefering transitions and thus the same entry in the
+    // collisions per peptide table.
+    while(current!=OutputList.end()){
+        if (thispeptide_key != (*current).second.peptide_key) {
+
+            precursor =  (*current).second;
+            sequence = precursor.sequence;
+            for (ch=1; ch<=2; ch++) {
+                fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+
+                //for(std::vector<int>::size_type i = 0; i != transitions_length; i++) {
+                for(int i = 0; i != transitions_length; i++) {
+                    //ppm is 10^-6
+                    transition = mytransitions[i];
+                    q3 = transition.q3;
+                    if(ppm) {q3used = q3window / 1000000.0 * q3; } 
+                        // go through all fragments of this precursor
+                        for (k=0; k<fragcount; k++) {
+                            if(fabs(q3-y_series[k]) < q3used || 
+                               fabs(q3-b_series[k]) < q3used) {
+
+                                //left bitshift == 2^i
+                                one = 1;
+                                currenttmp |= one << i;
+                            }
+                        }
+                    } //loop over all transitions
+                }
+
+            //Store current combination
+            if ( currenttmp ) {
+                newcollperpep.push_back(currenttmp);
+                currenttmp = 0;
+            }
+
+        }//end of if
+      current++;
+    }
+
+    //this takes about 50% or more of the time if we have many collisions_per_pep (10k)
+    //and below 10% if we have few collision_per_pep (0.1k)
+    python::list result;
+    for(i =1; i<= max_uis; i++) {
+        result.append( 
+                get_non_uis_magic(newcollperpep, transitions_length, i).attr("__len__")() );
+    }
+
+    delete [] b_series;
+    delete [] y_series;
+
+    return result;
+}
+
 python::list wrap_all(python::tuple transitions, 
         double a, double b, double c, double d,
         long thispeptide_key, 
         int max_uis, double q3window,
-      //  double q3_low, double q3_high, 
         bool ppm
         )   {
-
-
 
     std::vector<Key> OutputList;
 
@@ -129,7 +326,6 @@ python::list wrap_all(python::tuple transitions,
     double* b_series = new double[256];
     double* y_series = new double[256];
 
-
     /*
     * Transitions are tuples of the form (q3, srm_id)
     * convert to our struct.
@@ -144,14 +340,19 @@ python::list wrap_all(python::tuple transitions,
         mytransitions[i] = entry;
     }
 
-
-    int count = 0;
     Interval win(Interval(K::Point_2(a,b),K::Point_2(c,d)));
     Range_tree_2->window_query(win, std::back_inserter(OutputList));
     std::vector<Key>::iterator current=OutputList.begin();
+
     // go through all (potential) collisions we just extracted from the rangetree
     // and store the colliding SRM ids in a dictionary (they can be found at
     // position 3 and 1 respectively)
+    //
+    // This assumes that we do not have peptide_keys mapped to different
+    // colliding transitions. In fact we do not have this situation even though
+    // we have duplicate peptide_keys (from the isotopes). But they will
+    // produce the same interefering transitions and thus the same entry in the
+    // collisions per peptide table.
     while(current!=OutputList.end()){
         if (thispeptide_key != (*current).second.peptide_key) {
 
@@ -160,7 +361,7 @@ python::list wrap_all(python::tuple transitions,
             for (ch=1; ch<=2; ch++) {
                 fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
 
-                for(std::vector<int>::size_type i = 0; i != mytransitions.size(); i++) {
+                for(int i = 0; i != transitions_length; i++) {
                     //ppm is 10^-6
                     transition = mytransitions[i];
                     q3 = transition.q3;
@@ -169,6 +370,7 @@ python::list wrap_all(python::tuple transitions,
                         for (k=0; k<fragcount; k++) {
                             if(fabs(q3-y_series[k]) < q3used || 
                                fabs(q3-b_series[k]) < q3used) {
+
                                 srm_id = transition.srm_id;
                                 tmpdict[srm_id] = 0; //dummy dict
                                 listmembers++; 
@@ -183,41 +385,26 @@ python::list wrap_all(python::tuple transitions,
             //Sorting it costs something and could be done more efficiently since 
             //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
             //is negligible.
-            if (listmembers>0) {
+            if (listmembers>0 ) {
                 peptide_key = precursor.peptide_key;
                 tmplist = tmpdict.keys();
                 tmplist.sort();
-
-                                /*
-                                if(precursor.peptide_key == 11173769) {
-                                    cout << "listlen " ;
-                                cout << python::extract<int>(tmplist.attr("__len__")()) << endl;
-                                }
-                                cout << precursor.peptide_key << endl;
-                                */
-
-
                 collisions_per_peptide[peptide_key] = tmplist;
                 python::dict newlist;
                 tmpdict = newlist;
+                listmembers = 0;
             }
-            listmembers = 0;
 
         }//end of if
       current++;
-      count++;
     }
-    /*
-    cout << "found " <<  count << endl;
-    cout << "collisions per pep " << python::extract<int>(collisions_per_peptide.attr("__len__")()) << endl;
-    */
 
+    //this takes about 50% or more of the time if we have many collisions_per_pep (10k)
+    //and below 10% if we have few collision_per_pep (0.1k)
     python::list result;
-    for(i =1; i<= max_uis; i++)
-        {
-        //cout << "len " << python::extract<int>(get_non_uis(collisions_per_peptide, i).attr("__len__")()) << endl;
+    for(i =1; i<= max_uis; i++) {
         result.append( get_non_uis(collisions_per_peptide, i).attr("__len__")() );
-        }
+    }
 
     delete [] b_series;
     delete [] y_series;
@@ -437,6 +624,7 @@ BOOST_PYTHON_MODULE(c_integrated)
 
     def("create_tree", create_tree, "");
     def("wrap_all", wrap_all, "");
+    def("wrap_all_magic", wrap_all_magic, "");
 }
 
 
