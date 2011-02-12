@@ -46,6 +46,8 @@ setup(name="srmcollider",
             libraries = ["boost_python"]),
         Extension("c_rangetree", ["rangetree.cpp"],
             libraries = ["boost_python", "CGAL"]),
+        Extension("c_integrated", ["integratedrun.cpp"],
+            libraries = ["boost_python", "CGAL"]),
     ],
      ) 
 
