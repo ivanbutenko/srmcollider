@@ -23,6 +23,13 @@ except ImportError:
 Module c_rangetree is not available. Please compile it if you want to use it.
 """, "=" * 75
 
+try:
+    import c_integrated
+except ImportError:
+    print "=" * 75, """
+Module c_integrated is not available. Please compile it if you want to use it.
+""", "=" * 75
+
 
 def runcpp(self, pep, transitions, precursors):
     #first we run the C++ version
@@ -365,8 +372,8 @@ class Test_speed_integrated(unittest.TestCase):
             prepare  = []
             self._cursor = False
             print '\n'*2
-            print "new = use fast SQL to get precursors, use C++ code to get collperpep"
-            print "old = use rangetree to get precursors, use C++ code to get collperpep"
+            print "old = use fast SQL to get precursors, use C++ code to get collperpep"
+            print "new = use rangetree to get precursors, use C++ code to get collperpep"
             print "i\tnew_prec_tot\trangetree\tnewcollper\ttotalnew\t>>\ttotalold\tspeedup"
             self.mycollider.pepids = self.mycollider.pepids[:self.limit_large]
             for kk, pep in enumerate(self.mycollider.pepids):
@@ -440,6 +447,138 @@ class Test_speed_integrated(unittest.TestCase):
                  (alllocaltime + c_fromprecursortime)*1000/ii, 
                  (ctime + newsql)*1000/ii, 
                  (ctime + newsql)/ (alllocaltime + c_fromprecursortime) )
+                #start a new line for each output?
+                #mys += '\t%s\t%s' % ( len(precursors), len(precursor_new) )
+                if False: mys += '\n'
+
+                self.ESC = chr(27)
+                sys.stdout.write(self.ESC + '[2K')
+                if self._cursor:
+                    sys.stdout.write(self.ESC + '[u')
+                self._cursor = True
+                sys.stdout.write(self.ESC + '[s')
+                sys.stdout.write(mys)
+                sys.stdout.flush()
+
+
+        except Exception as inst:
+            print "something went wrong"
+            print inst
+
+    def test_integrated_integrated(self):
+
+        try:
+            par = self.par
+            cursor = self.cursor
+
+            from random import shuffle
+            start = time.time()
+            #shuffle(self.alltuples)
+            #print "finished query fetch: ", time.time() - start
+
+            mypepids = [
+                        {
+                            'sequence'  :  r[0],
+                            'peptide_key' :r[1],
+                            'parent_id' :  r[2],
+                            'q1_charge' :  r[3],
+                            'q1' :         r[4],
+                            'ssrcalc' :    r[5],
+                        }
+                        for r in self.alltuples
+                if r[3] == 2 #charge is 2
+                and r[6] == 0 #isotope is 0
+                and r[4] >= self.min_q1
+                and r[4] < self.max_q1
+            ]
+
+            parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
+                        for r in self.alltuples
+                #if r[3] == 2 and r[6] == 0
+            ]
+            parentid_lookup  = dict(parentid_lookup)
+
+            mystart = time.time()
+            c_rangetree.create_tree(tuple(self.alltuples))
+            c_integrated.create_tree(tuple(alltuples))
+
+            self.mycollider.pepids = mypepids
+            MAX_UIS = 5
+            newtime = 0; oldtime = 0; ctime = 0
+            oldsql = 0; newsql = 0
+            alllocaltime = 0
+            localprecursor = 0
+            c_fromprecursortime = 0
+            #progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+            prepare  = []
+            self._cursor = False
+            print '\n'*2
+            print "old = use rangetree to get precursors, use C++ code to get collperpep"
+            print "new = use rangetree to get precursors, use single C++ code to get collperpep"
+            print "i\tnew_prec_tot\trangetree\tnewcollper\ttotalnew\t>>\ttotalold\tspeedup"
+            self.mycollider.pepids = self.mycollider.pepids[:self.limit_large]
+            for kk, pep in enumerate(self.mycollider.pepids):
+                ii = kk + 1
+                p_id = pep['parent_id']
+                q1 = pep['q1']
+                ssrcalc = pep['ssrcalc']
+                q3_low, q3_high = par.get_q3range_transitions()
+                #
+                #new way to calculate the precursors
+                mystart = time.time()
+                transitions = c_getnonuis.calculate_transitions(
+                    ((q1, pep['sequence'], p_id),), q3_low, q3_high)
+                #fake some srm_id for the transitions
+                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+                q1_low = q1 - par.q1_window 
+                q1_high = q1 + par.q1_window
+                innerstart = time.time()
+                #correct rounding errors, s.t. we get the same results as before!
+                ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
+                ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
+                transitiontime += time.time() - mystart
+                mystart = time.time()
+                ###################################
+                #new way to calculate collperpep 
+                newresult = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low,
+                    q1_high,  ssrcalc_high, pep['peptide_key'],
+                    min(MAX_UIS,nr_transitions) , par.q3_window, #q3_low, q3_high,
+                                   par.ppm )
+                newtime += time.time() - mystart
+
+
+                mystart = time.time()
+                ###################################
+                #old way to calculate collperpep
+                precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
+                                                             q1_high,  ssrcalc_high )  )
+                localprecursor += time.time() - innerstart 
+                precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                                    #dont select myself 
+                                   if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+                alllocaltime += time.time() - mystart
+                #
+                #now calculate coll per peptide the new way
+                mystart = time.time()
+                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+                non_uis_list = [{} for i in range(MAX_UIS+1)]
+                for order in range(1,MAX_UIS+1):
+                    non_uis_list[order] = c_getnonuis.get_non_uis(
+                        collisions_per_peptide, order)
+                c_fromprecursortime += time.time() - mystart
+                precursor_new = precursors
+                non_uis_list_new = [set(kk.keys()) for kk in non_uis_list]
+                oldresult = [len(kk) for kk in non_uis_list]
+                transitions_before = transitions
+                oldtime += time.time() - mystart
+
+                self.assertEqual( newresult , non_uis_list_len) 
+
+                mys =  "%s\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t>>\t%0.2fms" % \
+                (ii, transitiontime *1000/ ii, 
+                        newtime*1000/ii, oldtime*1000/ii,
+                oldtime *1.0 / newtime)
                 #start a new line for each output?
                 #mys += '\t%s\t%s' % ( len(precursors), len(precursor_new) )
                 if False: mys += '\n'
