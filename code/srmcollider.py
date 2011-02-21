@@ -337,18 +337,29 @@ warm_welcome = """
 ###########################################################################<br/>
 ###########################################################################<br/>
 """
+
 warm_welcome = """
-<div class="header">
-SRM Collider
-</div>
-<div class="version">
-version 0.1
-</br>
-alpha
-</br>
-Hannes Roest 2010
+<div class="top">
+    <div class="header">
+        SRM Collider
+    </div>
+    <div class="version">
+        version 0.1
+        </br>
+        alpha
+        </br>
+        Hannes Roest 2010
+    </div>
+    <div class="navigation">
+        <span class="active-nav"> 
+            <a href="srmcollider.py">Collider </a>
+        </span>
+        <span class="inactive-nav"> <a href="download.html">Download </a> </span>
+        <span class="inactive-nav"> <a href="about.html">About </a> </span>
+    </div>
 </div>
 """
+
 
 # 2+, 3+ precursor
 # 1+, 2+ fragmente

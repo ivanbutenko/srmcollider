@@ -1,0 +1,62 @@
+body {  background: #F9F9F9; } 
+
+div.whole { background: #EEEEEE; }
+
+div.header {
+  background-color: #D0D0D0;
+
+  /* FF3.6 */
+  /* Saf4+, Chrome */
+  /* Chrome 10+, Saf6 */
+  /* IE6–IE9 */
+  background-image: -moz-linear-gradient(top, #D0D0D0, #999999);
+  background-image: -webkit-gradient(linear,left top,left bottom,color-stop(0, #D0D0D0),color-stop(1, #999999));
+  background-image: -webkit-linear-gradient(#D0D0D0, #999999);
+  background-image: linear-gradient(top, #D0D0D0, #999999);
+            filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#D0D0D0', EndColorStr='#999999');
+
+}
+
+.navigation span a { color: #000; }
+
+.active-nav {
+  background-color: #D0D0D0;
+  background-image: -moz-linear-gradient(top, #D0D0D0, #EEEEEE); 
+  background-image: -webkit-gradient(linear,left top,left bottom,color-stop(0, #D0D0D0),color-stop(1, #EEEEEE));
+  background-image: -webkit-linear-gradient(#D0D0D0, #EEEEEE);
+  background-image: linear-gradient(top, #D0D0D0, #EEEEEE);
+            filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#D0D0D0', EndColorStr='#EEEEEE');
+    }
+.inactive-nav { 
+  background-color: #999999;
+  background-image: -moz-linear-gradient(top, #AAAAAA, #999999); 
+  background-image: -webkit-gradient(linear,left top,left bottom,color-stop(0, #AAAAAA),color-stop(1, #999999));
+  background-image: -webkit-linear-gradient(#AAAAAA, #999999);
+  background-image: linear-gradient(top, #AAAAAA, #999999);
+            filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#AAAAAA', EndColorStr='#999999');
+}
+.navigation span:hover {
+  background-color: #D0D0D0;
+  background-image: -moz-linear-gradient(top, #D0D0D0, #EEEEEE); 
+  background-image: -webkit-gradient(linear,left top,left bottom,color-stop(0, #D0D0D0),color-stop(1, #EEEEEE));
+  background-image: -webkit-linear-gradient(#D0D0D0, #EEEEEE);
+  background-image: linear-gradient(top, #D0D0D0, #EEEEEE);
+            filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#D0D0D0', EndColorStr='#EEEEEE');
+
+}
+
+.navigation span {
+
+  -moz-border-radius-topleft: 12px;
+  -moz-border-radius-topright: 12px;
+  -webkit-border-top-left-radius: 12px;
+  -webkit-border-top-right-radius: 12px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  padding-top: 10px;
+  padding-bottom: 5px;
+  padding-right: 10px;
+  padding-left: 10px;
+
+}
+
