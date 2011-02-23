@@ -548,7 +548,7 @@ class SRMcollider(object):
                 mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
                 unuseable = False
                 for k,v in collisions_per_peptide.iteritems():
-                    if tuple(sorted(v)) == mytransitions: unuseable=True
+                    if tuple(sorted(v)[:j]) == mytransitions: unuseable=True
                     #if len(v) > 1: print 'v', v
                 if not unuseable: min_needed = j
             self.min_transitions.append( [p_id, min_needed] )
