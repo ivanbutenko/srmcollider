@@ -1694,7 +1694,7 @@ def combinations(iterable, r):
         return itertools.combinations( iterable , r) 
     except:
         #we are before python 2.6
-        return [ [iterable[i] for i in indices] for indices in _combinations( len(iterable) , r)] 
+        return [ tuple([iterable[i] for i in indices]) for indices in _combinations( len(iterable) , r)] 
 
 def test():
     assert combinations( range(5), 2 ) == [

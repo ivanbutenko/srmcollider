@@ -15,6 +15,7 @@ class Test_fragmentation(unittest.TestCase):
         sys.path.append( '/home/hroest/projects/msa/code/tppGhost' )
         sys.path.append( '/home/hroest/projects/hlib/' )
         sys.path.append( '/home/hroest/projects/' )
+        sys.path.append( '/home/hroest/lib/' )
 
         import silver
         import DDB 

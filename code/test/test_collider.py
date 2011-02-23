@@ -22,8 +22,12 @@ class Test_collider_function(unittest.TestCase):
 
         import sys
         sys.path.append( '/home/hroest/projects/' )
+        sys.path.append( '/home/hroest/lib/' )
         import silver
         self.R = silver.Residues.Residues('mono')
+
+        self.acollider = collider.SRMcollider()
+        self.aparamset = collider.testcase()
 
     def test_get_non_UIS_from_transitions1(self): 
         oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions, self.collisions, 

@@ -102,6 +102,7 @@ class Test_collider_sqlite(unittest.TestCase):
             Use the following command (on Ubuntu systems):
                 sudo apt-get install python-sqlite
             """
+            self.database_available = False
 
         try:
             #the database file must exist and the databases must be created
@@ -110,14 +111,18 @@ class Test_collider_sqlite(unittest.TestCase):
             cursor.execute("select count(*) from srmPeptides_test")
             #print cursor.fetchall()
         except DatabaseError:
+            print 
             print "=" * 75
             print """The sqlite database is not available.
             
             Please run the sqlite_setupdb.py script first."""
+            print "=" * 75
+            self.database_available = False
 
 
     def test_1(self):
 
+        if not self.database_available: return
         par = collider.testcase()
         par.quiet = True
         par.transition_table = 'srmTransitions_test'
