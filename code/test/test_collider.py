@@ -29,6 +29,30 @@ class Test_collider_function(unittest.TestCase):
         self.acollider = collider.SRMcollider()
         self.aparamset = collider.testcase()
 
+    def test_getMinNeededTransitions(self):
+        par = self.par
+        par.max_uis = 5
+        transitions = self.transitions
+        collisions = self.collisions
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 5)
+
+        par.max_uis = 10 
+        transitions = transitions_def3
+        collisions = collisions_def3
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 10)
+
+        transitions = transitions_def4
+        collisions = collisions_def4
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 4)
+
+        transitions = transitions_def5
+        collisions = collisions_def5
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 4)
+
     def test_get_non_UIS_from_transitions1(self): 
         oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions, self.collisions, 
                                          self.par, self.MAX_UIS)
