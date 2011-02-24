@@ -49,7 +49,7 @@ class SRM_parameters(object):
         self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
         self.print_query = False
-        self.select_floor = False
+        #self.select_floor = False
         self.quiet = False
 
     def parse_cmdl_args(self, parser):
@@ -534,41 +534,45 @@ class SRMcollider(object):
         for i, pep in enumerate(self.pepids):
             p_id = pep['parent_id']
             transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
-            nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(
                 bgpar, pep, transitions, cursor)
             else: collisions = self._get_all_collisions(bgpar, pep, cursor)
-            #speci = [0 for i in range(par.max_uis+1)]
-            nr_used_tr = min(par.max_uis+1, nr_transitions)
-            mytransitions = transitions[:nr_used_tr]
-            collisions_per_peptide = {}
-            q3_window_used = par.q3_window
-            for t in mytransitions:
-                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-                for c in collisions:
-                    if abs( t[0] - c[0] ) <= q3_window_used:
-                        #gets all collisions
-                        if collisions_per_peptide.has_key(c[3]):
-                            if not t[1] in collisions_per_peptide[c[3]]:
-                                collisions_per_peptide[c[3]].append( t[1] )
-                        else: collisions_per_peptide[c[3]] = [ t[1] ] 
-
-            #take the top j transitions and see whether they, as a tuple, are
-            #shared
-            min_needed = par.max_uis
-            for j in range(par.max_uis,0,-1): 
-                #take top j transitions
-                mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
-                unuseable = False
-                for k,v in collisions_per_peptide.iteritems():
-                    if tuple(sorted(v)) == mytransitions: unuseable=True
-                    #if len(v) > 1: print 'v', v
-                if not unuseable: min_needed = j
+            #
+            min_needed = self._getMinNeededTransitions(par, transitions, collisions)
+            #
             self.min_transitions.append( [p_id, min_needed] )
             end = time.time()
             if not par.quiet: progressm.update(1)
         self.total_time = end - start
+
+    def _getMinNeededTransitions(self, par, transitions, collisions):
+        nr_transitions = len( transitions )
+        nr_used_tr = min(par.max_uis+1, nr_transitions)
+        mytransitions = transitions[:nr_used_tr]
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in mytransitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: collisions_per_peptide[c[3]] = [ t[1] ] 
+
+        #take the top j transitions and see whether they, as a tuple, are
+        #shared
+        min_needed = par.max_uis
+        for j in range(par.max_uis,0,-1): 
+            #take top j transitions
+            mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
+            unuseable = False
+            for k,v in collisions_per_peptide.iteritems():
+                if tuple(sorted(v)[:j]) == mytransitions: unuseable=True
+            if not unuseable: min_needed = j
+        return min_needed
 
     def find_clashes_toptrans_3strike(self, db, par, pepids=None, 
                      use_per_transition=False):
@@ -760,50 +764,6 @@ class SRMcollider(object):
             collisions.extend( self._get_collisions_per_transition(par, pep, q3, cursor) )
         return  collisions
 
-    def _get_all_collisions_floor(self, par, pep, cursor, 
-                values="q3, q1, srm_id, peptide_key", transitions=None):
-        """
-        This function tries a new mySQL table that has indices on the floor of
-        the relevant values. It is not actually faster then the conventional
-        table.
-        """
-        q3_low, q3_high = par.get_q3range_collisions()
-        #we compare the parent ion against 4 different parent ions
-        #thus we need to take the PEPTIDE key here
-        query2 = """
-        SELECT %(values)s
-        FROM %(pep)s
-        INNER JOIN %(trans)s
-          on %(pep)s.transition_group = %(trans)s.group_id
-        WHERE ssrcalc_floor >= FLOOR(%(ssrcalc)s - %(ssr_window)s )
-          AND ssrcalc_floor <= FLOOR( %(ssrcalc)s + %(ssr_window)s )
-        #
-        AND q1_floor >= FLOOR( %(q1)s - %(q1_window)s) 
-        AND q1_floor <= FLOOR( %(q1)s + %(q1_window)s )
-        #
-        AND %(pep)s.peptide_key != %(peptide_key)d
-        #
-        AND q3_floor >= FLOOR( %(q3_low)s) AND q3_floor <= FLOOR(%(q3_high)s)
-        %(query_add)s
-        """ % { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'], 
-                'peptide_key' : pep['peptide_key'],
-               'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
-               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-               'pep' : par.peptide_table, 'trans' : par.transition_table,
-               'values' : values}
-        if transitions is None or len(transitions) == 0: cursor.execute( query2 )
-        #Here we add N conditions to the SQL query where N = 2*len(transitions)
-        #we only select those transitions that also could possible interact
-        #We gain about a factor two to three [the smaller the window, the better]
-        else:
-            txt = 'AND ('
-            for q3, id in transitions:
-                txt += '(q3_floor >= FLOOR(%s) AND q3_floor <= FLOOR(%s) )\
-                        OR\n' % (q3 - par.q3_window, q3 + par.q3_window)
-            txt = txt[:-3] + ')'
-            cursor.execute( query2 + txt )
-        return cursor.fetchall()
-
     def _get_all_collisions(self, par, pep, cursor, 
                 values="q3, q1, srm_id, peptide_key", transitions=None):
         q3_low, q3_high = par.get_q3range_collisions()
@@ -827,7 +787,7 @@ class SRMcollider(object):
                'pep' : par.peptide_table, 'trans' : par.transition_table,
                'values' : values}
         if transitions is None: 
-            if par.select_floor: query2 += "\n GROUP BY FLOOR(q3)"
+            #if par.select_floor: query2 += "\n GROUP BY FLOOR(q3)"
             if par.print_query: print query2
             cursor.execute( query2 )
         #Here we add N conditions to the SQL query where N = 2*len(transitions)
@@ -840,14 +800,14 @@ class SRMcollider(object):
                 if par.ppm: q3_window_used = par.q3_window * 10**(-6) * q3
                 txt += '(q3 > %s and q3 < %s) or\n' % (q3 - q3_window_used, q3 + q3_window_used)
             txt = txt[:-3] + ')'
-            if par.select_floor: txt += "\n GROUP BY FLOOR(q3)"
+            #if par.select_floor: txt += "\n GROUP BY FLOOR(q3)"
             if par.print_query: print query2 + txt
             cursor.execute( query2 + txt )
         return cursor.fetchall()
 
     def _get_collisions_per_transition(self, par, pep, q3, cursor, 
                values='q3, q1, srm_id, peptide_key'):
-        q3_low, q3_high = par.get_q3_window(q3)
+        q3_low, q3_high = par.get_q3_window_transitions(q3)
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
         query2 = """
@@ -1122,124 +1082,6 @@ class TransitionPeptide(object):
         prt = 'Analysing peptide %s \\\\ With sequence %s, q1 at %s and ssrcalc %s'
         return prt % (self.p_id, self.sequence, self.q1, self.ssrcalc) 
 
-class Transition(object):
-    def __init__(self):
-        self.interference = None
-    def myprint(self):
-        mystr = "%.2f\t%s%s" % (self.q3, self.type, self.fr_num)
-        if self.interference is None:
-            mystr += '\n'
-        else:
-            myin = self.interference
-            mystr += " <==> %.2f\t%s%s %07.2f %.2f %.2f %s %s\n" % (myin.q3, 
-                myin.type, myin.fr_num, myin.q1, abs(self.q3 - myin.q3), 
-                myin.ssr, myin.seq, myin.charge)
-        return mystr
-    def print_latex(self):
-        from hlib import latex
-        myrow = [latex.prepare_float(self.q3, 4, 3), self.type + str(self.fr_num)]
-        if self.interference is None:
-            myrow.extend( [ '' for i in range(7) ] )
-        else:
-            myin = self.interference
-            myrow.extend( [
-            latex.prepare_float(myin.q3, 4, 3), myin.type + str(myin.fr_num), 
-            latex.prepare_float(myin.q1, 4, 3), 
-            latex.prepare_float(myin.ssr, 2, 2), 
-            latex.prepare_float(abs(self.q3 - myin.q3)*1000, 4, 3), 
-            myin.seq, myin.charge] )
-            #mystr += " <==> %.2f\t%s%s %07.2f %.2f %.2f %s %s\n" % (myin.q3, 
-            #    myin.type, myin.fr_num, myin.q1, abs(self.q3 - myin.q3), 
-            #    myin.ssr, myin.seq, myin.charge)
-        return latex.get_latex_row( myrow )
-    def init(self,q3=-1, type=-1, fr_num=-1, charge=-1, q1=-1, ssr=-1, seq=-1):
-        self.q3     = q3    
-        self.type   = type  
-        self.fr_num = fr_num
-        self.charge = charge
-        self.q1     = q1    
-        self.ssr    = ssr   
-        self.seq    = seq   
-
-def get_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
-    query1_add = 'and q1_charge = 2 and q3_charge = 1'):
-    trpep = TransitionPeptide()
-    cursor = db.cursor()
-    non_unique = {}
-    non_unique_q1 = {}
-    non_unique_ppm = {}
-    non_unique_clash = {}
-    query1 = """
-    select q3, srm_id, q1, ssrcalc, sequence, type, q3_charge, fragment_number
-    from %(pep)s
-    inner join %(trans)s
-      on %(pep)s.transition_group = %(trans)s.group_id
-    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
-    where parent_id = %(parent_id)s
-    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
-    """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
-           'q3_high' : q3_high, 'query_add' : par.query1_add,
-           'pep' : par.peptide_table, 'trans' : par.transition_table }
-    nr_transitions = cursor.execute( query1 )
-    transitions = cursor.fetchall()
-    q1 = transitions[0][2]
-    ssrcalc = transitions[0][3]
-    sequence = transitions[0][4]
-    #
-    trpep.p_id = p_id; trpep.sequence = sequence; trpep.ssrcalc = ssrcalc; trpep.q1 = q1
-    #
-    query2 = """
-    select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
-    from %(pep)s
-    inner join %(trans)s
-      on %(pep)s.transition_group = %(trans)s.group_id
-    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
-    where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
-        and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-    and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-    and parent_id != %(parent_id)d
-    and q3 > %(q3_low)s and q3 < %(q3_high)s
-    %(query_add)s
-    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'parent_id' : p_id,
-           'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
-           'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-           'pep' : par.peptide_table, 'trans' : par.transition_table }
-    tmp = cursor.execute( query2 )
-    collisions = cursor.fetchall()
-    #here we loop through all possible combinations of transitions and
-    #potential collisions and check whether we really have a collision
-    q3_window_used = par.q3_window
-    isy = True; jj = len( transitions ) / 2 + 1
-    jj = 0
-    for ii,t in enumerate(transitions):
-        ##before we didnt have y and b ions labelled
-        if ii == len( transitions ) / 2: 
-            #res_str += ( "=" * 75 + '\n'); 
-            isy = False; jj = 0
-        #if isy: jj -= 1
-        #else:  jj += 1
-        jj += 1
-        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-        this_min = q3_window_used + 1
-        trans = Transition()
-        for c in collisions:
-            if abs( t[0] - c[0] ) <= this_min:
-                this_min = abs( t[0] - c[0] )
-                non_unique[ t[1] ] = c
-                non_unique_q1[ t[1] ] = q1 - c[1]
-                non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
-        if this_min < q3_window_used:
-            c = non_unique[ t[1] ]
-            trans.init(t[0], t[5], t[7], t[6])
-            inter = Transition()
-            inter.init(q3=c[0], type=c[4], fr_num=c[6], charge=c[5], q1=c[1], ssr=c[2], seq=c[3])
-            trans.interference = inter
-        else:
-            #res_str += ("""%.2f\t%s%s \n""" % (t[0], t[5], jj) )
-            trans.init(t[0], t[5], t[7], t[6])
-        trpep.transitions.append( trans )
-    return trpep
-
 def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
                                 forceset=False):
     """ Get all combinations that are not UIS 
@@ -1264,7 +1106,36 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
 
-def get_coll_per_peptide(self, transitions, par, pep):
+def _get_coll_per_peptide_sub(self, transitions, par, pep):
+
+    try:
+        #use range tree, really fast = 50
+        #needs self.c_rangetree and self.parentid_lookup
+        import c_getnonuis
+        q1 = pep['q1']
+        ssrcalc = pep['q1']
+        q1_low = q1 - par.q1_window
+        q1_high = q1 + par.q1_window
+        ssrcalc_low = ssrcalc - par.ssrcalc_window
+        ssrcalc_high = ssrcalc + par.ssrcalc_window
+        #
+        precursor_ids = tuple(self.c_rangetree.query_tree( 
+            q1_low, -9999, q1_high,  9999 )  )
+        precursors = tuple([self.parentid_lookup[myid[0]] for myid in precursor_ids
+                            #dont select myself 
+                           if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+        return c_getnonuis.calculate_collisions_per_peptide( 
+            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+    except AttributeError, ImportError:
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        #fastest = 100 
+        import c_getnonuis
+        precursors = self._get_all_precursors(par, pep, cursor)
+        return c_getnonuis.calculate_collisions_per_peptide( 
+            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+
+def get_coll_per_peptide(self, transitions, par, pep, cursor,
+        do_not_calculate=False, forceNonCpp=False):
     q3_low, q3_high = par.get_q3range_collisions()
     if do_not_calculate:
         # slowest =  1000
@@ -1274,38 +1145,15 @@ def get_coll_per_peptide(self, transitions, par, pep):
         #
         collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
     else:
-        try:
-            try:
-                #use range tree, really fast = 50
-                #needs self.c_rangetree and self.parentid_lookup
-                import c_getnonuis
-                q1 = pep['q1']
-                ssrcalc = pep['q1']
-                q1_low = q1 - par.q1_window
-                q1_high = q1 + par.q1_window
-                ssrcalc_low = ssrcalc - par.ssrcalc_window
-                ssrcalc_high = ssrcalc + par.ssrcalc_window
-                #
-                precursor_ids = tuple(self.c_rangetree.query_tree( 
-                    q1_low, -9999, q1_high,  9999 )  )
-                precursors = tuple([self.parentid_lookup[myid[0]] for myid in precursor_ids
-                                    #dont select myself 
-                                   if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
-                return c_getnonuis.calculate_collisions_per_peptide( 
-                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-
-
-            except AttributeError, ImportError:
-                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-                #fastest = 100 
-                import c_getnonuis
-                precursors = self._get_all_precursors(par, pep, cursor)
-                return c_getnonuis.calculate_collisions_per_peptide( 
-                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+        try: 
+            #try to use rangetree, really fast 50ms or less
+            #if that doesnt work, try c++ calccollperpep (100ms)
+            if forceNonCpp: import somedummymodulethatwillneverexist
+            return _get_coll_per_peptide_sub(self, transitions, par, pep)
         except ImportError:
             #second-fastest = 522 
+            #if we dont have any C++ code compiled
             collisions = list(self._get_all_collisions_calculate(par, pep, cursor))
-
     collisions_per_peptide = {}
     q3_window_used = par.q3_window
     for t in transitions:
@@ -1582,33 +1430,6 @@ def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic,
     clash_distr[ share ] += 1
     return share
 
-
-#make a list of all peptides
-
-#old analysis
-
-def read_fragment_ids(self, cursor, peptide, peptide_table, transition_table):
-    #reads srmPeptide and srmTransitions in order to store the srm_ids of the 
-    #fragments. Speed ~ 300 / s
-    assert False
-    #here,   on parent_id = parent_key doesnt work any more
-    qq = """select 
-    q3_charge, type, srm_id
-    from %s 
-    inner join %s on parent_id = parent_key
-    where peptide_key = %s and q1_charge = %s
-    order by q3_charge, type
-    """ % (peptide_table, transition_table, peptide.id, peptide.charge)
-    cursor.execute( qq ) 
-    all_transitions = cursor.fetchall()
-    self.fragment_ids = { 1 : [ [], [] ], 2 : [ [], [] ]}
-    tmp = 0
-    for r in all_transitions:
-        if r[1] == 'b' : tmp =0
-        else: tmp = 1
-        self.fragment_ids[ r[0] ][tmp].append( r[2] )
-
-
 ###UIS Code
 def get_non_uis(pepc, non_uis, order):
     if len( pepc ) >= order: 
@@ -1618,13 +1439,6 @@ def get_non_uis_unsorted(pepc, non_uis, order):
     if len( pepc ) >= order: 
         non_uis.update( [tuple(p) for p in combinations(pepc, order)] )
 
-def test_get_non_uis():
-    test = set()
-    get_non_uis( [1,2,3], test,2 )
-    assert test == set([(1, 2), (1, 3), (2, 3)])
-    test = set()
-    get_non_uis( [1,2,3,4], test,2 )
-    assert test == set([(1, 2), (1, 3), (1, 4), (2, 3), (3, 4), (2, 4)])
 
 def choose(i,r):
     assert i > 0
@@ -1708,31 +1522,6 @@ def combinations(iterable, r):
         return itertools.combinations( iterable , r) 
     except:
         #we are before python 2.6
-        return [ [iterable[i] for i in indices] for indices in _combinations( len(iterable) , r)] 
+        return [ tuple([iterable[i] for i in indices]) for indices in _combinations( len(iterable) , r)] 
 
-def test():
-    assert combinations( range(5), 2 ) == [
-        [0, 1],
-        [0, 2],
-        [0, 3],
-        [0, 4],
-        [1, 2],
-        [1, 3],
-        [1, 4],
-        [2, 3],
-        [2, 4],
-        [3, 4]
-    ]
-    assert combinations( range(5), 3 ) == [
-        [0, 1, 2],
-        [0, 1, 3],
-        [0, 1, 4],
-        [0, 2, 3], 
-        [0, 2, 4],
-        [0, 3, 4],
-        [1, 2, 3],
-        [1, 2, 4],
-        [1, 3, 4],
-        [2, 3, 4]
-    ]
 

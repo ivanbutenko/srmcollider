@@ -6,6 +6,8 @@ sys.path.append( '..')
 sys.path.append( '.')
 import collider
 
+from test_shared import ignoreImportError_rangetree, ignoreImportError_cget
+
 try:
     import c_getnonuis
 except ImportError:
@@ -13,11 +15,11 @@ except ImportError:
 Module c_getnonuis is not available. Please compile it if you want to use it.
 """, "=" * 75
 
-class Test_cgetnonuis(unittest.TestCase):
 
+
+
+class Test_cgetnonuis(unittest.TestCase):
     def setUp(self):
-        try:
-            import c_getnonuis
             self.transitions = test_shared.transitions_def1
             self.collisions = test_shared.collisions_def1
             self.pep1 = test_shared.peptide1
@@ -39,13 +41,7 @@ class Test_cgetnonuis(unittest.TestCase):
             self.q3_high = 1500
             self.q3_low = 300
 
-        except ImportError:
-            pass
-
     def test_getnonuis(self):
-
-        try:
-            import c_getnonuis
             q3window = 1.0
             ppm = False
             #
@@ -60,7 +56,6 @@ class Test_cgetnonuis(unittest.TestCase):
             result = c_getnonuis.getnonuis( transitions, collisions, q3window, ppm)
             self.assertTrue( result[201] == [1,2,3] )
             self.assertTrue( result[202] == [2,3,4] )
-        except ImportError: pass
 
     def test_get_non_uis1(self):
         for order in range(1,6):
@@ -75,9 +70,6 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertEqual( res, test_shared.refnonuis2_sorted[order] )
 
     def test_core_non_unique1(self):
-    
-        try:
-            import c_getnonuis
             #collisions
             #q3, q1, srm_id, peptide_key
             #transitions
@@ -90,20 +82,14 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertTrue( abs(result[1] - 0.4) < 10**(-3) )
             self.assertTrue( abs(result[2] - 0.6) < 10**(-3) )
             self.assertTrue( abs(result[3] - 0.6) < 10**(-3) )
-        except ImportError: pass
 
     def test_calculate_transitions_regular(self):
-        try:
-            import c_getnonuis
             trans = c_getnonuis.calculate_transitions( (self.pep1,), 300, 1500)
             self.assertEqual( len(trans), 10)
             for calc, ref in zip(trans, self.transitions_12_between300_1500):
                 self.assertTrue(abs(calc[0] - ref) < 1e-3)
-        except ImportError: pass
 
     def test_calculate_transitions_modifcation(self):
-        try:
-            import c_getnonuis
             trans = c_getnonuis.calculate_transitions( (self.pep2,), 300, 1500)
             #TODO check
             self.assertTrue(abs(trans[0][0]) - 909.333 < 1e-3)
@@ -122,20 +108,14 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertTrue(abs(trans[13][0]) - 302.117 < 1e-3)
             self.assertTrue(abs(trans[14][0]) - 359.630 < 1e-3)
             self.assertTrue(abs(trans[15][0]) - 433.148 < 1e-3)
-        except ImportError: pass
 
     def test_calculate_transitions_ch_regular(self):
-        try:
-            import c_getnonuis
             trans = c_getnonuis.calculate_transitions_ch( (self.pep1,), [1,2], 300, 1500)
             self.assertEqual( len(trans), 10)
             for calc, ref in zip(trans, self.transitions_12_between300_1500):
                 self.assertTrue(abs(calc[0] - ref) < 1e-3)
-        except ImportError: pass
 
     def test_calculate_transitions_inner(self):
-        try:
-            import c_getnonuis
             mypep = self.pep1
 
             transitions = c_getnonuis.calculate_transitions_inner(mypep, 2)
@@ -151,16 +131,13 @@ class Test_cgetnonuis(unittest.TestCase):
                 self.assertTrue(abs(calc - ref) < 1e-3)
             for calc, ref in zip(b_series, self.pep1_bseries):
                 self.assertTrue(abs(calc - ref) < 1e-3)
-        except ImportError: pass
 
     def test_calculate_calculate_collisions_per_peptide_debug1(self):
-        """
-        Debug test, if there is something wrong rather not use the big ones.
+            """
+            Debug test, if there is something wrong rather not use the big ones.
 
-        Is contained in the big test
-        """
-        try:
-            import c_getnonuis
+            Is contained in the big test
+            """
             pep = test_shared.runpep1
             transitions = test_shared.runtransitions1
             #precursors = test_shared.runprecursors1
@@ -179,16 +156,12 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertEqual(collisions_per_peptide,
                              { 11498839: [3]} )
 
-        except ImportError: pass
-
     def test_calculate_calculate_collisions_per_peptide_debug2(self):
-        """
-        Debug test, if there is something wrong rather not use the big ones.
+            """
+            Debug test, if there is something wrong rather not use the big ones.
 
-        Is contained in the big test
-        """
-        try:
-            import c_getnonuis
+            Is contained in the big test
+            """
             pep = test_shared.runpep1
             transitions = test_shared.runtransitions1
             #precursors = test_shared.runprecursors1
@@ -208,16 +181,12 @@ class Test_cgetnonuis(unittest.TestCase):
                              {10682370: [0, 1, 2, 7, 8, 9, 11],
                              })
 
-        except ImportError: pass
-
     def test_calculate_calculate_collisions_per_peptide_debug1and2(self):
-        """
-        Debug test, if there is something wrong rather not use the big ones.
+            """
+            Debug test, if there is something wrong rather not use the big ones.
 
-        Is contained in the big test
-        """
-        try:
-            import c_getnonuis
+            Is contained in the big test
+            """
             pep = test_shared.runpep1
             transitions = test_shared.runtransitions1
             #precursors = test_shared.runprecursors1
@@ -238,11 +207,7 @@ class Test_cgetnonuis(unittest.TestCase):
                              {10682370: [0, 1, 2, 7, 8, 9, 11],
                               11498839: [3]} )
 
-        except ImportError: pass
-
     def test_calculate_calculate_collisions_per_peptide_1(self):
-        try:
-            import c_getnonuis
             pep = test_shared.runpep1
             transitions = test_shared.runtransitions1
             precursors = test_shared.runprecursors1
@@ -255,11 +220,8 @@ class Test_cgetnonuis(unittest.TestCase):
                 transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
             #
             self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
-        except ImportError: pass
 
     def test_calculate_calculate_collisions_per_peptide_2(self):
-        try:
-            import c_getnonuis
             pep = test_shared.runpep2
             transitions = test_shared.runtransitions2
             precursors = test_shared.runprecursors2
@@ -272,11 +234,8 @@ class Test_cgetnonuis(unittest.TestCase):
                 transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
             #
             self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
-        except ImportError: pass
 
     def get_charged_mass(self):
-        try:
-            import c_getnonuis
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 1)
             self.assertTrue( abs(res - 978.57368) < 1e-5)
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 2)
@@ -285,8 +244,6 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertTrue( abs(res - 326.86314) < 1e-5)
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 4)
             self.assertTrue( abs(res - 245.39932) < 1e-5)
-        except ImportError: pass
-
 
 class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     """ Tests the c_getnonuis module over the collider.
@@ -307,8 +264,6 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
         self.MAX_UIS = 5
 
     def test_get_non_UIS_from_transitions1(self): 
-        try:
-            import c_getnonuis
             self.transitions = test_shared.transitions_def1
             self.collisions  = test_shared.collisions_def1
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
@@ -316,11 +271,8 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis1)
             self.assertEqual(newnon_uis, test_shared.refnonuis1)
-        except ImportError: pass
 
     def test_get_non_UIS_from_transitions2(self): 
-        try:
-            import c_getnonuis
             self.transitions = test_shared.transitions_def2
             self.collisions  = test_shared.collisions_def2
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
@@ -328,13 +280,10 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
             self.assertEqual(newnon_uis, test_shared.refnonuis2_sorted)
-        except ImportError: pass
 
     def test_get_non_UIS_from_transitions2_unsorted(self): 
-        #here we have the transitions in the wrong order
-        #it should still work
-        try:
-            import c_getnonuis
+            #here we have the transitions in the wrong order
+            #it should still work
             self.transitions = test_shared.transitions_def2_unsorted
             self.collisions  = test_shared.collisions_def2
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
@@ -342,11 +291,8 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
             self.assertEqual(newnon_uis, test_shared.refnonuis2_unsorted)
-        except ImportError: pass
 
     def test_get_non_UIS_from_transitions3(self): 
-        try:
-            import c_getnonuis
             self.transitions = test_shared.transitions_def3
             self.collisions  = test_shared.collisions_def3
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
@@ -354,11 +300,8 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis3)
             self.assertEqual(newnon_uis, test_shared.refnonuis3)
-        except ImportError: pass
 
     def test_get_non_UIS_from_transitions4(self): 
-        try:
-            import c_getnonuis
             self.transitions = test_shared.transitions_def4
             self.collisions  = test_shared.collisions_def4
             newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
@@ -366,7 +309,16 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)
             self.assertEqual(newnon_uis, test_shared.refnonuis4)
-        except ImportError: pass
+
+
+
+import inspect, types
+for name, fn in inspect.getmembers(Test_cgetnonuis):
+    if isinstance(fn, types.UnboundMethodType):
+        setattr(Test_cgetnonuis, name, ignoreImportError_cget(fn))
+for name, fn in inspect.getmembers(Test_cgetnonuis_get_non_UIS_from_transitions):
+    if isinstance(fn, types.UnboundMethodType):
+        setattr(Test_cgetnonuis_get_non_UIS_from_transitions, name, ignoreImportError_cget(fn))
 
 
 if __name__ == '__main__':

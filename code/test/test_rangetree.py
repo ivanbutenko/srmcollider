@@ -4,6 +4,8 @@ import unittest
 import sys
 sys.path.append( '..')
 
+from test_shared import ignoreImportError_rangetree
+
 try:
     import c_getnonuis
 except ImportError:
@@ -14,7 +16,6 @@ Module c_rangetree is not available. Please compile it if you want to use it.
 class Test_crangetree(unittest.TestCase):
 
     def setUp(self):
-        try:
             import c_rangetree
             self.parent_id = 101
             self.q1 = 501.0
@@ -22,12 +23,8 @@ class Test_crangetree(unittest.TestCase):
             self.mytuple1 = (
                 ('PEPTIDE', 1, self.parent_id, 2, self.q1, self.ssrcalc),
             )
-        except ImportError:
-            pass
 
     def test_rangetree(self):
-        try:
-            import c_rangetree
             c_rangetree.create_tree( self.mytuple1 )
 
             #we get our peptide out again with a large window
@@ -47,7 +44,10 @@ class Test_crangetree(unittest.TestCase):
                                          self.q1,  self.ssrcalc ) 
             self.assertEqual( len(res), 0)
 
-        except ImportError: pass
+import inspect, types
+for name, fn in inspect.getmembers(Test_crangetree):
+    if isinstance(fn, types.UnboundMethodType):
+        setattr(Test_crangetree, name, ignoreImportError_rangetree(fn))
 
 if __name__ == '__main__':
     unittest.main()
