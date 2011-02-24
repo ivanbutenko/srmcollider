@@ -202,6 +202,82 @@ python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int o
 }
 
 
+int min_needed(python::tuple transitions, python::tuple precursors,
+    int max_uis, double q3window, bool ppm )   {
+
+    //use the defined COMBINT (default 32bit int) and some magic to do this :-)
+    COMBINT one;
+    COMBINT currenttmp = 0;
+    std::vector<COMBINT> newcollperpep;
+
+    python::tuple clist;
+    int fragcount, i, k, ch, j;
+    long srm_id;
+    double q3, q3used = q3window;
+    char* sequence;
+
+    Transition transition;
+    std::vector<Key> OutputList;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+
+    /*
+    * Transitions are tuples of the form (q3, srm_id)
+    * convert to our struct.
+    */
+    python::tuple tlist;
+    vector<Transition> mytransitions(transitions_length);
+    for (i=0; i<transitions_length; i++) {
+        tlist = python::extract< python::tuple >(transitions[i]);
+        q3 = python::extract<double>(tlist[0]);
+        srm_id = python::extract<long>(tlist[1]);
+        struct Transition entry = {q3, srm_id};
+        mytransitions[i] = entry;
+    }
+
+    // Go through all (potential) collisions 
+    //
+    int maxoverlap = -1;
+    for (j=0; j<precursor_length; j++) {
+        clist = python::extract< python::tuple >(precursors[j]);
+        sequence = python::extract<char *>(clist[1]);
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+            for(int i = 0; i != transitions_length; i++) {
+                //ppm is 10^-6
+                transition = mytransitions[i];
+                q3 = transition.q3;
+                if(ppm) {q3used = q3window / 1000000.0 * q3; } 
+                    // go through all fragments of this precursor
+                    for (k=0; k<fragcount; k++) {
+                        if(fabs(q3-y_series[k]) < q3used || 
+                           fabs(q3-b_series[k]) < q3used) {
+                            //left bitshift == 2^i
+                            one = 1;
+                            currenttmp |= one << i;
+                        }
+                    }
+                } //loop over all transitions
+            } //end loop over all charge states of this precursor
+        if ( currenttmp ) {
+            //while we find the transitions from our relative order also in the peptide
+            //we just looked at, increase i
+            one = 1;
+            i = 0;
+            while( currenttmp & one << i ) i++;
+            if( i > maxoverlap ) maxoverlap = i;
+            currenttmp = 0;
+        }
+    }
+    //we have counted from 0 to N-1  but now want the number of transitions
+    return ++maxoverlap;
+}
+
+
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
         bool ppm )   {
@@ -625,6 +701,7 @@ BOOST_PYTHON_MODULE(c_integrated)
     def("create_tree", create_tree, "");
     def("wrap_all", wrap_all, "");
     def("wrap_all_magic", wrap_all_magic, "");
+    def("getMinNeededTransitions", min_needed, "");
 }
 
 

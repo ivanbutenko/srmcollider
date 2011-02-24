@@ -7,7 +7,7 @@ sys.path.append( '..')
 from test_shared import ignoreImportError_rangetree
 
 try:
-    import c_getnonuis
+    import c_rangetree
 except ImportError:
     print "=" * 75, """
 Module c_rangetree is not available. Please compile it if you want to use it.
