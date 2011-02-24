@@ -1092,12 +1092,13 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
 
-def _get_coll_per_peptide_sub(self, transitions, par, pep):
+def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
 
     try:
         #use range tree, really fast = 50
         #needs self.c_rangetree and self.parentid_lookup
         import c_getnonuis
+        q3_low, q3_high = par.get_q3range_collisions()
         q1 = pep['q1']
         ssrcalc = pep['q1']
         q1_low = q1 - par.q1_window
@@ -1122,7 +1123,6 @@ def _get_coll_per_peptide_sub(self, transitions, par, pep):
 
 def get_coll_per_peptide(self, transitions, par, pep, cursor,
         do_not_calculate=False, forceNonCpp=False):
-    q3_low, q3_high = par.get_q3range_collisions()
     if do_not_calculate:
         # slowest =  1000
         # only if we are forced to do that
@@ -1135,7 +1135,7 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
             #try to use rangetree, really fast 50ms or less
             #if that doesnt work, try c++ calccollperpep (100ms)
             if forceNonCpp: import somedummymodulethatwillneverexist
-            return _get_coll_per_peptide_sub(self, transitions, par, pep)
+            return _get_coll_per_peptide_sub(self, transitions, par, pep, cursor)
         except ImportError:
             #second-fastest = 522 
             #if we dont have any C++ code compiled
