@@ -2,6 +2,9 @@
 import sys, os, time
 sys.path.append( '/home/hroest/projects/msa/code/tppGhost' )
 sys.path.append( '/home/hroest/projects/hlib/' )
+sys.path.append( '/IMSB/users/hroest/projects/hlib/' )
+sys.path.append( '/IMSB/users/hroest/projects/msa/code/tppGhost' )
+sys.path.append( '/IMSB/users/hroest/projects/tppGhost' )
 import numpy
 import progress
 import gnuplot
@@ -110,6 +113,11 @@ class SRM_parameters(object):
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
           self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
           self.peptide_table, self.transition_table, self.considerIsotopes)
+        self.thresh = \
+        "thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s" % (
+          self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
+          self.ppm_string, self.q3_range[0], self.q3_range[1]
+        )
 
     def get_copy(self):
         import copy
@@ -312,22 +320,28 @@ class SRMcollider(object):
                     if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
 
-    def _get_all_collisions_calculate_sub(self, precursors, R, q3_low, q3_high):
+    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high):
         for c in precursors:
             q1 = c[0]
             peptide_key = c[2]
             peptide = DDB.Peptide()
             peptide.set_sequence(c[1])
             peptide.charge = c[3]
-            peptide.create_fragmentation_pattern(R)
+            peptide.create_fragmentation_pattern( R, 
+                aions      =  par.aions    ,
+                aMinusNH3  =  par.aMinusNH3,
+                bMinusH2O  =  par.bMinusH2O,
+                bMinusNH3  =  par.bMinusNH3,
+                bPlusH2O   =  par.bPlusH2O ,
+                yMinusH2O  =  par.yMinusH2O,
+                yMinusNH3  =  par.yMinusNH3,
+                cions      =  par.cions    ,
+                xions      =  par.xions    ,
+                zions      =  par.zions )
             b_series = peptide.b_series
             y_series = peptide.y_series
             for ch in [1,2]:
-                for pred in y_series:
-                    q3 = ( pred + (ch -1)*R.mass_H)/ch
-                    if q3 < q3_low or q3 > q3_high: continue
-                    yield (q3, q1, 0, peptide_key)
-                for pred in b_series:
+                for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
                     if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
