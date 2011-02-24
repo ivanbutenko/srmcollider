@@ -83,6 +83,14 @@ class SRM_parameters(object):
                           help="don't print status messages to stdout")
         parser.add_option_group(group)
 
+    def parse_options(self, options):
+        self.q3_range = [options.q3_low, options.q3_high]
+        self.q1_window /= 2.0
+        self.q3_window /= 2.0
+        self.ssrcalc_window /= 2.0
+        if self.ppm == 'True': par.ppm = True
+        elif self.ppm == 'False': par.ppm = False
+
     def eval(self):
         #query will get all parent ions to consider
         #query1 will get all interesting transitions
@@ -520,6 +528,7 @@ class SRMcollider(object):
         for i, pep in enumerate(self.pepids):
             p_id = pep['parent_id']
             transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
+            nr_transitions = len( transitions )
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(
                 bgpar, pep, transitions, cursor)
