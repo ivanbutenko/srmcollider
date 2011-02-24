@@ -274,23 +274,26 @@ class SRMcollider(object):
         self.total_time = self.end - self.start
 
     def _get_all_precursors(self, par, pep, cursor, 
-         values="q1, modified_sequence, peptide_key, q1_charge"):
+         values="q1, modified_sequence, peptide_key, q1_charge", 
+         bysequence=False):
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
+        vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
+                'peptide_key' : pep['peptide_key'], 'q1_window' : par.q1_window,
+                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+                'pep' : par.peptide_table, 'values' : values, 
+                'pepseq' : pep['mod_sequence']}
+        if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
+        else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
         query2 = """
         select %(values)s
         from %(pep)s
         where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
             and ssrcalc < %(ssrcalc)s + %(ssr_window)s
         and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-        and %(pep)s.peptide_key != %(peptide_key)d
+        %(selectby)s
         %(query_add)s
-        """ % { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'], 
-                'peptide_key' : pep['peptide_key'],
-               'q1_window' : par.q1_window,
-               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-               'pep' : par.peptide_table,
-               'values' : values}
+        """ % vdict
         if par.print_query: print query2
         cursor.execute( query2 )
         return cursor.fetchall()
@@ -531,7 +534,9 @@ class SRMcollider(object):
         assert not par.do_1vs 
         assert par.max_uis > 0
         cursor = db.cursor()
+        background = False
         if bgpar == None: bgpar = par
+        else: background = True
         self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
         MAX_UIS = par.max_uis
         common_filename = par.get_common_filename()
@@ -546,7 +551,19 @@ class SRMcollider(object):
             if nr_transitions == 0: continue #no transitions in this window
             if use_per_transition: collisions = self._get_all_collisions_per_transition(
                 bgpar, pep, transitions, cursor)
-            else: collisions = self._get_all_collisions(bgpar, pep, cursor)
+            else: 
+                if background:
+                    #q =  "select peptide_key from %s where modified_sequence = '%s' " % (
+                    #    bgpar.peptide_table, pep['mod_sequence'].split('/')[0]) 
+                    #cursor.execute(q)
+                    #oldpkey = pep['peptide_key']
+                    #newpkey = cursor.fetchone()
+                    #if newpkey is not None: pep['peptide_key'] = newpkey[0]
+                    #collisions = self._get_all_collisions(bgpar, pep, cursor)
+                    #pep['peptide_key'] = oldpkey
+                    collisions = self._get_all_collisions(bgpar, pep, cursor, bysequence=True, transitions=transitions)
+                else: 
+                    collisions = self._get_all_collisions(bgpar, pep, cursor, transitions=transitions)
             #
             min_needed = self._getMinNeededTransitions(par, transitions, collisions)
             #
@@ -722,7 +739,7 @@ class SRMcollider(object):
                 'q1_charge' :  r[2],
                 'ssrcalc' :    r[3],
                 'peptide_key' :r[4],
-                'mod_sequence' :r[5]
+                'mod_sequence' :r[5].split('/')[0],
             }
             for r in res
         ]
@@ -744,7 +761,7 @@ class SRMcollider(object):
                'q3_high' : q3_high, 'query_add' : par.query1_add,
                'pep' : par.peptide_table, 'trans' : par.transition_table, 
                'values' : values, 'q1_charge' : pep['q1_charge'], 
-               'mod_seq' : pep['mod_sequence'] }
+               'mod_seq' : pep['mod_sequence'] + '/' + str(pep['q1_charge'])}
         if par.print_query: print query1
         cursor.execute( query1 )
         return cursor.fetchall()
@@ -768,16 +785,29 @@ class SRMcollider(object):
         return cursor.fetchall()
 
     def _get_all_collisions_per_transition(self, par, pep, transitions, cursor):
+        assert False #not supported any more
         collisions = []
         for q3, id in transitions:
             collisions.extend( self._get_collisions_per_transition(par, pep, q3, cursor) )
         return  collisions
 
     def _get_all_collisions(self, par, pep, cursor, 
-                values="q3, q1, srm_id, peptide_key", transitions=None):
+                values="q3, q1, srm_id, peptide_key", transitions=None,
+                bysequence=False):
         q3_low, q3_high = par.get_q3range_collisions()
+        vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
+                'peptide_key' : pep['peptide_key'], 'q1_window' : par.q1_window,
+                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+                'pep' : par.peptide_table, 'values' : values, 
+                'pepseq' : pep['mod_sequence'], 
+                'q3_low':q3_low,'q3_high':q3_high, 
+                'trans' : par.transition_table,
+                }
         #we compare the parent ion against 4 different parent ions
         #thus we need to take the PEPTIDE key here
+        if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
+        else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
+        vdict['selectby'] = selectby
         query2 = """
         select %(values)s
         from %(pep)s
@@ -786,15 +816,10 @@ class SRMcollider(object):
         where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
             and ssrcalc < %(ssrcalc)s + %(ssr_window)s
         and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
-        and %(pep)s.peptide_key != %(peptide_key)d
+        %(selectby)s
         and q3 > %(q3_low)s and q3 < %(q3_high)s
         %(query_add)s
-        """ % { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'], 
-                'peptide_key' : pep['peptide_key'],
-               'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
-               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-               'pep' : par.peptide_table, 'trans' : par.transition_table,
-               'values' : values}
+        """ % vdict
         if transitions is None: 
             #if par.select_floor: query2 += "\n GROUP BY FLOOR(q3)"
             if par.print_query: print query2
