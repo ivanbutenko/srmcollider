@@ -241,7 +241,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 
     // Go through all (potential) collisions 
     //
-    int maxoverlap = -1;
+    int maxoverlap = 0;
     for (j=0; j<precursor_length; j++) {
         clist = python::extract< python::tuple >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
@@ -506,7 +506,7 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
     inside = false;
     start = 0;
     j = 0; 
-    while(c = sequence[j++]) {
+    while((c = sequence[j++])) {
         if(sequence[j] == '[') {
             start = j-1;
             inside = true;
