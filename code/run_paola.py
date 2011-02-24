@@ -11,6 +11,7 @@ cursor = db.cursor()
 import collider
 import hlib
 import copy
+import progress
 
 
 
@@ -33,6 +34,7 @@ if par.max_uis ==0:
     print "Please change --max_uis option, 0 does not make sense here"
     sys.exit()
 
+
 par.dontdo2p2f = False
 par.do_1vs = False
 par.eval()
@@ -52,10 +54,49 @@ if background != '':
     parbg = copy.deepcopy(par)
     parbg.transition_table = 'hroest.srmTransitions_' + background
     parbg.peptide_table = 'hroest.srmPeptides_' + background
-    mycollider.find_clashes_toptrans_paola(db, par, bgpar=parbg)
+    background = True
     cmadd = parbg.peptide_table.split('.')[1]
+    bgpar = parbg
 
-else: mycollider.find_clashes_toptrans_paola(db, par) 
+else: bgpar = par
+
+
+self = mycollider
+self.pepids = self._get_unique_pepids_toptransitions(par, cursor)
+MAX_UIS = par.max_uis
+common_filename = par.get_common_filename()
+self.min_transitions = []
+start = time.time()
+progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+for i, pep in enumerate(self.pepids):
+    p_id = pep['parent_id']
+    transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
+    nr_transitions = len( transitions )
+    if nr_transitions == 0: continue #no transitions in this window
+    try:
+        import c_integrated
+        if background: precursors = self._get_all_precursors(bgpar, pep, cursor, bysequence=True)
+        else: precursors = self._get_all_precursors(bgpar, pep, cursor)
+        min_needed = c_integrated.getMinNeededTransitions(transitions, tuple(precursors), 
+            par.max_uis, par.q3_window, par.ppm)
+    except ImportError:
+        if background: collisions = self._get_all_collisions(bgpar, pep, cursor, bysequence=True, transitions=transitions)
+        else: collisions = self._get_all_collisions(bgpar, pep, cursor, transitions=transitions)
+        min_needed = self._getMinNeededTransitions(par, transitions, collisions)
+
+    self.min_transitions.append( [p_id, min_needed] )
+    end = time.time()
+    if not par.quiet: progressm.update(1)
+self.total_time = end - start
+
+
+
+
+
+
+
+
+
 
 #calculate for precursor, peptide and protein the min nr transitions necessary
 #to measure them without ambiguity
