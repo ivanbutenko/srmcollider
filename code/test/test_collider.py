@@ -6,6 +6,7 @@ import collider
 
 from test_shared import *
 import test_shared 
+import time
 
 #
 # inc     means it is included in another test
@@ -103,7 +104,53 @@ class Test_collider_function(unittest.TestCase):
         self.acollider = collider.SRMcollider()
         self.aparamset = collider.testcase()
 
-    def test_getMinNeededTransitions(self):
+    def test_getMinNeededTransitions_1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        par.max_uis = 15
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 8)
+
+        #now also test with lower q3 window
+        par.q3_window = 1.0
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 4)
+
+    def test_getMinNeededTransitions_2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        par.max_uis = len(transitions) +  1
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 16)
+
+        #now also test with lower q3 window
+        par.q3_window = 1.0
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 6)
+
+    def test_getMinNeededTransitions_unit(self):
         par = self.par
         par.max_uis = 5
         transitions = self.transitions
@@ -286,7 +333,7 @@ class Test_collider_function(unittest.TestCase):
         self.assertEqual(210, collider.choose(10,4) )
 
     def test_combinations(self):
-        comb52 = collider.combinations( range(5), 2 ) 
+        comb52 = list(collider.combinations( range(5), 2 ) )
         self.assertEqual(comb52, [
             (0, 1),
             (0, 2),
@@ -299,7 +346,7 @@ class Test_collider_function(unittest.TestCase):
             (2, 4),
             (3, 4)
         ])
-        comb53 = collider.combinations( range(5), 3 ) 
+        comb53 = list(collider.combinations( range(5), 3 ) )
         self.assertEqual( comb53, [
             (0, 1, 2),
             (0, 1, 3),
