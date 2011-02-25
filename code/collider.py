@@ -285,6 +285,7 @@ class SRMcollider(object):
                 'pepseq' : pep['mod_sequence']}
         if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
         else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
+        vdict['selectby'] = selectby
         query2 = """
         select %(values)s
         from %(pep)s
