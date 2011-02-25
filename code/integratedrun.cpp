@@ -29,6 +29,7 @@ using namespace std;
 
 //assume that there are never more than 32 transitions in an assay
 #define COMBINT uint32_t
+#define COMBLIMIT 32
 
 
 /*
@@ -224,6 +225,14 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    
+    //Check whether we have more transitions than we have bits in our number
+    if (transitions_length > COMBLIMIT) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Too many transitions, please adjust limit.");
+        boost::python::throw_error_already_set();
+        return -1;
+    }
 
     /*
     * Transitions are tuples of the form (q3, srm_id)
@@ -300,12 +309,21 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     double* b_series = new double[256];
     double* y_series = new double[256];
 
+    //Check whether we have more transitions than we have bits in our number
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    if (transitions_length > COMBLIMIT) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Too many transitions, please adjust limit.");
+        boost::python::throw_error_already_set();
+        python::list tlist;
+        return tlist;
+    }
+
     /*
     * Transitions are tuples of the form (q3, srm_id)
     * convert to our struct.
     */
     python::tuple tlist;
-    int transitions_length = python::extract<int>(transitions.attr("__len__")());
     vector<Transition> mytransitions(transitions_length);
     for (i=0; i<transitions_length; i++) {
         tlist = python::extract< python::tuple >(transitions[i]);

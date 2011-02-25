@@ -727,6 +727,8 @@ class SRMcollider(object):
          inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
          where genome_occurence = 1
          and l.charge = q1_charge
+         #make sure that the modifications are the same!
+         and modified_sequence = left(m.sequence, length(m.sequence) -2)
          %s
          group by parent_id
         """ % (par.peptide_table, par.query_add )
@@ -757,6 +759,8 @@ class SRMcollider(object):
         and p.peptide_key = %(peptide_key)s
         and q3 > %(q3_low)s and q3 < %(q3_high)s         
         and m.parent_charge = %(q1_charge)s
+        #make sure that the modifications are the same!
+        and modified_sequence = left(m.sequence, length(m.sequence) -2)
         %(query_add)s
         """ % { 'peptide_key' : pep['peptide_key'], 'q3_low' : q3_low,
                'q3_high' : q3_high, 'query_add' : par.query1_add,
