@@ -1595,16 +1595,145 @@ order by tina.protein, spectralcount DESC;
 
 
     }}}
-{{{ 3. Best triplicate 
+{{{ 3. Best triplicate and 4. topological sort
+
+cursor.execute('select id, file from hroest.manndata_lfq_filemapping ')
+lfqmap = dict(cursor.fetchall() )
+cursor.execute('select file, id from hroest.manndata_lfq_filemapping ')
+lfqmaprev = dict(cursor.fetchall() )
 
 
 
+class Minimal: pass
+
+self = Minimal()
+import csv
+file = open('/tmp/cludwig_besttriplicate.csv', 'w')
+w = csv.writer(file)
+w.writerow( ['Protein', 'Sequence', 'Average', 'Std Deviation',   'Nr observations', 'File'])
+file2 = open('/tmp/cludwig_topsort.csv', 'w')
+w2 = csv.writer(file2)
+w2.writerow( ['Protein', 'Sequence',  'Student_tvalue_tonext'])
+cursor.execute( """ select distinct protein from hroest.tmp_tinasproteins ; """)
+for protein in cursor.fetchall():
+    tmp = cursor.execute(
+    """
+    select sequence from hroest.tmp_tinasproteins where protein ='%s'
+    """ % protein[0] )
+    prepareseq = ''
+    for peptide in cursor.fetchall():
+        prepareseq += "'%s',\n" % peptide[0]
+    prepareseq = prepareseq[:-2]
+    #
+    q = """
+    select '%s', sequence,name,  sds, fraction, count(*) as obs,
+    #left(common_name, length(common_name)-2) as replicate
+    LEFT(common_name, length(common_name) - locate("-", reverse(common_name)) ) replicate
+    from hroest.tmp_tppsearch_analysis 
+    where sequence in
+    (%s)
+    group by sequence, fraction, sds;
+    """ % (protein[0], prepareseq)
+    tmp = cursor.execute(q)
+    res = cursor.fetchall()
+    tppcount = [ [] for i in range(75) ]
+    for r in res:
+        tppcount[ lfqmaprev[ r[-1] ] ].append(r)
+    #
+    #
+    #
+    q = """
+    select '%s', peptide, average, stdev,
+    #case when l.mrm_key is NULL then 'no' else 'yes' end,
+    obs, file
+    from hroest.manndata_lfq_sorted mann
+    #inner join hroest.tmp_tinasproteins tina on tina.sequence = mann.peptide
+    #left join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
+    where peptide in
+    (%s)
+    and obs != 0
+    order by file,average DESC
+    ;
+    """ % (protein[0], prepareseq)
+    tmp = cursor.execute(q)
+    res = cursor.fetchall()
+    #only use those peptides to quantify that were also identified in the TPP
+    #search in the same triplicate
+    files  = [ [] for i in range(75) ]
+    for r in res:
+        if r[1] in [s[1] for s in tppcount[ r[-1] ]]:
+            files[ r[-1] ].append(r)
+    #[len(f) for f in files]
+    #[len(f) for f in tppcount]
+    #
+    mymax = max([len(f) for f in files])
+    maxrepl = [f for f in files if len(f) == mymax][0]
+    print "number of max", len( ([i for i,f in enumerate(files) if len(f) == mymax]) )
+    if len( ([i for i,f in enumerate(files) if len(f) == mymax]) ) >1: 
+        print [len(f) for i,f in enumerate(files) ] 
+    maxrepl.sort( lambda x,y: -cmp(x[2], y[2] ) )
+    w.writerows(maxrepl)
+    #
+    #
+    self.files = files
+    sorted = get_sorted(self)
+    for a,b in zip(reversed(sorted[:-1]), reversed(sorted[1:])):
+        evidence = [e[2] for e in self.edges if e[0] == a and e[1] == b ]
+        if len(evidence) > 0: w2.writerow( [protein[0], self.noderevdict[b], max(evidence)] )
+        else: w2.writerow( [protein[0], self.noderevdict[b], 0] )
+    if len(sorted) > 0: w2.writerow( [protein[0], self.noderevdict[a], 0] )
 
 
+file.close()
+file2.close()
 
+def get_sorted(self):
+    files = self.files
 
-
-
+    nodes = []
+    for f in files:
+        for node in f:
+            if not node[1] in nodes: nodes.append( node[1] )
+    nodedict = dict([(f,i) for i,f in enumerate(nodes) ] )
+    noderevdict = dict([(i,f) for i,f in enumerate(nodes) ] )
+    edges = []
+    for f in files:
+        for i,first in enumerate(f):
+            for j,second in enumerate(f[:i]):
+                #calculate degrees of freedom
+                var1 = first[3]**2
+                var2 = second[3]**2
+                obs1 = first[4]
+                obs2 = second[4]
+                if obs1 < 2 or obs2 <2: continue
+                df = (var1/obs1 + var2/obs2 ) **2
+                df /= (var1/obs1)**2/(obs1-1.0) + (var2/obs2)**2/(obs2-1.0)
+                tval = (first[2] - second[2] ) / numpy.sqrt( var1/obs1 + var2/obs2 )
+                #
+                # 100-scipy.stats.t.cdf( tval, df ) * 100
+                #
+                edges.append(  (nodedict[first[1]], nodedict[second[1]], -tval ) )
+                #if tval < -100: print tval, j,i, first, second
+    import topsort
+    edges.sort( lambda x,y : -cmp(x[2], y[2] ) )
+    excluded = []
+    runagain = True
+    sorted  = []
+    while runagain:
+        runagain = False
+        try:
+            myedges = [ (e[0], e[1]) for e in edges if
+                        (e[0], e[1]) not in excluded ]
+            for i in range(len(myedges)):
+                sorted = topsort.topsort( myedges[:i])
+        except topsort.CycleError:
+            print "excluded" ,i, "/", len(edges),  [e for e in edges if (e[0], e[1]) == myedges[i-1] ]
+            excluded.append( myedges[i-1] )
+            if i < 1000: runagain = True
+    self.edges = edges
+    self.nodedict = nodedict
+    self.noderevdict = noderevdict
+    return sorted
 
 
 
