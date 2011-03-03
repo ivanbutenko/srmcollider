@@ -849,7 +849,74 @@ limit 10;
 
 
 
+
+
+#
+#this is how do the readout in SWATH for ludovic
+select id, name, short_description from experiment
+where id between 166 and 173
+;
+
+
+
+
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 170 and 173
+#and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 166 and 169
+#and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+
+
+
+s = ''
+cursor.execute(
+"""
+select  short_description
+, id from hroest.experiment
+where id between 166 and 173
+order by id
+"""
+)
+for r in cursor.fetchall(): s += '%s;' % r[0]
+
+s = ''
+cursor.execute(
+"""
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 166 and 173
+and total_UIS - non_useable_UIS >= 5
+group by exp_key;
+order by exp_key
+"""
+)
+for r in cursor.fetchall(): s += '%s;' % r[0]
+
+print s
+
+
 }}}
+
+
+create table tmp_notinrangetree as 
+select distinct parent_key from result_srmuis
+where exp_key = 103 and parent_key not in
+(select parent_key from tmp123)
+limit 1
+
+
+create temporary table tmp123 as
+select parent_key from  result_srmuis where exp_key = 102;
+alter table tmp123 add index(parent_key)
+
+
 
 {{{ srmuis filler workflow
 
@@ -873,6 +940,67 @@ mycollider = collider.SRMcollider()
 mycollider.find_clashes_small(db, par, UIS_only=True, exp_key = myid,
                               calc_collisions=False)
 
+
+#select collisions
+par.query2_add = 'and q1 between 400 and 1200'
+
+#all peptides to search
+par.query_add = ' and q1 between 400 and 1200'
+
+{{{Verify srmuis filler
+
+
+#see that the two methods produce the same results
+#differences because
+#old methods takes ALL peptides and excludes the one with genome_occurence > 1
+select count(distinct parent_key) from result_srmuis where exp_key = 112;
+select count(distinct parent_id) from srmPeptides_yeast where q1_charge = 2 and q1 between 400 and 1400 and isotope_nr = 0;
+
+cursor.execute( " drop table hroest.tmp145;")
+cursor.execute( " drop table hroest.tmp115;")
+cursor.execute(
+"""
+create temporary table hroest.tmp145 as
+    select distinct parent_id from hroest.srmPeptides_yeast where q1_charge = 2 and q1
+    between 400 and 1400 and isotope_nr = 0;
+"""
+)
+cursor.execute(
+"""
+alter table hroest.tmp145 add index (parent_id)
+"""
+)
+
+cursor.execute(
+"""
+create temporary table hroest.tmp115 as
+    select distinct parent_key as parent_id from hroest.result_srmuis where exp_key = 102
+"""
+)
+cursor.execute(
+"""
+alter table hroest.tmp115 add index (parent_id)
+"""
+)
+
+
+cursor.execute(
+"""
+select  non_useable_UIS, parent_key , total_UIS 
+    from hroest.result_srmuis where exp_key in ( 102, 10113) 
+    and parent_key in (select parent_id from hroest.tmp145) 
+    and parent_key in (select parent_id from hroest.tmp115) 
+order by parent_key, uisorder
+"""
+)
+result = cursor.fetchall()
+for i in range(1, len(result), 2):
+    print result[i][0] ,  result[i-1][0], i
+    assert result[i][0] == result[i-1][0]
+
+
+
+}}}
 
 }}}
 
