@@ -703,6 +703,62 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
 
 */
 
+bool thirdstrike(python::list myN, python::list ssrcalcvalues, double ssrwindow ) {
+
+    python::list result;
+    int M = python::extract<int>(myN.attr("__len__")());
+
+    int j, k;
+    int* index = new int[M];
+    int* N = new int[M];
+    double* myssr = new double[M];
+    //int* mytuple = new int[M];
+    //python::tuple tmptuple;
+    for(int k=0;k<M;k++) index[k] = 0;
+    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
+
+    double avg;
+    python::list tmplist;
+
+    bool contaminationfree;
+    bool contaminated = false;
+    while(true) {
+        //EVALUATE THE RESULT
+        //
+        avg = 0;
+        for(k=0; k < M; k++) {
+            tmplist = python::extract<python::list>(ssrcalcvalues[k]);
+            myssr[k] = python::extract<double>(tmplist[ index[k] ]);
+            avg += myssr[k];
+        }
+        avg /= M;
+        contaminationfree = false;
+        for(k=0; k < M; k++) {
+            if( fabs(myssr[k] - avg) > ssrwindow) contaminationfree = true;
+        }
+        if(not contaminationfree) {contaminated = true; break;}
+
+        index[ M-1 ] += 1;
+        if (index[ M-1 ] >= N[ M-1 ]) {
+            //#now we hit the end, need to increment other positions than last
+            j = M-1;
+            while (j >= 0 and index[j] >= N[j]-1) j -= 1;
+            //#j contains the value of the index that needs to be incremented
+            //#when we are at the end of the interation, j will be -1
+            if (j <0) break;
+            index[j] += 1;
+            k = j + 1;
+            //#set all other positions to zero again
+            while (k < M) {index[k] = 0; k += 1; }
+        }
+
+    }
+
+    return contaminated;
+}
+
+
+
 int main() {
 /* Input
  * transitions: (q3, srm_id)
@@ -824,6 +880,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 
             
             );
+    def ("thirdstrike", thirdstrike);
 }
 
 
