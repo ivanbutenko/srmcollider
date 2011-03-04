@@ -352,6 +352,9 @@ class SRMcollider(object):
                 zions      =  par.zions )
             b_series = peptide.b_series
             y_series = peptide.y_series
+            #TODO fix it
+            peptide.allseries = b_series
+            peptide.allseries.extend( y_series )
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch

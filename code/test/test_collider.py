@@ -2,6 +2,7 @@ import unittest
 
 import sys
 sys.path.append( '..')
+sys.path.append( '../extra/')
 import collider
 
 from test_shared import *
@@ -92,6 +93,18 @@ class Test_collider_function(unittest.TestCase):
         self.q3_high = 1500
         self.q3_low = 300
 
+        self.par.aions      = False
+        self.par.aMinusNH3  = False
+        self.par.bMinusH2O  = False
+        self.par.bMinusNH3  = False
+        self.par.bPlusH2O   = False
+        self.par.yMinusH2O  = False
+        self.par.yMinusNH3  = False
+        self.par.cions      = False
+        self.par.xions      = False
+        self.par.zions      = False
+
+
         def returnrange(): return self.q3_high, self.q3_low
         self.par.get_q3range_collisions = returnrange
 
@@ -116,14 +129,14 @@ class Test_collider_function(unittest.TestCase):
         par.max_uis = 15
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 8)
 
         #now also test with lower q3 window
         par.q3_window = 1.0
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 4)
 
@@ -139,14 +152,14 @@ class Test_collider_function(unittest.TestCase):
         par.max_uis = len(transitions) +  1
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 16)
 
         #now also test with lower q3 window
         par.q3_window = 1.0
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 6)
 
@@ -274,7 +287,7 @@ class Test_collider_function(unittest.TestCase):
         R = self.R
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         collisions_per_peptide = {}
         q3_window_used = par.q3_window
         for t in transitions:
@@ -301,7 +314,7 @@ class Test_collider_function(unittest.TestCase):
         R = self.R
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         collisions_per_peptide = {}
         q3_window_used = par.q3_window
         for t in transitions:
