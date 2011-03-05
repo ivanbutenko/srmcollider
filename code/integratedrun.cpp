@@ -88,7 +88,7 @@ python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int o
     int onecounter;
     COMBINT tmparr;
     COMBINT mask;
-    int* mapping = new int[max_tr];
+    COMBINT* mapping = new COMBINT[max_tr];
 
     for (uint i=0; i<newcollperpep.size(); i++) {
 

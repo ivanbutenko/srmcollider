@@ -32,6 +32,8 @@ namespace python = boost::python;
 int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
         double ch) ;
 void _combinations(int M, int N, const python::list &mapping, python::dict &result) ;
+void _combinations_magic(int M, int N, COMBINT* mapping,
+        python::dict &result) ;
 python::dict get_non_uis(python::dict collisions_per_peptide, int order) ;
 
 

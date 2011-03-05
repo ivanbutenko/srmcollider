@@ -176,7 +176,16 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
 //M is the order
 //N is the length of the input vector
 
-void _combinations_magic(int M, int N, int* mapping,
+/*
+* This function calculates all combinations of M elements
+* drawn without replacement from a set of N elements. Order of elements
+* does NOT matter.
+*
+* M is the order
+* N is the length of the input vector
+* mapping is an array of 
+*/
+void _combinations_magic(int M, int N, COMBINT* mapping,
         python::dict &result) {
     // The basic idea is to create an index array of length M that contains
     // numbers between 0 and N. The indices denote the combination produced and
