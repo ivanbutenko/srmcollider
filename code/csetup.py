@@ -48,6 +48,8 @@ setup(name="srmcollider",
             libraries = ["boost_python", "CGAL"]),
         Extension("c_integrated", ["integratedrun.cpp"],
             libraries = ["boost_python", "CGAL"]),
+        Extension("libsrmcolliderLib.a", ["srmcolliderLib.cpp"],
+            libraries = ["boost_python" ]),
     ],
      ) 
 
