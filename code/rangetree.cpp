@@ -1,10 +1,10 @@
-
 /*
- * The functions in this 
+ * This file has the abstraction layer to make calls to the CGAL rangetree and
+ * retrieve precursor values from it. There are two functions: build tree and
+ * query tree.
  *
- * Signature
- * void combinations(int,int,string,list<string>,list<list<int> >)
  *
+ * To install CGAL:
  *
  * sudo apt-get install libcgal-dev 
  * g++ -frounding-math -lCGAL -O3 rangetree.cpp 
@@ -14,30 +14,42 @@
  * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/packages.html#part_XIII
 */
 
-#include <cmath>
-#include <ctime>
-#include <iostream>
-#include <fstream>
-#include <vector>
-
-using namespace std;
-
 /*
  *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
  *
- * PYTHON interface
-*/
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+ */
 
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
+//include our own libraries
+#include "srmcollider.h"
 
-/*
-CGAL
-*/
+// Including headers from CGAL 
 #include <CGAL/Cartesian.h>
 #include <CGAL/Range_segment_tree_traits.h>
 #include <CGAL/Range_tree_k.h>
+
+// Function declarations
+void create_tree(python::tuple pepids) ;
+python::list query_tree(double a, double b, double c, double d);
 
 typedef CGAL::Cartesian<double> K;
 typedef CGAL::Range_tree_map_traits_2<K, long> Traits;
@@ -47,8 +59,9 @@ typedef Traits::Key Key;
 typedef Traits::Interval Interval;    
 Range_tree_2_type *Range_tree_2 = new Range_tree_2_type;
 
-namespace python = boost::python;
-
+/* Create the rangetree that will be used throughout. This is essential. The
+ * rangetree will stay in place while this module is loaded.
+*/
 void create_tree(python::tuple pepids) {
 
     python::tuple tlist;
@@ -70,7 +83,10 @@ void create_tree(python::tuple pepids) {
     Range_tree_2->make_tree(InputList.begin(),InputList.end());
 }
 
-
+/* Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are
+ * in the defined square defined by these four numbers.
+ * Returns a list with keys that were stored in the tree.
+*/
 python::list query_tree(double a, double b, double c, double d)   {
 
   std::vector<Key> OutputList;
@@ -80,27 +96,36 @@ python::list query_tree(double a, double b, double c, double d)   {
   Range_tree_2->window_query(win, std::back_inserter(OutputList));
   std::vector<Key>::iterator current=OutputList.begin();
   while(current!=OutputList.end()){
-      result.append(python::make_tuple(
-                  (*current).second));
-                  /*
-                  (*current).first.x(), 
-                  (*current).second.peptide_key, 
-                  (*current).second.q1_charge));
-                  */
+      result.append(python::make_tuple( (*current).second));
       current++;
     }
   return result;
 
 }
 
-void initcreate_tree() {;}
-void initquery_tree() {;}
-
+// Expose to Python
 using namespace python;
 BOOST_PYTHON_MODULE(c_rangetree)
 {
 
-    def("create_tree", create_tree, "");
-    def("query_tree", query_tree, "");
+    def("create_tree", create_tree, 
+ "Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are \n"
+ "in the defined square defined by these four numbers. \n"
+ "Returns a list with keys that were stored in the tree. \n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list query_tree(double a, double b, double c, double d)\n"
+            "");
+    def("query_tree", query_tree,
+            
+ "Create the rangetree that will be used throughout. This is essential. The \n"
+ "rangetree will stay in place while this module is loaded. \n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "void create_tree(tuple pepids) \n"
+            "");
 
 }
+

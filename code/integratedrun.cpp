@@ -1,23 +1,62 @@
+/*
+ * This file contains functions that allow the user to execute one calculation
+ * of UIS or minimal number of transitions needed for a peptide with one call.
+ * This means that instead of calling several functions after each other and
+ * passing data structures between Python and Cpp, all can be done in Cpp which
+ * is faster.
+ *
+ * Thus it combines the functionality of rangetree.cpp and getNonUis.cpp in one.
+ *
+*/
 
 /*
- * The functions in this 
  *
- * Signature
- *void combinations(int,int,string,list<string>,list<list<int> >)
-*/
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+ */
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
 
-/*
- *
- * Including headers from CGAL
- *
-*/
+// Including headers from CGAL 
 #include <CGAL/Cartesian.h>
 #include <CGAL/Range_segment_tree_traits.h>
 #include <CGAL/Range_tree_k.h>
+
+#include <vector>
+
+// Function declarations
+void create_tree(python::tuple pepids);
+//minimally needed number of transitions to get a UIS (ordered transitions)
+int min_needed(python::tuple transitions, python::tuple precursors,
+    int max_uis, double q3window, bool ppm );
+
+//return the number of non UIS present given the transitions and a query window
+//in Q1 and SSRCalc
+python::list wrap_all_magic(python::tuple transitions, double a, double b,
+        double c, double d, long thispeptide_key, int max_uis, double q3window,
+        bool ppm );
+python::list wrap_all(python::tuple transitions, double a, double b, double c,
+        double d, long thispeptide_key, int max_uis, double q3window, bool ppm);
 
 struct Precursor{
   char* sequence; 
@@ -39,6 +78,7 @@ typedef Traits::Key Key;
 typedef Traits::Interval Interval;    
 Range_tree_2_type *Range_tree_2 = new Range_tree_2_type;
 
+// Create the rangetree that will be used throughout. This is essential
 void create_tree(python::tuple pepids) {
 
     python::tuple tlist;
@@ -72,51 +112,6 @@ void create_tree(python::tuple pepids) {
         */
     }
     Range_tree_2->make_tree(InputList.begin(),InputList.end());
-}
-
-/*
- * Function to calculate all non-UIS transitions from a dictionary
- * where for each key (colliding peptide key) the set of transitions
- * of the query peptide are stored that are interfered with is held
- * (collisions_per_peptide dictionary)
- * It will return a list of all non UIS of the requested order.
- */
-python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int order) {
-
-    python::dict result;
-
-    int onecounter;
-    COMBINT tmparr;
-    COMBINT mask;
-    COMBINT* mapping = new COMBINT[max_tr];
-
-    for (uint i=0; i<newcollperpep.size(); i++) {
-
-        //count the number of binary ones in the bitarray
-        mask = 1;
-        onecounter = 0;
-        tmparr = newcollperpep[i];
-
-        //we know that there cannot be bits populated past max nr transitions
-        for(int j=0; j<max_tr; j++) {
-            //true if nonzero
-            if(tmparr & mask) 
-                mapping[onecounter++] = mask;
-            mask <<=1;
-        }
-
-        /* The other way to do it
-         * we shift the tmparr to the right
-        for(int j=0; tmparr != 0; tmparr >>= 1) {
-            onecounter += tmparr & mask;
-        }
-        */
-
-        _combinations_magic(order, onecounter, mapping, result);
-    }
-
-    delete [] mapping;
-    return result;
 }
 
 /* 
@@ -439,14 +434,14 @@ python::list wrap_all(python::tuple transitions, double a, double b, double c,
             }
 
         }//end of if
-      current++;
+        current++;
     }
 
     //this takes about 50% or more of the time if we have many collisions_per_pep (10k)
     //and below 10% if we have few collision_per_pep (0.1k)
     python::list result;
     for(i =1; i<= max_uis; i++) {
-        result.append( get_non_uis(collisions_per_peptide, i).attr("__len__")() );
+         result.append( get_non_uis(collisions_per_peptide, i).attr("__len__")() );
     }
 
     delete [] b_series;
@@ -455,14 +450,76 @@ python::list wrap_all(python::tuple transitions, double a, double b, double c,
     return result;
 }
 
+// Expose to Python
 using namespace python;
 BOOST_PYTHON_MODULE(c_integrated)
 {
 
-    def("create_tree", create_tree, "");
-    def("wrap_all", wrap_all, "");
-    def("wrap_all_magic", wrap_all_magic, "");
-    def("getMinNeededTransitions", min_needed, "");
+    def("create_tree", create_tree, 
+ "Create the rangetree that will be used throughout. This is essential. \n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "void create_tree(python::tuple pepids) \n"
+            );
+
+    def("wrap_all", wrap_all,
+ "Return the number of non-UIS for all orders up to max_uis\n"
+ "Given the transitions and then four numbers giving the coordinate window in\n"
+ "which the precursors should be found: \n"
+ "  q1_low, ssrcalc_low, q1_high, ssrcalc_high, \n"
+ "Also the peptide key of the current peptide has to be given (to exclude it)\n"
+ "as well as the maximal order of UIS to compute, the used q3 window and\n"
+ "whether the q3 window is given in ppm (parts per million), default unit is\n"
+ "Th which is m/z\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list wrap_all(tuple transitions, double a, double b, double c,\n"
+        "double d, long thispeptide_key, int max_uis, double q3window, bool ppm)\n"
+            );
+
+    def("wrap_all_magic", wrap_all_magic,
+            
+ "Return the number of non-UIS for all orders up to max_uis\n"
+ "Given the transitions and then four numbers giving the coordinate window in\n"
+ "which the precursors should be found: \n"
+ "  q1_low, ssrcalc_low, q1_high, ssrcalc_high, \n"
+ "Also the peptide key of the current peptide has to be given (to exclude it)\n"
+ "as well as the maximal order of UIS to compute, the used q3 window and\n"
+ "whether the q3 window is given in ppm (parts per million), default unit is\n"
+ "Th which is m/z\n"
+ "\n"
+ "This function uses magic to speed up the calculation: each combination of\n"
+ "transitions is encoded in an integer, which allows easy storage and\n"
+ "computation by bitshits even though the code gets less easy to understand.\n"
+ "The default length of the integer is 32 bits thus we can at most handle\n"
+ "combinations for 31 transitions; if more are needed one needs to change\n"
+ "COMBINT to an integer format that usees more bits, e.g. unit64_t or even the\n"
+ "BigInt class for larger integers.\n"
+ "If there are more transitions provided than allowed, an error will be\n"
+ "thrown. \n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list wrap_all_magic(python::tuple transitions, double a, double b,\n"
+        "double c, double d, long thispeptide_key, int max_uis, double q3window,\n"
+        "bool ppm )\n"
+    );
+
+    def("getMinNeededTransitions", min_needed,
+            
+ "Calculate the minimally needed number of transitions needed to get a UIS\n"
+ "given transitions in their preferred order and interfering precursors.\n"
+ "\n"
+ "Uses integers with bitflags to store the combinations, thus the number of\n"
+ "transitions that can be considered is limited by COMBLIMIT.  Also note that\n"
+ "the leftmost bit needs to be set to zero all the time, otherwise an infinte\n"
+ "loop occurs, thus there is one bit we cannot use.\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "int min_needed(tuple transitions, tuple precursors,\n"
+    "int max_uis, double q3window, bool ppm )\n"
+            );
 }
-
-

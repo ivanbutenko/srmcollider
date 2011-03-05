@@ -1,36 +1,66 @@
 /*
- * The functions in this 
  *
- * Signature
- *void combinations(int,int,string,list<string>,list<list<int> >)
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+ */
+
+/*
+ * The functions in this file allow to calculate the collisions_per_peptide
+ * dictionary easily, either using precursors (e.g. peptide sequences) or
+ * collisions (q1,q3 tuples) as input. The collisions_per_peptide dictionary
+ * holds for each peptide in the background the exact transitions of the query
+ * peptides that are shared.
+ *
+ * Furthermore, we provide interfaces for some of the shared library functions.
 */
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
 
+// Function declarations
 
+//functions to calculate collperpeptide dictionary
 python::dict _getnonuis_wrapper(python::tuple transitions, python::tuple
         collisions, double q3window, bool ppm);
-python::list _find_clashes_calculate_clashes(python::tuple precursors,
-        double q3_low, double q3_high );
-double calculate_charged_mass(python::tuple clist, int ch);
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
-        python::tuple precursors, double q3_low, double q3_high, double q3window, bool ppm);
-python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge);
+        python::tuple precursors, double q3_low, double q3_high, double
+        q3window, bool ppm);
+
+//calculate closest collision in q3 space for each transition
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm);
 
-/* Input
- * transitions: (q3, srm_id)
- * collisions: (q3, q1, srm_id, peptide_key)
- *
+/*
  * Function to calculate the collisions_per_peptide out of a set of 
  * transitions and collisions. It will return a dictionary 
  * where for each key (colliding peptide key) the set of transitions
  * of the query peptide are stored that are interfered with is held.
  * Transitions are tuples of the form (q3, srm_id), collisions are tuples of the
  * form (q3, q1, srm_id, peptide_key).
+ *
+ * Input
+ * transitions: (q3, srm_id)
+ * collisions: (q3, q1, srm_id, peptide_key)
+ *
  */
 python::dict _getnonuis_wrapper(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm) {
@@ -46,7 +76,6 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
     long c3, t1, tmplong;
     bool already_in_list;
     double t0, q3used = q3window;
-
 
     for (int i=0; i<transitions_length; i++) {
         tlist = python::extract< python::tuple >(transitions[i]);
@@ -112,109 +141,6 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
     return collisions_per_peptide;
 }
 
-
-
-
-
-double calculate_charged_mass(python::tuple clist, int ch) {
-
-    double charged_mass;
-    double* b_series = new double[256];
-    double* y_series = new double[256];
-
-    char* sequence = python::extract<char *>(clist[1]);
-    int fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-
-    //In order to get the full mass, we need the "last" element of the b-series
-    //(which is not technically part of the b series) and add water as well as
-    //protons according to the charge to it. Then, the fragment has to be
-    //divided by the charge.
-    charged_mass = (b_series[fragcount] + MASS_H*ch + MASS_OH ) /ch  ;
-
-    delete [] b_series;
-    delete [] y_series;
-
-    return charged_mass;
-}        
-
-
-
-/* Input
- * precursors: (q1, sequence, peptide_key)
- *
- * Function to calculate all transitions of a list of precursor peptides.
- * Precursors are tuples of the form (q1, sequence, peptide_key).
- * It will return a list of tuples that are of the form 
- * (q3, q1, 0, peptide_key) 
- */
-python::list _find_clashes_calculate_clashes(python::tuple precursors,
-        double q3_low, double q3_high ) {
-
-    python::tuple clist;
-    python::list result;
-
-    int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    long peptide_key;
-    int ch, fragcount, k;
-    double q3, q1;
-    char* sequence;
-
-    double* b_series = new double[256];
-    double* y_series = new double[256];
-
-    for (int i=0; i<precursor_length; i++) {
-        clist = python::extract< python::tuple >(precursors[i]);
-        q1 = python::extract< double >(clist[0]);
-        sequence = python::extract<char *>(clist[1]);
-        peptide_key = python::extract< long >(clist[2]);
-
-        for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-            // go through all fragments of this precursor
-            for (k=0; k<fragcount; k++) {
-                q3 = y_series[k];
-                if (q3 > q3_low && q3 < q3_high)
-                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
-            }
-            for (k=0; k<fragcount; k++) {
-                q3 = b_series[k];
-                if (q3 > q3_low && q3 < q3_high)
-                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
-            }
-        }
-    }
-
-    /*
-     * Python code
-     *
-
-        for c in self.__get_all_precursors(par, pep, cursor, values=values):
-            q1 = c[0]
-            peptide_key = c[2]
-            peptide = DDB.Peptide()
-            peptide.set_sequence(c[1])
-            peptide.charge = c[3]
-            peptide.create_fragmentation_pattern(R)
-            b_series = peptide.b_series
-            y_series = peptide.y_series
-            for ch in [1,2]:
-                for pred in y_series:
-                    q3 = ( pred + (ch -1)*R.mass_H)/ch
-                    if q3 < q3_low or q3 > q3_high: continue
-                    yield (q3, q1, 0, peptide_key)
-                for pred in b_series:
-                    q3 = ( pred + (ch -1)*R.mass_H)/ch
-                    if q3 < q3_low or q3 > q3_high: continue
-                    yield (q3, q1, 0, peptide_key)
-    */
-    delete [] b_series;
-    delete [] y_series;
-
-    return result;
-}        
-
-
-
 /*
  * Function to calculate the collisions_per_peptide out of a set of transitions
  * and precursor peptides that are colliding peptides.  It will return a
@@ -234,13 +160,11 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    int fragcount, i, j, k, ch, listmembers = 0, tmplen;
+    int fragcount, i, j, k, ch, listmembers = 0;
 
-    long t1, peptide_key, tmplong;
-    bool already_in_list;
+    long t1, peptide_key;
     double t0, q3used = q3window;
     char* sequence;
-
 
     double* b_series = new double[256];
     double* y_series = new double[256];
@@ -298,45 +222,18 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
     return collisions_per_peptide;
 }
 
-
-
-/* Input
- * precursors: (q1, sequence, peptide_key)
- *
- * Function to calculate all transitions of a precursor peptide ion of a
- * defined charge state.  The input is a tuple of the form (q1, sequence,
- * peptide_key) and the charge state.  It will return a list containing the b
- * and y fragments.
- */
-
-python::list _calculate_clashes_wrapper(python::tuple &tlist, double charge) {
-
-    python::list result;
-    double* b_series = new double[256];
-    double* y_series = new double[256];
-    int k;
-
-    char* sequence = python::extract<char *>(tlist[1]);
-    int fragcount = _calculate_clashes(sequence, b_series, y_series, charge);
-
-    for (k=0; k<fragcount; k++) result.append(y_series[k]);
-    for (k=0; k<fragcount; k++) result.append(b_series[k]);
-
-    return result;
-
-}
-
-/* Input
- * transitions: (q3, srm_id)
- * collisions: (q3, q1, srm_id, peptide_key)
- *
+/* 
  * Function to calculate the closest collision in q3-space for each transition.
  * Transitions are tuples of the form (q3, srm_id), collisions are tuples of
  * the form (q3, q1, srm_id, peptide_key).
  * It will return a dictionary that contains for each srm_id the distance to
  * the closest hit.
+ *
+ * Input
+ * transitions: (q3, srm_id)
+ * collisions: (q3, q1, srm_id, peptide_key)
+ *
  */
-
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
         python::tuple collisions, double q3window, bool ppm) {
 
@@ -348,7 +245,6 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     long t1 ;
     double t0, c0, q3used = q3window, this_min;
-
 
     for (int i=0; i<transitions_length; i++) {
         tlist = python::extract< python::tuple >(transitions[i]);
@@ -387,32 +283,7 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
     return non_unique;
 }
 
-
-
-int main() {
-/* Input
- * transitions: (q3, srm_id)
- * precursors: (q1, sequence, peptide_key)
- */
-    cout << "main" << endl;
-    python::tuple transitions = python::make_tuple( 
-            python::make_tuple(500.2, 1),
-            python::make_tuple(600.2, 1)
-            );
-    python::tuple precursors = python::make_tuple( 
-            python::make_tuple(500.2, "PEPTIDE", 101),
-            python::make_tuple(600.2, "DEPTIDE", 102)
-            );
-    python::dict res =  _find_clashes_calculate_collperpeptide(transitions,
-        precursors, 400, 1400, 2.0, false);
-
-}
-
-void initgetnonuis() {;}
-void initcore_non_unique() {;}
-void initget_non_uis() {;}
-void initcalculate_transitions_inner() {;}
-
+// Expose to Python
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
 {
@@ -430,18 +301,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "dict getnonuis(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
  );
 
-    def("get_non_uis", get_non_uis, 
- "Function to calculate all non-UIS transitions from a dictionary \n"
- "where for each key (colliding peptide key) the set of transitions\n"
- "of the query peptide are stored that are interfered with is held\n"
- "(collisions_per_peptide dictionary)\n"
- "It will return a list of all non UIS of the requested order.\n"
- "\n"
- "\n"
- " Signature\n"
- "list get_non_uis(dict collisions_per_peptide, int order)\n"
- );
-
     def("calculate_collisions_per_peptide", _find_clashes_calculate_collperpeptide, 
  "Function to calculate the collisions_per_peptide out of a set of transitions\n"
  "and precursor peptides that are colliding peptides.  It will return a\n"
@@ -455,6 +314,22 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "dict calculate_collisions_per_peptide(tuple transitions, tuple precursors, \n"
  "       double q3_low, double q3_high, double q3window, bool ppm)\n"
  );
+
+
+
+
+    def("get_non_uis", get_non_uis, 
+ "Function to calculate all non-UIS transitions from a dictionary \n"
+ "where for each key (colliding peptide key) the set of transitions\n"
+ "of the query peptide are stored that are interfered with is held\n"
+ "(collisions_per_peptide dictionary)\n"
+ "It will return a list of all non UIS of the requested order.\n"
+ "\n"
+ "\n"
+ " Signature\n"
+ "list get_non_uis(dict collisions_per_peptide, int order)\n"
+ );
+
 
     def("core_non_unique", _find_clashes_core_non_unique, 
  "Function to calculate the closest collision in q3-space for each transition.\n"
@@ -502,7 +377,8 @@ BOOST_PYTHON_MODULE(c_getnonuis)
             "");
 
     def("calculate_charged_mass", calculate_charged_mass, 
- "Function to return the mass of a peptide."
+ "Calculate the charged mass for a sequence, supplied in a python tuple in the\n"
+ "first place.\n"
  "\n"
  "\n"
  " Signature\n"
@@ -511,5 +387,4 @@ BOOST_PYTHON_MODULE(c_getnonuis)
             
             );
 }
-
 

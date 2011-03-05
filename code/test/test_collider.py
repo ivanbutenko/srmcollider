@@ -1,8 +1,7 @@
 import unittest
 
 import sys
-sys.path.append( '..')
-sys.path.append( '../extra/')
+sys.path.extend(['.', '..', '../extra/', 'extra/'])
 import collider
 
 from test_shared import *

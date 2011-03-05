@@ -2,7 +2,7 @@ import random
 import unittest
 
 import sys
-sys.path.append( '..')
+sys.path.extend(['.', '..', '../extra/', 'extra/'])
 
 from test_shared import ignoreImportError_rangetree
 
