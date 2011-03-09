@@ -220,44 +220,10 @@ for spectrum in library:
     R = silver.Residues.Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
     collisions = list( mycollider._get_all_collisions_calculate_sub(precursors, par, R, q3_low, q3_high) )
-    #print len(collisions)
-    nr_used_tr = min(par.max_uis+1, nr_transitions)
-    mytransitions = transitions[:nr_used_tr]
-    collisions_per_peptide = {}
-    q3_window_used = par.q3_window
-    for t in mytransitions:
-        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-        for c in collisions:
-            if abs( t[0] - c[0] ) <= q3_window_used:
-                #gets all collisions
-                if collisions_per_peptide.has_key(c[3]):
-                    if not t[1] in collisions_per_peptide[c[3]]:
-                        collisions_per_peptide[c[3]].append( t[1] )
-                else: collisions_per_peptide[c[3]] = [ t[1] ] 
-    #take the top j transitions and see whether they, as a tuple, are
-    #shared
-    min_needed = par.max_uis
-    for j in range(par.max_uis,0,-1): 
-        #take top j transitions
-        mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
-        unuseable = False
-        for k,v in collisions_per_peptide.iteritems():
-            if tuple(sorted(v)[:j]) == mytransitions: unuseable=True
-            #if len(v) > 1: print 'v', v
-        if not unuseable: min_needed = j
-        #print j, unuseable, min_needed
-    #print 'min needed', min_needed
+    min_needed = mycollider._getMinNeededTransitions(par, transitions, collisions)
     mycollider.min_transitions.append( [spectrum.name, min_needed] )
-    mycollider.minstats[ min_needed ] += 1
+    if min_needed != -1: mycollider.minstats[ min_needed ] += 1
     spectrum.min_needed = min_needed
-    #if min_needed  > 1: print spectrum.name
-    #if spectrum.name == 'FAGGPSDALAALSK/2': pass
-    #if spectrum.name == 'LHATHLAAEATK/3':
-    #    print ""
-    #    print "asdfasd", min_needed
-    #    print len(collisions)
-    #    for k,v in collisions_per_peptide.iteritems():
-    #        if len(v) > 2: print v
     end = time.time()
     if not par.quiet: progressm.update(1)
 
@@ -268,7 +234,10 @@ for i,v in enumerate(mycollider.minstats):
     print "Peptides needing %s transitions: " % i, v
     sumtrans += i*v
 
-print "Minimal number of transitions needed to measure these %s peptides:" % icount, sumtrans
+not_observeable = len( [0 for a,b in mycollider.min_transitions if b == -1])
+print "Peptides not possible to observe (too few transitions): " ,  not_observeable
+
+print "Minimal number of transitions needed to measure these %s peptides:" % (icount - not_observeable), sumtrans
 
 #here we write to the outfile
 import csv
@@ -277,15 +246,7 @@ w = csv.writer(f)
 for spectrum in library:
     peaks = spectrum.get_peaks()
     peaks.sort( lambda x,y: -cmp(x.intensity, y.intensity))
-    if spectrum.name == 'LHATHLAAEATK/3':
-        #print "asdfasd", spectrum.min_needed
-        pass
     for i,p in enumerate(peaks):
-        #i starts at 0
-        if spectrum.name == 'LHATHLAAEATK/3':
-            #print i , int(spectrum.min_needed-1 + safetytransitions)
-            #print p.mprophetline
-            pass
         if i > int(spectrum.min_needed-1 + safetytransitions): break
         if not options.csv: w.writerow( [spectrum.precursorMZ, p.peak, p.peak_annotation, spectrum.name])
         else: w.writerow(p.mprophetline)
