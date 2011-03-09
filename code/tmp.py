@@ -682,6 +682,7 @@ from hroest.result_mrmfragment_analysis_final an
 
 
 
+c = cursor
 c.execute ( """
 select 
 #count(*) / @all * 100 as pcnt, 
@@ -697,13 +698,22 @@ order by occ desc
 result = c.fetchall()
 
 import latex
-sum( [r[4] for r in result])
-tbl = ''
+total = sum( [r[4] for r in result])
+newr = []
+cumm = 0
 for r in result:
-    tbl += ' ' + latex.get_latex_row([ r'\url{' + r[0] + '}' , r[1], r[2], r[3], 
-                              latex.prepare_int( r[4], 6) ]  )   + '\n'
+    rr = list(r)
+    cumm += r[4]
+    rr.extend( [cumm, cumm*1.0/total])
+    newr.append(rr)
 
-mytable = latex.get_longtable(tbl, len(r), "Ion & Precursor Charge & Neutral Loss & Neutral Gain & Occurence", 
+tbl = ''
+for r in newr:
+    tbl += ' ' + latex.get_latex_row([ r'\verb|' + r[0] + '|' , r[1], r[2], r[3], 
+                              latex.prepare_int( r[4], 6) ,
+                              latex.prepare_int( r[5], 6) ])   + '\n'
+
+mytable = latex.get_longtable(tbl, len(r), "Ion & Precursor Charge & Neutral Loss & Neutral Gain & Occurence & Cummulative Occurence", 
           "Fragment Ion Abundances.", 
           """ Abundance of individual fragment ions as determined on a synthetic 
           set of 28357 peptides on a QQQ machine.
@@ -806,6 +816,11 @@ select * from hroest.patlasNoGenome limit 300;
 #################################################################
 {{{ #Analysis of the Manndata
 
+
+manndata_lfq : normalized version
+manndata_lfq_sorted : nonnormalized version
+tppsearchresults : TPP results of manndata for spectral counting
+
 #make map table
 drop table if exists tmp_pepmapping;
 create temporary table tmp_pepmapping as
@@ -815,18 +830,16 @@ alter table tmp_pepmapping add index(peptide_key);
 alter table tmp_pepmapping add index(modified_sequence);
 
 
-#desc  manndata_lfq;
+#desc manndata_lfq;
 #select count(*) from manndata_lfq;
 drop table if exists tmp_peptide ; 
 create temporary table tmp_peptide as 
-select peptide, sum(obs) as nr, max(average) as av 
-from manndata_lfq group by peptide;
+select peptide, sum(obs) as nr, max(average) as av , count(*) as nr_triplicates
+from manndata_lfq_sorted
+   where obs != 0
+   group by peptide;
 
 
-
-
-
-#select * from tmp_peptide limit 100;
 
 #in total 713'715 features mapped to identifications
 select sum(obs) from manndata_lfq;
@@ -933,7 +946,7 @@ for nr in range(1,7):
 
 
 
-#tinas proteins
+#{{{tinas proteins
 #select sequence_key, ac from ddb.isbAc where ac in ( 
 select ac, t.peptide, 
 t.av as max_triplicate_log_intensity,
@@ -1034,6 +1047,762 @@ and ac in (
 group by ac, pep.sequence
 order by ac
 ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ac, t.peptide, 
+t.av as max_triplicate_log_intensity,
+t.nr as nr_files_observed, 
+genome_occurence
+
+
+{{{ new analysis Feb 16th
+
+drop table tmp_tinasproteins ;
+create table tmp_tinasproteins  as
+#tinas proteins
+#select sequence_key, ac from ddb.isbAc where ac in ( 
+select  p.id as peptide_key, p.sequence as sequence, ac.ac as protein , 
+o.genome_occurence as go
+from  ddb.peptide p 
+inner join ddb.peptideOrganism o on o.peptide_key = p.id
+inner join ddb.protPepLink l on l.peptide_key = p.id
+inner join ddb.protein prot on l.protein_key = prot.id
+inner join ddb.isbAc ac on ac.sequence_key = prot.sequence_key
+where p.experiment_key = 3131
+and genome_occurence = 1
+and ac.ac in 
+( 
+'YBR249C',
+'YCL017C',
+'YDR283C',
+'YEL031W',
+'YER178W',
+'YFL030W',
+'YGL006W',
+'YGL248W',
+'YGL253W',
+'YGR193C',
+'YGR240C',
+'YHR107C',
+'YHR166C',
+'YHR183W',
+'YIL084C',
+'YJL026W',
+'YJL136C',
+'YJR051W',
+'YKL060C',
+'YKL145W',
+'YKR031C',
+'YLR039C',
+'YLR058C',
+'YLR249W',
+'YLR403W',
+'YML109W',
+'YMR037C',
+'YMR170C',
+'YMR205C',
+'YMR220W',
+'YNR067C',
+'YOL116W',
+'YPR118W'
+)
+order by ac DESC
+;
+
+
+desc tmp_tinasproteins ;
+
+
+
+#tinas proteins
+#select sequence_key, ac from ddb.isbAc where ac in ( 
+select tina.protein, t.peptide, tina.peptide_key,
+t.av as max_triplicate_log_intensity,
+t.nr as nr_files, t.nr_triplicates ,
+tina.go
+from  tmp_peptide t 
+inner join tmp_pepmapping map on map.modified_sequence = t.peptide 
+inner join tmp_tinasproteins tina on tina.peptide_key = map.peptide_key
+order by protein
+;
+
+desc manndata_lfq;
+select * from manndata_lfq limit 1;
+desc tmp_pepmapping;
+
+select * from manndata_lfq 
+where peptide = 'HNPTSDVATLYSLVNWESTK'
+and obs != 0
+;
+
+
+select * from manndata_lfq 
+where peptide in
+(select sequence from tmp_tinasproteins where protein ='YNR067C')
+and obs != 0
+;
+
+
+
+select sequence from tmp_tinasproteins where protein = 'YML109W';
+
+
+
+
+
+
+
+cursor.execute( """use hroest""")
+cursor.execute( """ select distinct protein from tmp_tinasproteins ; """)
+import csv
+file = open('/tmp/cludwig.csv', 'w')
+w = csv.writer(file)
+pfile = open('/tmp/cludwig_order.csv' , 'w')
+pw = csv.writer(pfile)
+pw.writerow( ['Protein', 'Sequence', 'Average', 'Std Deviation', 'Nr observations', 'File'])
+r = ['Protein', 'MaxOcc', '']
+r.extend( range(1,76) )
+w.writerow(r)
+r = ['','','']
+for i in range(5): r.extend( range(1,16))
+
+w.writerow(r)
+for protein in cursor.fetchall():
+    cursor.execute(
+    """
+    select sequence from tmp_tinasproteins where protein ='%s'
+    """ % protein[0] )
+    prepareseq = ''
+    for peptide in cursor.fetchall():
+        prepareseq += "'%s',\n" % peptide[0]
+    prepareseq = prepareseq[:-2]
+    #
+    q = """
+    select count(*), file
+    from manndata_lfq_sorted
+    where peptide in
+    (%s)
+    and obs != 0
+    group by file
+    ;
+    """ % prepareseq
+    cursor.execute( q )
+    tmpres = cursor.fetchall()
+    r = [protein[0]]
+    mymax = 0
+    if len(tmpres) > 0:mymax= max( [res[0] for res in tmpres])
+    r.append(mymax)
+    r.append('')
+    mymap = [0 for i in range(75)] 
+    for res in tmpres:
+        #r.append( res[0] )
+        mymap[ res[1] ] = res[0]
+    r.extend(mymap)
+    w.writerow(r)
+    #
+    q = """
+    select '%s', peptide, average, stdev, obs, file
+    from manndata_lfq_sorted
+    where peptide in
+    (%s)
+    and obs != 0
+    order by file,average DESC
+    ;
+    """ % (protein[0], prepareseq)
+    cursor.execute(q)
+    pw.writerows( cursor.fetchall() )
+
+pfile.close()
+file.close()
+
+
+
+cursor.execute( """use hroest""")
+cursor.execute( """ select distinct protein from tmp_tinasproteins ; """)
+import csv
+file = open('/tmp/cludwig_speccount.csv', 'w')
+w = csv.writer(file)
+r = ['Protein', 'MaxOcc', '']
+r.extend( range(1,76) )
+w.writerow(r)
+w.writerow([])
+r = ['','','']
+for i in range(5): r.extend( range(1,16))
+
+w.writerow(r)
+for protein in cursor.fetchall():
+    cursor.execute(
+    """
+    select sequence from tmp_tinasproteins where protein ='%s'
+    """ % protein[0] )
+    prepareseq = ''
+    for peptide in cursor.fetchall():
+        prepareseq += "'%s',\n" % peptide[0]
+    prepareseq = prepareseq[:-2]
+    #
+    q = """
+    select count(*), file
+    from tmp_tppsearch_analysis_2
+    where sequence in
+    (%s)
+    group by fraction, sds
+    ;
+    """ % prepareseq
+    cursor.execute( q )
+    tmpres = cursor.fetchall()
+    r = [protein[0]]
+    mymax = 0
+    if len(tmpres) > 0:mymax= max( [res[0] for res in tmpres])
+    r.append(mymax)
+    r.append('')
+    mymap = [0 for i in range(75)] 
+    for res in tmpres:
+        #r.append( res[0] )
+        mymap[ res[1] ] = res[0]
+    r.extend(mymap)
+    w.writerow(r)
+
+
+
+
+
+    q = """
+    select peptide, average, stdev, obs
+    from manndata_lfq 
+    where peptide in
+    (%s)
+    and obs != 0
+    and file = 28
+    order by file, average DESC
+    ;
+    """ % prepareseq
+    cursor.execute(q)
+    newr = cursor.fetchall()
+
+
+this = newr[0]
+next = newr[1]
+
+for i in range(1,len(newr)):
+
+for this,next in zip(newr[:-1], newr[1:]):
+    thisvar = this[2] * this[2]
+    nextvar = next[2] * next[2]
+    combined_s2 =  thisvar*this[3] + nextvar*next[3] / (this[3] + next[3] - 2)
+    ttest = (this[1] - next[1]) / numpy.sqrt(combined_s2 * (1.0/this[3] + 1.0/next[3]) )
+    print this[0], next[0], ttest
+
+for this,next in zip(newr[:-1], newr[2:]):
+    thisvar = this[2] * this[2]
+    nextvar = next[2] * next[2]
+    combined_s2 =  thisvar*this[3] + nextvar*next[3] / (this[3] + next[3] - 2)
+    ttest = (this[1] - next[1]) / numpy.sqrt(combined_s2 * (1.0/this[3] + 1.0/next[3]) )
+    print this[0], next[0], ttest
+
+
+
+select count(*), file
+from manndata_lfq 
+where peptide in
+(
+'MQLYLTLLFLLSFVECSYISFISNNADEILETDLIETLSYATLTVGEPYVAQSVVVTR',
+'VSAASHSPLSVSPK',
+'VSASPINSQDSDSNTR',
+'TAVQLSLSLSNYASQVSQK',
+'ISAQTNNDPVTVSNIYANDNSK',
+'SSVHNLSSVSGVASVMPSASTMR',
+'VTTLLSQTASTSTSTLFSSSLSISGTQLNGTLLTSVSK',
+'GTIDPLVTQMPSYSSQETK',
+'IIPSSLTSNK',
+'TIYTISVR',
+'TNAATATGEDSFIASTPASSTLFYPSNSTQDLVQTLASTTASPAYPSNR',
+'TQITLSPSVSLYSTTSPIYPSNITENGSSPSPSLSSTVSPVYPSSSTGNILLSSLFSTVDSSSSPVSSTLDTIYVSSSMQATISSSSSSR',
+'TSSSSLSTSTSSTATTTENSSTTTIVNLFNAVSTDEPPTVFDR',
+'SPNPMSLADGVSNDGPIQTNK',
+'FYTNLIVGSQESPAFVYPYSLWK',
+'YTSSSYGFAVQHTTVDQYSYGGYDSSGNAEYLVNPLGIAHVVFSASNFDSSMTMQVDEMTLSSTR',
+'VVLSESNDSSNYLEIPLVQGMGFATGIYHGSLNAK',
+'IGSSVGFNTIVSESSSNLAQGILK',
+'ITLLNGVTWLCYVIGPDDLTSTDFSLEVSSEYEIK',
+'ASASVDGLIIQLAVAPSETDYEVFYDQAAGMYVTNFK',
+'LQGVSDGSTATYEFSYTTQGESASGSTMIFALPHHESSFSDIMQDYYTGIQLASTTK',
+'GVMNGYLTTSLQFSTSLNR',
+'QISWLPWSSQLGSNLLEYSK',
+'EQLQLLAEVANSELQVSISESISGLNTYYLGK',
+'YSYILLTVSEIIQDEASTK',
+'STLENIK',
+'SAFDILLQNEQTYPLIYDTK',
+'FNGLVSSGDWGSTSTQYDFGNTYYNDHHFHYGYIIHAAAVIGYVDSK',
+'LNGTWAADNK',
+'DWVNSLVR',
+'DVANPSEK',
+'DEYFAQSR',
+'MFDWFNGHSWAAGLYENGNGK',
+'NEESSSEDYNFAYAMK',
+'LWGATIGDQSMELR',
+'GDLMISIMK',
+'DAMNDYFYYQNDNTVEPEEIIGNK',
+'VSGILFDNIIDYTTYFGTNTEYIHGIHMLPITPVSSNIR',
+'SETFVEEEWQTK',
+'IEPIIESIESGWTGILK',
+'LNQALFDPVDSYAFFSDSTFDSSTYLDNGMSR',
+'TWALAFSGGLANSIA'
+)
+and obs != 0
+group by file
+;
+
+
+
+#now go and verify
+
+YPR118W
+
+
+}}}
+
+
+
+{{{Ruedis idea for a plot: nr peptides / mol weight in Da for each fraction
+  
+
+desc tmp_tppsearch_analysis ;
+
+   #this is spectral counting, otherwise group by sequence, sds, fraction
+select sds, fraction, t.sequence, prot.id as pr_key,
+   m.sequence_key, m.avg_mass
+from hroest.tmp_tppsearch_analysis t 
+inner join ddb.peptide p on t.sequence = p.sequence
+inner join ddb.protPepLink l on l.peptide_key = p.id
+inner join ddb.protein prot on l.protein_key = prot.id
+inner join hroest.prot_molmass m on m.sequence_key = prot.sequence_key
+#inner join ddb.isbAc ac on ac.sequence_key = prot.sequence_key
+#
+where sds = 4
+and fraction =  'N80'
+and p.experiment_key = 3131
+limit 100;
+  
+
+   {{{ prot_molmass
+
+   create table hroest.prot_molmass (
+   sequence_key int primary key,
+   avg_mass double
+   )
+
+   #first we need the mol. weights of the proteins
+   cursor.execute(
+       """
+       select pr.id, sequence, sequence.id from ddb.protein pr
+       inner join ddbMeta.sequence on sequence.id = pr.sequence_key
+       where experiment_key = 3131
+       """
+   )
+
+   alter table hroest.prot_molmass add index(sequence_key)
+
+   proteins = cursor.fetchall()
+
+   seq = proteins[0]
+
+   for seq in proteins:
+       #R = silver.Residues.Residues('mono')
+       R = silver.Residues.Residues('average')
+       import DDB, silver
+       p = DDB.Peptide()
+       p.set_sequence( seq[1])
+       p.charge=1
+       p.create_fragmentation_pattern(R)
+       cursor.execute(
+           """
+           insert into hroest.prot_molmass (sequence_key, avg_mass) VALUES
+           (%s,%s)
+           """ % (seq[2], p.molecular_weight)
+       )
+   }}}
+
+
+resdir  = '/home/hroest/srm_clashes/results/manndata/r200lb'
+stats = dict([ [fr,[]] for fr in ['MEM', 'N80', 'N60', 'NSol', 'PE' ]])
+for fr in ['MEM', 'N80', 'N60', 'NSol', 'PE' ]:
+    for sds in range(1,16):
+        cursor.execute(
+           """
+           #this is spectral counting, otherwise group by sequence, sds, fraction
+        select 
+           #sds, fraction, t.sequence, prot.id as pr_key, m.sequence_key, 
+            m.avg_mass / 1000 as mass_da
+        from hroest.tmp_tppsearch_analysis t 
+        inner join ddb.peptide p on t.sequence = p.sequence
+        inner join ddb.peptideOrganism o on o.peptide_key = p.id 
+        inner join ddb.protPepLink l on l.peptide_key = p.id
+        inner join ddb.protein prot on l.protein_key = prot.id
+        inner join hroest.prot_molmass m on m.sequence_key = prot.sequence_key
+        #inner join ddb.isbAc ac on ac.sequence_key = prot.sequence_key
+        #
+        where sds = %s
+        and fraction =  '%s'
+        and o.genome_occurence = 1
+        and p.experiment_key = 3131
+           """ % (sds, fr)
+        )
+        thisexp = cursor.fetchall()
+        mmass = [t[0] for t in thisexp]
+        stats[fr].append( ( numpy.average(mmass), numpy.std(mmass) ) )
+        h, n = numpy.histogram( mmass, 100, (0,200))
+        h[-1]  = 0
+        gnuplot.Gnuplot.draw_boxes_from_data( [h,n], 
+                    output= resdir + 'mwplot_%s_%s.eps' % (fr, sds) ,
+                    xlabel = '', ylabel = '', tmp_csv='/tmp/gcsv.csv', keep_data = True)
+
+
+width = 0.21
+latex = ''
+for fr in ['MEM', 'N80', 'N60', 'NSol', 'PE' ]:
+    latex += " \\begin{figure} \n"
+    for sds in range(1,16):
+        latex += "\subfloat[][Fraction %s (%0.2f $\\pm$ %0.2f)]{\includegraphics[width=%s\\textwidth, angle=-90]{%s}}\n" % (
+            sds, 
+            stats[fr][sds-1][0], stats[fr][sds-1][1] ,
+            width, 
+            resdir + 'mwplot_%s_%s.pdf' % (fr, sds), 
+            )
+        if sds % 3 == 0: latex = latex[:-1] + '\\\\\n'
+    latex += "\caption{Figure for %s.}\n"  % fr
+    latex += "\end{figure}\n\n"
+
+
+f = open('/tmp/latex', 'w')
+f.write(latex)
+f.close()
+
+
+#which proteins are uniquely found in fraction 1 of the PE fraction?
+
+
+#this is spectral counting, otherwise group by sequence, sds, fraction
+drop table tmpfor1 ; create table tmpfor1 as
+select sds, fraction, t.sequence, prot.id as pr_key, m.sequence_key,
+m.avg_mass / 1000 as mass_da 
+from hroest.tmp_tppsearch_analysis t 
+inner join ddb.peptide p on t.sequence = p.sequence 
+inner join ddb.peptideOrganism o on o.peptide_key = p.id 
+inner join ddb.protPepLink l on l.peptide_key = p.id 
+inner join ddb.protein prot on l.protein_key = prot.id 
+inner join hroest.prot_molmass m on m.sequence_key = prot.sequence_key
+where sds = 1 and fraction =  'PE' and p.experiment_key = 3131 
+#and m.avg_mass < 80000
+and o.genome_occurence = 1
+#and prot.id not in (select pr_key from tmp_pe_notlow3) 
+;
+select count(*), avg(mass_da), std(mass_da) from tmpfor1;
+
+
+
+
+alter table tmp_pe_notlow3 add index(pr_key);
+
+#this is spectral counting, otherwise group by sequence, sds, fraction
+create table tmp_pe_notlow3 as
+select prot.id as pr_key
+from hroest.tmp_tppsearch_analysis t 
+inner join ddb.peptide p on t.sequence = p.sequence
+inner join ddb.protPepLink l on l.peptide_key = p.id
+inner join ddb.protein prot on l.protein_key = prot.id
+inner join hroest.prot_molmass m on m.sequence_key = prot.sequence_key
+#inner join ddb.isbAc ac on ac.sequence_key = prot.sequence_key
+#
+where sds < 4
+and fraction =  'PE'
+and p.experiment_key = 3131
+;
+
+
+
+}}}
+
+
+{{{ 1. DP
+
+desc hroest.MRMAtlas_qtrap_final_no_pyroGlu ;
+
+#file dpsequences.txt
+select protein, tina.sequence as sequence, tina.peptide_key, parent_mass, retention_time,
+#q3, Intensity, Ion_description, parent_charge, m.sequence as modseq, collision_energy,
+m.protein_name as mrmatlas_protein, tina.protein as protein
+from  hroest.tmp_tinasproteins tina
+inner join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
+inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
+#make sure that the modifications are the same!
+and tina.sequence = left(m.sequence, length(m.sequence) -2)
+group by protein, sequence
+
+
+#file dpatlas.txt
+select protein, tina.sequence as sequence, tina.peptide_key, parent_mass, retention_time,
+q3, Intensity, Ion_description, parent_charge, m.sequence as modseq, collision_energy,
+m.protein_name as mrmatlas_protein, tina.protein as protein
+from  hroest.tmp_tinasproteins tina
+inner join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
+inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
+#make sure that the modifications are the same!
+and tina.sequence = left(m.sequence, length(m.sequence) -2)
+;
+
+inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m
+on tina.sequence = left(m.sequence, length(m.sequence) -2)
+
+
+    }}}
+{{{ 2. Spectral count
+
+
+#file spectralcount.txt
+select count(*) spectralcount,  tina.protein, tina.sequence as sequence, 
+tina.peptide_key , genome_occurence as genome_occurnce, 
+case when l.mrm_key is NULL then 'no' else 'yes' end
+#ifnull(l.mrm_key, 'no'), 
+#l.mrm_key as present_in_SRMAltas
+#q3, Intensity, Ion_description, parent_charge, m.sequence as modseq, collision_energy,
+#m.protein_name as mrmatlas_protein, tina.protein as protein
+from hroest.tmp_tinasproteins tina
+inner join hroest.tppsearchresults mann on mann.sequence = tina.sequence
+inner join ddb.peptideOrganism po on po.peptide_key = tina.peptide_key
+left join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
+group by tina.sequence
+having genome_occurence = 1
+order by tina.protein, spectralcount DESC;
+
+
+
+
+
+
+    }}}
+{{{ 3. Best triplicate and 4. topological sort
+
+cursor.execute('select id, file from hroest.manndata_lfq_filemapping ')
+lfqmap = dict(cursor.fetchall() )
+cursor.execute('select file, id from hroest.manndata_lfq_filemapping ')
+lfqmaprev = dict(cursor.fetchall() )
+
+
+
+class Minimal: pass
+
+self = Minimal()
+import csv
+file = open('/tmp/cludwig_besttriplicate.csv', 'w')
+w = csv.writer(file)
+w.writerow( ['Protein', 'Sequence', 'Average', 'Std Deviation',   'Nr observations', 'File'])
+file2 = open('/tmp/cludwig_topsort.csv', 'w')
+w2 = csv.writer(file2)
+w2.writerow( ['Protein', 'Sequence',  'Student_tvalue_tonext'])
+cursor.execute( """ select distinct protein from hroest.tmp_tinasproteins ; """)
+for protein in cursor.fetchall():
+    tmp = cursor.execute(
+    """
+    select sequence from hroest.tmp_tinasproteins where protein ='%s'
+    """ % protein[0] )
+    prepareseq = ''
+    for peptide in cursor.fetchall():
+        prepareseq += "'%s',\n" % peptide[0]
+    prepareseq = prepareseq[:-2]
+    #
+    q = """
+    select '%s', sequence,name,  sds, fraction, count(*) as obs,
+    #left(common_name, length(common_name)-2) as replicate
+    LEFT(common_name, length(common_name) - locate("-", reverse(common_name)) ) replicate
+    from hroest.tmp_tppsearch_analysis 
+    where sequence in
+    (%s)
+    group by sequence, fraction, sds;
+    """ % (protein[0], prepareseq)
+    tmp = cursor.execute(q)
+    res = cursor.fetchall()
+    tppcount = [ [] for i in range(75) ]
+    for r in res:
+        tppcount[ lfqmaprev[ r[-1] ] ].append(r)
+    #
+    #
+    #
+    q = """
+    select '%s', peptide, average, stdev,
+    #case when l.mrm_key is NULL then 'no' else 'yes' end,
+    obs, file
+    from hroest.manndata_lfq_sorted mann
+    #inner join hroest.tmp_tinasproteins tina on tina.sequence = mann.peptide
+    #left join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
+    where peptide in
+    (%s)
+    and obs != 0
+    order by file,average DESC
+    ;
+    """ % (protein[0], prepareseq)
+    tmp = cursor.execute(q)
+    res = cursor.fetchall()
+    #only use those peptides to quantify that were also identified in the TPP
+    #search in the same triplicate
+    files  = [ [] for i in range(75) ]
+    for r in res:
+        if r[1] in [s[1] for s in tppcount[ r[-1] ]]:
+            files[ r[-1] ].append(r)
+    #[len(f) for f in files]
+    #[len(f) for f in tppcount]
+    #
+    mymax = max([len(f) for f in files])
+    maxrepl = [f for f in files if len(f) == mymax][0]
+    print "number of max", len( ([i for i,f in enumerate(files) if len(f) == mymax]) )
+    if len( ([i for i,f in enumerate(files) if len(f) == mymax]) ) >1: 
+        print [len(f) for i,f in enumerate(files) ] 
+    maxrepl.sort( lambda x,y: -cmp(x[2], y[2] ) )
+    w.writerows(maxrepl)
+    #
+    #
+    self.files = files
+    sorted = get_sorted(self)
+    for a,b in zip(reversed(sorted[:-1]), reversed(sorted[1:])):
+        evidence = [e[2] for e in self.edges if e[0] == a and e[1] == b ]
+        if len(evidence) > 0: w2.writerow( [protein[0], self.noderevdict[b], max(evidence)] )
+        else: w2.writerow( [protein[0], self.noderevdict[b], 0] )
+    if len(sorted) > 0: w2.writerow( [protein[0], self.noderevdict[a], 0] )
+
+
+file.close()
+file2.close()
+
+def get_sorted(self):
+    files = self.files
+
+    nodes = []
+    for f in files:
+        for node in f:
+            if not node[1] in nodes: nodes.append( node[1] )
+    nodedict = dict([(f,i) for i,f in enumerate(nodes) ] )
+    noderevdict = dict([(i,f) for i,f in enumerate(nodes) ] )
+    edges = []
+    for f in files:
+        for i,first in enumerate(f):
+            for j,second in enumerate(f[:i]):
+                #calculate degrees of freedom
+                var1 = first[3]**2
+                var2 = second[3]**2
+                obs1 = first[4]
+                obs2 = second[4]
+                if obs1 < 2 or obs2 <2: continue
+                df = (var1/obs1 + var2/obs2 ) **2
+                df /= (var1/obs1)**2/(obs1-1.0) + (var2/obs2)**2/(obs2-1.0)
+                tval = (first[2] - second[2] ) / numpy.sqrt( var1/obs1 + var2/obs2 )
+                #
+                # 100-scipy.stats.t.cdf( tval, df ) * 100
+                #
+                edges.append(  (nodedict[first[1]], nodedict[second[1]], -tval ) )
+                #if tval < -100: print tval, j,i, first, second
+    import topsort
+    edges.sort( lambda x,y : -cmp(x[2], y[2] ) )
+    excluded = []
+    runagain = True
+    sorted  = []
+    while runagain:
+        runagain = False
+        try:
+            myedges = [ (e[0], e[1]) for e in edges if
+                        (e[0], e[1]) not in excluded ]
+            for i in range(len(myedges)):
+                sorted = topsort.topsort( myedges[:i])
+        except topsort.CycleError:
+            print "excluded" ,i, "/", len(edges),  [e for e in edges if (e[0], e[1]) == myedges[i-1] ]
+            excluded.append( myedges[i-1] )
+            if i < 1000: runagain = True
+    self.edges = edges
+    self.nodedict = nodedict
+    self.noderevdict = noderevdict
+    return sorted
+
+
+
+
+
+drop table ttmp;
+create temporary table  ttmp as
+select  name, tina.protein, tina.sequence  , sds, fraction #, fmap.id file
+, @replicate := left(common_name, length(common_name)-2) as replicate, 
+RIGHT(@replicate, 
+    locate("_", reverse(@replicate))-1 ) t0 ,
+@t1 := LEFT(@replicate, length(@replicate) - locate("_", reverse(@replicate)) ) t1,
+@t2 := LEFT(@t1, length(@t1) - locate("_", reverse(@t1)) ) t2, 
+@t3 :=  locate("_", reverse(@replicate))  +  locate("_", reverse(@t1)) t3,
+@t4 := CONCAT( 'Yeast' , RIGHT(@replicate,  @t3) ) as t4
+#tina.sequence as sequence
+#l.mrm_key as present_in_SRMAltas
+#q3, Intensity, Ion_description, parent_charge, m.sequence as modseq, collision_energy,
+#m.protein_name as mrmatlas_protein, tina.protein as protein
+from hroest.tmp_tinasproteins tina
+inner join hroest.tmp_tppsearch_analysis mann on mann.sequence = tina.sequence
+order by sequence
+;
+
+
+select #count(*) occurence, 
+protein, sds, fraction, replicate, fmap.id, fmap.file 
+from ttmp tina
+left join hroest.testfm fmap on fmap.file = t4
+inner join hroest.manndata_lfq_sorted manndata on fmap.id = manndata.file
+#inner join ddb.peptideOrganism po on po.peptide_key = tina.peptide_key
+#left join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
+#order by tina.protein, fraction, sds
+#group by tina.protein, replicate
+#
+#group by tina.protein, replicate
+#having occurence > 25
+order by tina.protein#, occurence DESC
+limit 20 ;
+
+
+drop table hroest.testfm ;
+create table hroest.testfm as 
+
+select id, @replicate := file oldfile, 
+@t1 := LEFT(@replicate, length(@replicate) - locate("_", reverse(@replicate)) ) t1,
+@t2 := LEFT(@t1, length(@t1) - locate("_", reverse(@t1)) ) t2, 
+@t3 :=  locate("_", reverse(@replicate))  +  locate("_", reverse(@t1)) t3,
+@t4 := CONCAT( 'Yeast' , RIGHT(@replicate,  @t3) )  file
+from hroest.manndata_lfq_filemapping 
+;
+
+select * from hroest.tmp_tppsearch_analysis_2 limit 2;
+
+
+select count(*), sequence from 
+hroest.tmp_tppsearch_analysis 
+group by common_name
+limit 2;
+
+
+
+
+
+
+    }}}
+
+
+}}}
 
 
 

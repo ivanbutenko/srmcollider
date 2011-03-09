@@ -4,10 +4,39 @@
 Store all parent ions and their transitions (srmPeptides and srmTransitions)
 """
 
-#safety is on, remove to acutally run the script
-from sys import exit
-print "I didnt do anything, exiting now"
-exit()
+
+import sys
+from optparse import OptionParser, OptionGroup
+usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" 
+parser = OptionParser(usage=usage)
+
+group = OptionGroup(parser, "Spectral library Options", "") 
+group.add_option("--exp_key", dest="exp_key", default='',
+                  help="Experiment Key(s)"  , metavar='(3475, 3474)' ) 
+group.add_option("--peptide_table", dest="peptide_table", default='hroest.srmPeptides_test',
+                  help="MySQL table containing the peptides" )
+group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_test',
+                  help="MySQL table containing the transitions" )
+group.add_option("--dotransitions", dest="dotransitions", default=False, action="store_true",
+                  help="Also fill the transitions table (not always necessary)")
+parser.add_option_group(group)
+
+#parameters evaluation
+#parameters = collider.SRM_parameters()
+#parameters.parse_cmdl_args(parser)
+options, args = parser.parse_args(sys.argv[1:])
+peptide_table = options.peptide_table
+transition_table = options.transition_table
+exp_key = options.exp_key
+dotransitions = options.dotransitions
+
+##exp_key = 3061  #human (800 - 5000 Da)
+##exp_key = 3130  #human (all)
+###exp_key = 3120  #yeast
+##exp_key = 3131  #yeast (all)
+###exp_key = 3352  #yeast, 1200 peptides
+###exp_key = 3445  #mouse (all)
+##exp_key = '(3475, 3474)' #all TB
 
 import MySQLdb
 import sys 
@@ -17,8 +46,6 @@ sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
 sys.path.append( '/home/hroest/lib/hlib' ) #utils
 import time
 from hlib import utils
-#import pipeline 
-#db = MySQLdb.connect(read_default_file="~/hroest/.my.cnf")
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
 c = db.cursor()
 c2 = db.cursor()
@@ -30,12 +57,6 @@ import numpy
 import progress
 import collider
 
-exp_key = 3061  #human (800 - 5000 Da)
-exp_key = 3130  #human (all)
-#exp_key = 3120  #yeast
-exp_key = 3131  #yeast (all)
-#exp_key = 3352  #yeast, 1200 peptides
-#exp_key = 3445  #mouse (all)
 all_peptide_query  = """
 select distinct peptide.sequence, molecular_weight, ssrcalc,
 genome_occurence, 
@@ -44,7 +65,7 @@ from peptide
 inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
 inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
 peptide.sequence
-where experiment_key = %s
+where experiment_key in %s
 and length( peptide.sequence ) > 1
 """ % exp_key
 
@@ -65,12 +86,25 @@ t.read( all_peptide_query )
 print "executed the query"
 rows = t.c.fetchall()
 
-#1000 entries / 9 s with fast (executemany), 10.5 with index
-#1000 entries / 31 s with normal (execute), 34 with index
-transition_table = 'hroest.srmTransitions_yeast_all'
-peptide_table = 'hroest.srmPeptides_yeast_all'
-c.execute('truncate table ' + peptide_table)
-c.execute('truncate table ' + transition_table)
+c.execute( " drop table if exists %(table)s;" % { 'table' : peptide_table} )
+c.execute( """
+create table %(table)s(
+    parent_id INT PRIMARY KEY AUTO_INCREMENT,
+    peptide_key INT,
+    modified_sequence VARCHAR(255),
+    q1_charge TINYINT,
+    q1 DOUBLE,
+    ssrcalc DOUBLE,
+    isotope_nr TINYINT,
+    transition_group INT
+);
+""" % { 'table' : peptide_table} )
+c.execute("alter table %(table)s add index(peptide_key);" % { 'table' : peptide_table} )
+c.execute("alter table %(table)s add index(q1);" % { 'table' : peptide_table} )
+c.execute("alter table %(table)s add index(ssrcalc);" % { 'table' : peptide_table} )
+c.execute("alter table %(table)s add index(transition_group);" % { 'table' : peptide_table} )
+#c.execute('truncate table ' + peptide_table)
+if dotransitions: c.execute('truncate table ' + transition_table)
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -90,7 +124,7 @@ for row in rows:
             collider.insert_peptide_in_db(peptide, db, peptide_table,
                                           transition_group=transition_group)
     #we want to insert the fragments only once per peptide
-    if insert_db:
+    if insert_db and dotransitions:
         #insert fragment charge 1 and 2 into database
         peptide.mass_H = R.mass_H
         collider.fast_insert_in_db(peptide, db, 1, transition_table,

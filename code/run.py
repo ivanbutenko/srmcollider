@@ -101,6 +101,8 @@ cursor.executemany(
 
 {{{ Print plot / result
 
+    #{{{Sherman fig 1
+    cursor.execute(' drop table hroest.srmuis_tmp32 ')
     cursor.execute(
     """
     create table hroest.srmuis_tmp32 as 
@@ -116,6 +118,7 @@ cursor.executemany(
     order by exp_key, uisorder
     """ )
     result = cursor.fetchall()
+
     data = []
     h = [float(r[0])*100 for r in result if r[2] == 32]
     n = [r[1] for r in result if r[2] == 32]
@@ -123,23 +126,54 @@ cursor.executemany(
     h = [float(r[0])*100 for r in result if r[2] == 35]
     n = [r[1] for r in result if r[2] == 35]
     data.append( [h,n])
+    """
+    h = [float(r[0])*100 for r in result if r[2] == 105]
+    n = [r[1] for r in result if r[2] == 105]
+    data.append( [h,n])
+    """
+    h = [float(r[0])*100 for r in result if r[2] == 52]
+    n = [r[1] for r in result if r[2] == 52]
+    data.append( [h,n])
+    h = [float(r[0])*100 for r in result if r[2] == 51]
+    n = [r[1] for r in result if r[2] == 51]
+    data.append( [h,n])
+    """
+    h = [float(r[0])*100 for r in result if r[2] == 104]
+    n = [r[1] for r in result if r[2] == 51]
+    data.append( [h,n])
+    """
+
+    data = []
+    for ekey in range(132,137):
+        h = [float(r[0])*100 for r in result if r[2] == ekey]
+        n = [r[1] for r in result if r[2] == ekey]
+        data.append( [h,n])
+
     import gnuplot
-    titles = ['Human', 'Yeast']
+    titles = [
+        'Human (no RT)',
+        'Human (16 units)',
+        'Human (12 units)',
+        'Human (8 units)',
+        'Human (4 units)']
     output = 'out.eps'
     xlabel = 'Number of transitions'
     ylabel = 'Probability of non-unique transition set / %'
-    title = ''
-    cmd = 'with lines'
+    title = 'Probability to select a redundant SRM assay (transitions between 400 and 1400)'
+    cmd = 'with lines lw 6'
     ba = """
         set yrange[0:100]
         set xtics 1
         set mxtics 1
         set key top right
         """
-    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
-            'fig1.eps', xlabel, ylabel, '/tmp/htmp', title, 
-            keep_data = True, datatitles=titles, body_add = ba, nocolor=True)
+    gnu = gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            '/tmp/fig1.eps', xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=True, 
+                                                      addls = False)
+    #}}}
 
+    {{{hroest style figure (cumulative plot )
 
     cursor.execute(
     """
@@ -202,8 +236,342 @@ cursor.executemany(
             output, xlabel, ylabel, '/tmp/htmp', title, 
             keep_data = True, datatitles=titles, body_add = ba, nocolor=True)
 
+}}}
+
+    {{{hroest style figure (from result_srmuis )
+
+    cursor.execute(
+    """
+    select total_UIS - non_useable_UIS as useable, 1 as dummy, exp_key from 
+    hroest.result_srmuis
+        where exp_key between 122 and 130
+        and uisorder = 1
+    """ )
+    result = cursor.fetchall()
+    data = []
+    for ek in range(123,130):
+        h, n = numpy.histogram( [r[0] for r in result if r[2] == ek], 30, (0,30) )
+        cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+        data.append( [cumh,n])
 
 
+
+    import gnuplot
+    titles = [ 
+        '25 Da 20ppm', 
+        '25 Da 10ppm', 
+        '15 Da 20ppm', 
+        '15 Da 10ppm', 
+               '0.7 Da, 1.0 Da',  '0.7 Da, 0.7 Da','0.1 Da, 0.1 ppm']
+    output = '/tmp/test.eps'
+    xlabel = 'Unique transitions per peptide'
+    ylabel = 'Cummulative Occurence / %'
+    title = 'Comparison at 2 SSRCalc unit with yeast background'
+    cmd = 'with lines '
+    ba = """
+        #set xrange[0:20]
+        set key top left
+        """
+    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            output, xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=False)
+
+
+    cursor.execute( """
+    select sum_non / sum_total as pcnt_non, uisorder, exp_key 
+    from hroest.srmuis_tmp32 
+    where exp_key between 122 and 130
+    order by exp_key, uisorder
+    """ )
+    result = cursor.fetchall()
+    data = []
+    for ek in range(123,130):
+        h = [float(r[0])*100 for r in result if r[2] == ek]
+        n = [r[1] for r in result if r[2] == ek]
+        data.append( [h,n])
+
+    import gnuplot
+    xlabel = 'Number of transitions'
+    ylabel = 'Probability of non-unique transition set / %'
+    output = '/tmp/test.eps'
+    title = 'Comparison at 2 SSRCalc unit with yeast background'
+    cmd = 'with lines'
+    ba = """
+        set xrange[1:3]
+        set yrange[0:60]
+        set xtics 1
+        set mxtics 1
+        set key top right
+        """
+    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            output, xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=False)
+
+}}}
+
+    {{{ hroest complete Q1 Q3 map
+
+
+
+
+    pointmap = {
+    #all 9999 SSRCalc
+    138 : (1 , 0.01),
+    139 : (1 , 0.05),
+    140 : (1 , 0.1),
+    141 : (1 , 0.5),
+    142 : (1 , 1),
+    143 : (10 , 0.01),
+    144 : (10 , 0.05),
+    145 : (10 , 0.1),
+    146 : (10 , 0.5),
+    147 : (10 , 1),
+    148 : (20 , 0.01),
+    149 : (20 , 0.05),
+    150 : (20 , 0.1),
+    151 : (20 , 0.5),
+    152 : (20 , 1),
+    153 : (50 , 0.01),
+    154 : (50 , 0.05),
+    155 : (50 , 0.1),
+    156 : (50 , 0.5),
+    157 : (50 , 1),
+    158 : (150 , 0.01),
+    159 : (150 , 0.05),
+    160 : (150 , 0.1),
+    161 : (150 , 0.5),
+    162 : (150 , 1),
+    163 : (150 , 0.001) 
+    }
+
+
+
+
+    select avg((total_UIS - non_useable_UIS) / total_UIS )
+    from hroest.result_completegraph
+    where uisorder = 2
+    and exp_key = 212
+
+
+
+select count(*)
+, exp_key from hroest.result_completegraph
+#where exp_key between 200 and 205
+#where exp_key between 206 and 215
+where exp_key between 216 and 223
+and uisorder = 1
+and total_UIS - non_useable_UIS >= 2
+group by exp_key;
+
+
+    cursor.execute(
+    """
+    select (total_UIS - non_useable_UIS) / total_UIS as useable_pcnt, uisorder, exp_key from 
+    hroest.result_completegraph
+    where uisorder = 1
+    and exp_key between  138 and 163
+    """ )
+    result = cursor.fetchall()
+
+    data1 = {}
+    data2 = {}
+    data3 = {}
+    for ek in pointmap.keys():
+        currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 1]
+        data1[ek] = numpy.average(currdata)
+
+        currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 2]
+        data2[ek] = numpy.average(currdata)
+
+        currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 3]
+        data3[ek] = numpy.average(currdata)
+
+        h, n = numpy.histogram( , 30, (0,30) )
+        cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+        data.append( [cumh,n])
+
+
+for k in data1:
+    if data1[k] < 0.0020 and data1[k] > 0.0:
+        print k,pointmap[k],data1[k] *100
+
+for k in data2:
+    if data2[k] < 0.6 and data2[k] > 0.2:
+        print k,pointmap[k],data2[k] 
+
+
+for k in data2:
+    if data2[k] < 0.85 and data2[k] > 0.6:
+        print k,pointmap[k],data2[k] 
+
+
+for k in data3:
+    if data3[k] < 0.98 and data3[k] > 0.8:
+        print k,pointmap[k],data3[k] 
+
+
+
+
+############higher == better
+############
+
+#1data
+#1Da/1Da
+0.0324046971713
+#20Da / 50mDa 
+0.708949416986
+#20Da / 100mDa 
+0.15957606459
+#50Da / 50mDa 
+0.248670925303
+#150Da / 50mDa 
+0.110951958159
+#150Da / 10mDa 
+0.606860008601
+
+
+#2data
+#1Da/1Da
+0.422533811535
+#10Da / 100mDa 
+0.467749669859
+#20Da / 50mDa 
+0.596599187664
+#20Da / 100mDa 
+0.32510815146
+#50Da / 50mDa 
+0.427
+#150Da / 50mDa 
+0.298477131917
+#150Da / 10mDa 
+0.759989313708
+
+
+
+
+#3data
+#1Da/1Da
+0.900423977555
+#10Da / 100mDa 
+0.928531104298
+#20Da / 50mDa 
+0.955863807651
+#20Da / 100mDa 
+0.896544923105
+#50Da / 50mDa 
+0.928519673743
+#150Da / 50mDa 
+0.928715289319
+#150Da / 10mDa 
+0.984139073013
+
+
+f = open('/tmp/data' , 'w')
+for k,v in data2.iteritems():
+    f.write('%s %s %s\n'  % (pointmap[k][0], pointmap[k][1], v))
+
+
+
+pointrowhash  = []
+for k,v in data2.iteritems():
+    pointrowhash.append( (pointmap[k][0], pointmap[k][1], v) )
+
+
+pointrowhash.sort( lambda x,y: cmp( x[0]+x[1], y[0]+y[1]) )
+for k,v in zip(pointrowhash[:-1], pointrowhash[1:]):
+    if k[0] == v[0]:
+        print "set arrow from %s,%s,%s to %s,%s,%s nohead" % (k[0], k[1], k[2], v[0], v[1], v[2])
+
+for k,v in zip(pointrowhash[:-5], pointrowhash[6:]):
+    if True:
+        print "set arrow from %s,%s,%s to %s,%s,%s nohead" % (k[0], k[1], k[2], v[0], v[1], v[2])
+
+for k,v in pointrowhash.iteritems():
+    print "set arrow from 1,0.01,0.94 to 1,0.05,0.85 nohead"
+
+
+
+
+    q1vals = [1, 10, 20, 50, 150]
+    q3vals = [ 1000, 125, 70, 50, 40 ]
+    q3vals = [q/1000.0 for q in q3vals]
+    #q3vals = numpy.log(q3vals ) 
+    data = [ [q3vals,  q1vals ] ]
+    q1vals = [10, 20, 50, 150]
+    q3vals = [ 500, 200, 100, 80 ]
+    q3vals = [q/1000.0 for q in q3vals]
+    data.append( [q3vals,  q1vals ] )
+    q1vals = [1, 10, 20, 50, 150]
+    q3vals = [ 100, 50, 25, 10 , 7]
+    q3vals = [q/1000.0 for q in q3vals]
+    data.append( [q3vals,  q1vals ] )
+    q1vals = [1, 10, 20, 50, 150]
+    q3vals = [ 500, 50, 25, 10 , 7]
+    q3vals = [q/1000.0 for q in q3vals]
+    data.append( [q3vals,  q1vals ] )
+    #from data3
+    q1vals = [10, 20, 50, 150]
+    q3vals = [ 1000, 500, 200, 100 ]
+    q3vals = [q/1000.0 for q in q3vals]
+    data.append( [q3vals,  q1vals ] )
+    newd = []
+    for d in data:
+        newd.append([ numpy.log(d[0])/numpy.log(10), numpy.log(d[1]) /numpy.log(10)])
+
+    #data = newd
+    import gnuplot
+    titles = [ 
+        'Contour line 0.42',
+        'Contour line 0.7',
+        'Contour line 0.17',
+        'Contour line data3 0.8',
+        ]
+    output = '/tmp/test.eps'
+    xlabel = 'Q1 Value / Da'
+    ylabel = 'Q3 Value / Da'
+    title = 'Comparison at 2 SSRCalc unit with yeast background'
+    cmd = 'with linespoints '
+    ba = """
+        set xrange[1:200]
+        set key top right
+        set log xy
+        """
+    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            output, xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=False)
+
+
+    cursor.execute( """
+    select sum_non / sum_total as pcnt_non, uisorder, exp_key 
+    from hroest.srmuis_tmp32 
+    where exp_key between 122 and 130
+    order by exp_key, uisorder
+    """ )
+    result = cursor.fetchall()
+    data = []
+    for ek in range(123,130):
+        h = [float(r[0])*100 for r in result if r[2] == ek]
+        n = [r[1] for r in result if r[2] == ek]
+        data.append( [h,n])
+
+    import gnuplot
+    xlabel = 'Number of transitions'
+    ylabel = 'Probability of non-unique transition set / %'
+    output = '/tmp/test.eps'
+    title = 'Comparison at 2 SSRCalc unit with yeast background'
+    cmd = 'with lines'
+    ba = """
+        set xrange[1:3]
+        set yrange[0:60]
+        set xtics 1
+        set mxtics 1
+        set key top right
+        """
+    gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            output, xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=False)
+
+}}}
 
 }}}
 
@@ -481,7 +849,74 @@ limit 10;
 
 
 
+
+
+#
+#this is how do the readout in SWATH for ludovic
+select id, name, short_description from experiment
+where id between 166 and 173
+;
+
+
+
+
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 170 and 173
+#and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 166 and 169
+#and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+
+
+
+s = ''
+cursor.execute(
+"""
+select  short_description
+, id from hroest.experiment
+where id between 166 and 173
+order by id
+"""
+)
+for r in cursor.fetchall(): s += '%s;' % r[0]
+
+s = ''
+cursor.execute(
+"""
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 166 and 173
+and total_UIS - non_useable_UIS >= 5
+group by exp_key;
+order by exp_key
+"""
+)
+for r in cursor.fetchall(): s += '%s;' % r[0]
+
+print s
+
+
 }}}
+
+
+create table tmp_notinrangetree as 
+select distinct parent_key from result_srmuis
+where exp_key = 103 and parent_key not in
+(select parent_key from tmp123)
+limit 1
+
+
+create temporary table tmp123 as
+select parent_key from  result_srmuis where exp_key = 102;
+alter table tmp123 add index(parent_key)
+
+
 
 {{{ srmuis filler workflow
 
@@ -505,6 +940,67 @@ mycollider = collider.SRMcollider()
 mycollider.find_clashes_small(db, par, UIS_only=True, exp_key = myid,
                               calc_collisions=False)
 
+
+#select collisions
+par.query2_add = 'and q1 between 400 and 1200'
+
+#all peptides to search
+par.query_add = ' and q1 between 400 and 1200'
+
+{{{Verify srmuis filler
+
+
+#see that the two methods produce the same results
+#differences because
+#old methods takes ALL peptides and excludes the one with genome_occurence > 1
+select count(distinct parent_key) from result_srmuis where exp_key = 112;
+select count(distinct parent_id) from srmPeptides_yeast where q1_charge = 2 and q1 between 400 and 1400 and isotope_nr = 0;
+
+cursor.execute( " drop table hroest.tmp145;")
+cursor.execute( " drop table hroest.tmp115;")
+cursor.execute(
+"""
+create temporary table hroest.tmp145 as
+    select distinct parent_id from hroest.srmPeptides_yeast where q1_charge = 2 and q1
+    between 400 and 1400 and isotope_nr = 0;
+"""
+)
+cursor.execute(
+"""
+alter table hroest.tmp145 add index (parent_id)
+"""
+)
+
+cursor.execute(
+"""
+create temporary table hroest.tmp115 as
+    select distinct parent_key as parent_id from hroest.result_srmuis where exp_key = 102
+"""
+)
+cursor.execute(
+"""
+alter table hroest.tmp115 add index (parent_id)
+"""
+)
+
+
+cursor.execute(
+"""
+select  non_useable_UIS, parent_key , total_UIS 
+    from hroest.result_srmuis where exp_key in ( 102, 10113) 
+    and parent_key in (select parent_id from hroest.tmp145) 
+    and parent_key in (select parent_id from hroest.tmp115) 
+order by parent_key, uisorder
+"""
+)
+result = cursor.fetchall()
+for i in range(1, len(result), 2):
+    print result[i][0] ,  result[i-1][0], i
+    assert result[i][0] == result[i-1][0]
+
+
+
+}}}
 
 }}}
 

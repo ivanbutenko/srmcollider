@@ -352,6 +352,9 @@ class SRMcollider(object):
                 zions      =  par.zions )
             b_series = peptide.b_series
             y_series = peptide.y_series
+            #TODO fix it
+            peptide.allseries = b_series
+            peptide.allseries.extend( y_series )
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
@@ -727,6 +730,8 @@ class SRMcollider(object):
          inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
          where genome_occurence = 1
          and l.charge = q1_charge
+         #make sure that the modifications are the same!
+         and modified_sequence = left(m.sequence, length(m.sequence) -2)
          %s
          group by parent_id
         """ % (par.peptide_table, par.query_add )
@@ -757,6 +762,8 @@ class SRMcollider(object):
         and p.peptide_key = %(peptide_key)s
         and q3 > %(q3_low)s and q3 < %(q3_high)s         
         and m.parent_charge = %(q1_charge)s
+        #make sure that the modifications are the same!
+        and modified_sequence = left(m.sequence, length(m.sequence) -2)
         %(query_add)s
         """ % { 'peptide_key' : pep['peptide_key'], 'q3_low' : q3_low,
                'q3_high' : q3_high, 'query_add' : par.query1_add,

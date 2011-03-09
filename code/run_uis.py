@@ -10,6 +10,7 @@ sh /tmp/tmp.sh
 
 
 """
+
 import MySQLdb
 import time
 import sys 
@@ -17,6 +18,7 @@ import c_rangetree, c_getnonuis
 sys.path.append( '/home/hroest/lib/hlib/' )
 sys.path.append( '/home/hroest/projects' )
 sys.path.append( '/home/hroest/projects/hlib' )
+sys.path.append( '/home/hroest/srm_clashes/code' )
 #db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
 cursor = db.cursor()
