@@ -67,6 +67,7 @@ par.q3_window /= 2.0
 par.ssrcalc_window /= 2.0
 if par.ppm == 'True': par.ppm = True
 elif par.ppm == 'False': par.ppm = False
+par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
 #par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
 #par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
 #par.ssrcalc_window = ssrcalcwin / 2.0

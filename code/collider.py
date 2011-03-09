@@ -1567,3 +1567,29 @@ def combinations(iterable, r):
         return [ tuple([iterable[i] for i in indices]) for indices in _combinations( len(iterable) , r)] 
 
 
+
+def _combinationsDiffLen(N):
+    """All index combinations of M elements drawn without replacement
+     from a set of N elements.
+    Order of elements does NOT matter."""
+    M = len(N)
+    index = [0 for i in range( M )]
+    while True:
+        yield index[:]
+        #print index[:] 
+        #kk += 1
+        #if index[2] == 73: break
+        index[ M-1 ] += 1
+        #if kk > 7: break
+        if index[ M-1 ] >= N[ M-1 ]:
+            #now we hit the end, need to increment other positions than last
+            j = M-1
+            while j >= 0 and index[j] >= N[j]-1: j -= 1
+            #j contains the value of the index that needs to be incremented
+            #when we are at the end of the interation, j will be -1
+            if j <0: break
+            index[j] += 1
+            k = j + 1
+            #set all other positions to zero again
+            while k < M: index[k] = 0; k += 1; 
+

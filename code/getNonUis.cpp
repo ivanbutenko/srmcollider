@@ -283,7 +283,6 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
     return non_unique;
 }
 
-// Expose to Python
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
 {
@@ -386,5 +385,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 
             
             );
+    def ("thirdstrike", thirdstrike);
 }
 
