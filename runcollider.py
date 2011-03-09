@@ -132,15 +132,15 @@ else:
             s.peaks.append(p)
         library.append(s)
 
-
-
 mycollider = collider.SRMcollider()
 mycollider.min_transitions = []
 
 pepmap = {}
 seqs = ''
+seqdic = {}
 for icount, spectrum in enumerate(library):
     seqs += "'%s'," % spectrum.sequence
+    seqdic[ spectrum.sequence ] = 0
 
 ssr_query = """
 select sequence, ssrcalc
@@ -161,9 +161,10 @@ if pepmapfile != '':
               "sequence and SSRCalc value per line separated by a space."
 
 start = time.time()
-print "%s Peptides provided" % icount
-print "%s Peptides have SSRCalc values " % len(pepmap)
-if icount > len(pepmap):
+print "%s peptide precursors provided" % icount
+print "%s unique peptides provided" % len(seqdic)
+print "%s unique peptides have SSRCalc values " % len(pepmap)
+if len(seqdic) > len(pepmap):
     print "If you want to use SSRCalc predictions, please provide a file with SSRCalc values."
     print "Otherwise your results will be wrong because you are missing some SSRcalc values."
 
@@ -203,7 +204,7 @@ for spectrum in library:
     try: ssrcalc = pepmap[spectrum.sequence]
     except KeyError: ssrcalc = 25
     pep = {
-        'sequence' :   spectrum.name.split('/')[0],
+        'mod_sequence' :   spectrum.name.split('/')[0],
         'parent_id' :  -1,
         'q1' :         spectrum.precursorMZ,
         'q1_charge' :  spectrum.name.split('/')[1],
@@ -215,7 +216,7 @@ for spectrum in library:
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
     precursors = mycollider._get_all_precursors(par, pep, cursor)
-    precursors = [p for p in precursors if p[1] != pep['sequence'] ]
+    precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
     R = silver.Residues.Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
     collisions = list( mycollider._get_all_collisions_calculate_sub(precursors, par, R, q3_low, q3_high) )
