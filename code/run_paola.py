@@ -35,6 +35,17 @@ if par.max_uis ==0:
     sys.exit()
 
 
+
+
+
+"""
+background='yeast_pepatlas' 
+par.ssrcalc_window=4/2.0 
+par.max_uis=10 
+par.peptide_table='hroest.srmPeptides_yeast' 
+par.transition_table='hroest.srmTransitions_yeast'
+"""
+
 par.dontdo2p2f = False
 par.do_1vs = False
 par.eval()
