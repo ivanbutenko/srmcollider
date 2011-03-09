@@ -594,7 +594,7 @@ class SRMcollider(object):
 
         #take the top j transitions and see whether they, as a tuple, are
         #shared
-        min_needed = par.max_uis
+        min_needed = -1
         for j in range(par.max_uis,0,-1): 
             #take top j transitions
             mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))

@@ -153,7 +153,7 @@ class Test_collider_function(unittest.TestCase):
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
                 collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
-        self.assertEqual(m, 16)
+        self.assertEqual(m, -1)
 
         #now also test with lower q3 window
         par.q3_window = 1.0
@@ -168,13 +168,13 @@ class Test_collider_function(unittest.TestCase):
         transitions = self.transitions
         collisions = self.collisions
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
-        self.assertEqual(m, 5)
+        self.assertEqual(m, -1)
 
         par.max_uis = 10 
         transitions = transitions_def3
         collisions = collisions_def3
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
-        self.assertEqual(m, 10)
+        self.assertEqual(m, -1)
 
         transitions = transitions_def4
         collisions = collisions_def4
