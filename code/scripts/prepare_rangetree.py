@@ -63,12 +63,14 @@ if options.insert_mysql:
     if common_filename.split('_')[0] == 'human': superkey = 34
     query = """
     insert into hroest.experiment  (name, short_description,
-    description, comment1, comment2, super_experiment_key, ddb_experiment_key)
+    description, comment1, comment2, comment3, super_experiment_key, ddb_experiment_key)
     VALUES (
-        'uis_perpeptide', '%s', '%s', '%s', '%s', %s, 0
+        'complete_graph', '%s', '%s', '%s', '%s','%s', %s, 0
     )
     """ %( common_filename + '_' + par.peptide_table.split('.')[1], 
-          par.experiment_type, par.peptide_table, par.transition_table, superkey)
+          par.experiment_type, par.peptide_table, par.transition_table, 
+          'q1: %s; q3: %s'  % (par.q1_window*2, par.q3_window*2),
+          superkey)
     cursor.execute(query)
     exp_key = db.insert_id()
 

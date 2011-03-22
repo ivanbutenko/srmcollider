@@ -39,8 +39,14 @@ usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
 group = OptionGroup(parser, "Run uis Options",
                     "None yet")
+group.add_option("--swath_mode", action='store_true', dest="swath_mode", default=False,
+                  help="SWATH mode enabled (use fixed window)")
+group.add_option("--use_db", action='store_true', dest="use_db", default=False,
+                  help="Use db instead of rangetree")
+group.add_option("--restable", dest="restable", default='hroest.result_srmuis', type="str",
+                  help="MySQL result table" + 
+                  "Defaults to result_srmuis") 
 parser.add_option_group(group)
-
 
 
 #Run the collider
@@ -56,6 +62,9 @@ options, args = parser.parse_args(sys.argv[1:])
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
 max_q1 = float(sys.argv[3])
+use_db = options.use_db
+swath_mode = options.swath_mode
+restable = options.restable
 #ssrcalcwin = float(sys.argv[4])
 #peptide_table = sys.argv[5]
 par.__dict__.update( options.__dict__ )
@@ -65,13 +74,14 @@ par.q3_window /= 2.0
 par.ssrcalc_window /= 2.0
 if par.ppm == 'True': par.ppm = True
 elif par.ppm == 'False': par.ppm = False
+else: 'wrong arg for ppm'; assert False
 #par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
 #par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
 #par.ssrcalc_window = ssrcalcwin / 2.0
 #par.ppm = False
 #par.considerIsotopes = True
 #par.max_uis = 5 #turn off uis if set to 0
-#par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
+par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 #par.q3_range = [400, 1400]
 par.eval()
 #print par.experiment_type
@@ -79,8 +89,8 @@ par.eval()
 print par.get_common_filename()
 mycollider = collider.SRMcollider()
 
-print par.ppm
-print par.considerIsotopes
+#print 'par', par.ppm, type(par.ppm)
+print 'isotopes' , par.considerIsotopes
 
 qadd = ''
 if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
@@ -117,16 +127,12 @@ mypepids = [
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
-parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
-            for r in alltuples
-    #if r[3] == 2 and r[6] == 0
-]
-parentid_lookup  = dict(parentid_lookup)
-#print "finished python lookups: ", time.time() - start
-
-print "building tree with %s Nodes" % len(alltuples)
-c_rangetree.create_tree(tuple(alltuples))
-#print "finished build tree : ", time.time() - start
+if not use_db:
+    parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
+            for r in alltuples ]
+    parentid_lookup  = dict(parentid_lookup)
+    print "building tree with %s Nodes" % len(alltuples)
+    c_rangetree.create_tree(tuple(alltuples))
 
 
 self = mycollider
@@ -147,16 +153,42 @@ for kk, pep in enumerate(self.pepids):
     #fake some srm_id for the transitions
     transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
     nr_transitions = len(transitions)
-    q1_low = q1 - par.q1_window 
-    q1_high = q1 + par.q1_window
-    #correct rounding errors, s.t. we get the same results as before!
-    ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
-    ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-    precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
-                                                 q1_high,  ssrcalc_high )  )
-    precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                        #dont select myself 
-                       if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+    #
+    #in SWATH mode, we have a fixed window independent of q1
+    if swath_mode: q1_low = min_q1; q1_high = max_q1
+    else: q1_low = q1 - par.q1_window ; q1_high = q1 + par.q1_window
+    #
+    if use_db and not swath_mode:
+        precursors = self._get_all_precursors(par, pep, cursor)
+    elif use_db and swath_mode:
+        values="q1, modified_sequence, peptide_key, q1_charge"
+        #we compare the parent ion against 4 different parent ions
+        #thus we need to take the PEPTIDE key here
+        query2 = """
+        select %(values)s
+        from %(pep)s
+        where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+            and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+        and q1 > %(q1_low)s and q1 < %(q1_high)s
+        and %(pep)s.peptide_key != %(peptide_key)d
+        %(query_add)s
+        """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
+               'ssrcalc' : pep['ssrcalc'], 
+                'peptide_key' : pep['peptide_key'],
+               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+               'pep' : par.peptide_table,
+               'values' : values}
+        cursor.execute( query2 )
+        precursors=  cursor.fetchall()
+    elif not use_db:
+        #correct rounding errors, s.t. we get the same results as before!
+        ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
+        ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
+        precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
+                                                     q1_high,  ssrcalc_high )  )
+        precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                            #dont select myself 
+                           if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
     #
     #now calculate coll per peptide the new way
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
@@ -172,7 +204,7 @@ for kk, pep in enumerate(self.pepids):
     progressm.update(1)
 
 
-cursor.executemany('insert into hroest.result_srmuis (non_useable_UIS, total_UIS, \
+cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 
 
