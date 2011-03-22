@@ -75,6 +75,8 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
         table_used =  'yeast'
     elif genome == 'yeastN15':
         table_used =  'yeastN15'
+    elif genome == 'mouse':
+        table_used =  'mouse'
     elif genome == 'human':
         table_used =  'human'
     else: print "Genome not recognized"; exit()
@@ -204,6 +206,7 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
         collisions= []
         non_unique = {}
         mysequence = pep['sequence']
+        pep['mod_sequence'] = pep['sequence']
         transitions = mycollider._get_all_transitions(par, pep, cursor, values="q3, srm_id, type, fragment_number")
         collisions = mycollider._get_all_collisions(par, pep, cursor, 
             values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc, isotope_nr")
@@ -381,9 +384,7 @@ if form.has_key('peptides'):
     high = float(form.getvalue('high_mass') )
     low = float(form.getvalue('low_mass') )
     genome = form.getvalue('genome') 
-    #TODO 
-    #isotope = int(form.getvalue('isotope') )
-    isotope = 3
+    isotope = int(form.getvalue('isotope') )
     uis = int(form.getvalue('uis') )
     #print peptides
     #peptides = input
@@ -428,16 +429,17 @@ else:
         <select name="genome" class="number_input">
           <option value="yeast">Yeast (tryptic)</option>
           <option value="yeastN15">Yeast N15 (tryptic)</option>
+          <option value="mouse">Mouse (tryptic)</option>
           <option value="human">Human (tryptic)</option>
         </select>
     </p>
 
     <p class='input_field'>
         <label class="mylabel" for="isotope">Consider isotopes up to </label>
-        <!-- >
         <input class="number_input" type="text" name="isotope" value="3"> amu
-        </!-->
+        <!-- >
         <input class="number_input" type="text" disabled="False" name="isotope" value="3"> amu
+        </!-->
     </p>
 
 
