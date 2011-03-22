@@ -10,6 +10,7 @@ sh /tmp/tmp.sh
 
 
 """
+
 import MySQLdb
 import time
 import sys 
@@ -17,6 +18,7 @@ import c_rangetree, c_getnonuis
 sys.path.append( '/home/hroest/lib/hlib/' )
 sys.path.append( '/home/hroest/projects' )
 sys.path.append( '/home/hroest/projects/hlib' )
+sys.path.append( '/home/hroest/srm_clashes/code' )
 #db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
 cursor = db.cursor()
@@ -75,6 +77,7 @@ par.ssrcalc_window /= 2.0
 if par.ppm == 'True': par.ppm = True
 elif par.ppm == 'False': par.ppm = False
 else: 'wrong arg for ppm'; assert False
+par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
 #par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
 #par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
 #par.ssrcalc_window = ssrcalcwin / 2.0

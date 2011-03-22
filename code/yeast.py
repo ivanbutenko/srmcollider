@@ -296,6 +296,14 @@ peptide_type = 'norm';
 
 
 
+LOAD DATA LOCAL INFILE
+'/tmp/tmp.out'
+INTO TABLE hroest.srmPeptides_yeast 
+FIELDS TERMINATED BY '\t'
+LINES TERMINATED BY '\n'
+( sequence )
+SET experiment_key = 3352,
+peptide_type = 'norm';
 
 
 
@@ -312,3 +320,142 @@ LOAD DATA LOCAL INFILE
 INTO TABLE hroest.openmsModel 
 FIELDS TERMINATED BY ' '
 LINES TERMINATED BY '\n'
+
+
+
+
+
+
+
+truncate TABLE hroest.manndata_lfq_filemapping ;
+LOAD DATA LOCAL INFILE
+'/tmp/filemapping.csv'
+INTO TABLE hroest.manndata_lfq_filemapping 
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+;
+
+
+
+create TABLE hroest.tppsearchresults
+(id int primary key auto_increment,
+ exp_key int, 
+ otherid int,
+ name text, 
+ rt double, 
+ someint int, 
+ someotherint int,
+ sequence varchar(255),
+ mybefore varchar(1), 
+ myafter varchar(1), 
+ protein varchar(255), 
+ morert double, 
+ d1 double, 
+ d2 double, 
+ d3 double, 
+ d4 double, 
+ d5 double, 
+ d6 double
+)
+alter table hroest.tppsearchresults add index(exp_key);
+alter table hroest.tppsearchresults add index(peptide);
+
+
+#50201 - 50205
+'/home/hroest/data/searchresults/2010Nov/CS_PUB_TPP_v05_hroest_1289397066450.csv'
+'/home/hroest/data/searchresults/2010Nov/CS_PUB_TPP_v05_hroest_1289412551195.csv'
+'/home/hroest/data/searchresults/2010Nov/CS_PUB_TPP_v05_hroest_1289423320075.csv'
+'/home/hroest/data/searchresults/2010Nov/CS_PUB_TPP_v05_hroest_1289423680212.csv'
+'/home/hroest/data/searchresults/2010Nov/CS_PUB_TPP_v05_hroest_1289424056378.csv'
+
+
+LOAD DATA LOCAL INFILE
+'/home/hroest/data/searchresults/2010Nov/CS_PUB_TPP_v05_hroest_1289424056378.csv'
+INTO TABLE hroest.tppsearchresults
+FIELDS TERMINATED BY '\t'
+LINES TERMINATED BY '\n'
+(
+ otherid ,
+ name ,
+ rt ,
+ someint ,
+ someotherint ,
+ sequence ,
+ mybefore ,
+ myafter ,
+ protein ,
+ morert ,
+ d1 ,
+ d2 ,
+ d3 ,
+ d4 ,
+ d5 ,
+ d6 
+)
+SET exp_key = 50205
+;
+
+
+
+drop table tmp_tppsearch_analysis ; 
+create table tmp_tppsearch_analysis as 
+select name, sequence,
+@common_name := LEFT(name,  INSTR( name, '.') - 1) as common_name,
+# length(@common_name) - locate("_", reverse(@common_name)) as acs,
+@contfrac := LEFT(@common_name, length(@common_name) - locate("_", reverse(@common_name)) ) as contains_frag,
+RIGHT(@contfrac, locate("_", reverse(@contfrac))-1  ) as fraction , 
+#
+LEFT( 
+       RIGHT(@common_name, locate("_", reverse(@common_name))-1 ) , 
+INSTR( RIGHT(@common_name, locate("_", reverse(@common_name))-1 ), '-')-1 )
+as sds,
+RIGHT(@common_name,  1) as replicate
+from hroest.tppsearchresults 
+# where sequence = 'AAAAAAAAK'
+#limit 10;
+group by fraction, sds, replicate, sequence
+;
+
+alter table tmp_tppsearch_analysis add index(fraction);
+alter table tmp_tppsearch_analysis add index(sds);
+alter table tmp_tppsearch_analysis add index(replicate);
+alter table tmp_tppsearch_analysis add index(sequence);
+
+select * from tmp_tppsearch_analysis  a
+inner join manndata_lfq_filemapping map on  map.file = a.common_name
+limit 1;
+
+drop table tmp_tppsearch_analysis_2 ;
+create table tmp_tppsearch_analysis_2 as
+select count(*) as obs, sequence, fraction, sds, map.id as file
+from tmp_tppsearch_analysis a
+inner join manndata_lfq_filemapping map on map.file = CONCAT(CONCAT(a.contains_frag,'_'), sds)
+group by sequence, fraction, sds;
+
+alter table tmp_tppsearch_analysis_2 add index(fraction);
+alter table tmp_tppsearch_analysis_2 add index(file);
+alter table tmp_tppsearch_analysis_2 add index(sds);
+alter table tmp_tppsearch_analysis_2 add index(sequence);
+
+select * from  tmp_tppsearch_analysis_2 limit 10;
+
+
+
+
+
+
+'NDLLANIVLNSTAFENR',
+'YVFGLEFLR',
+'TGTLTENVMTVVR',
+'LSLGLQPGELQYLR',
+'TETALLSLAR',
+'LFGYESNSLFK',
+'GLILDGLLGIQDPLR',
+'LLVETLK',
+'SFLQLVWAAFNDK'
+
+
+
+
+

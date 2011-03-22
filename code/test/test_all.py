@@ -1,6 +1,6 @@
 import unittest
 import test_rangetree, test_cgetnonuis, test_collider, test_db
-import test_extra
+import test_extra, test_integrated
 
 
 
@@ -23,6 +23,7 @@ db_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_db.Test_collider_
 db_tests.addTests( sharedtestloader.loadTestsFromTestCase(test_db.Test_collider_sqlite))
 
 alltests.addTests( sharedtestloader.loadTestsFromTestCase(test_extra.Test_fragmentation))
+alltests.addTests( sharedtestloader.loadTestsFromTestCase(test_integrated.Test_cintegrated))
 alltests.addTests( independent_tests )
 alltests.addTests( db_tests )
 

@@ -24,6 +24,264 @@ class Test_collider_mysql(unittest.TestCase):
 
         self.db = MySQLdb.connect(read_default_file="~/.my.cnf")
 
+        class Minimal: 
+            def get_q3_window_transitions(self, q3):
+                if self.ppm: return [q3 - self.q3_window * 10**(-6) *q3, q3 + self.q3_window * 10**(-6) * q3]
+                else: return [q3 - self.q3_window, q3 + self.q3_window]
+
+        self.par = Minimal()
+        self.par.q3_window = 4.0
+        self.par.ppm = False
+        self.MAX_UIS = 5
+        self.q3_high = 1500
+        self.q3_low = 300
+
+        self.par.q1_window = 1.2 / 2.0
+        self.par.ssrcalc_window = 9999
+        self.par.query2_add = ''
+        self.par.peptide_table = 'hroest.srmPeptides_human'
+        self.par.transition_table = 'hroest.srmTransitions_human'
+        self.par.print_query = False
+        self.par.select_floor = False
+
+
+        def returnrange(): return self.q3_low, self.q3_high
+        self.par.get_q3range_collisions = returnrange
+        #self.par.get_q3_window_transitions = get_q3_window_transitions
+        #self.par.get_q3_window_transitions = collider.SRM_parameters.get_q3_window_transitions
+
+        import sys
+        sys.path.append( '/home/hroest/projects/' )
+        sys.path.append( '/home/hroest/lib/' )
+        import silver
+        self.R = silver.Residues.Residues('mono')
+
+        self.acollider = collider.SRMcollider()
+        self.aparamset = collider.testcase()
+
+    def _reducecollisionstoperpep(self, transitions, collisions, par):
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in transitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: 
+                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
+        return collisions_per_peptide
+
+    def test_get_all_precursors1(self): 
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+
+        cursor = self.db.cursor()
+        myprec = collider.SRMcollider()._get_all_precursors(par, pep, cursor)
+        myprec = list(myprec)
+        precursors.sort( lambda x,y: -cmp(x[1], y[1]) )
+        myprec.sort( lambda x,y: -cmp(x[1], y[1]) )
+
+        self.assertEqual( myprec, precursors)
+
+    def test_get_all_precursors2(self): 
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+
+        cursor = self.db.cursor()
+        myprec = collider.SRMcollider()._get_all_precursors(par, pep, cursor)
+        myprec = list(myprec)
+        precursors.sort( lambda x,y: -cmp(x[1], y[1]) )
+        myprec.sort( lambda x,y: -cmp(x[1], y[1]) )
+
+        self.assertEqual( myprec, precursors)
+
+    def test_get_all_collisions_calculate1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        cursor = self.db.cursor()
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate(
+                collider.SRMcollider(), par, pep, cursor))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_get_all_collisions_calculate2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        cursor = self.db.cursor()
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate(
+                collider.SRMcollider(), par, pep, cursor))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
+    def test_get_all_collisions1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        cursor = self.db.cursor()
+
+        collisions = list(collider.SRMcollider._get_all_collisions(
+                collider.SRMcollider(), par, pep, cursor))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+        #now test the with transitions fxn
+        collisions = list(collider.SRMcollider._get_all_collisions(
+                collider.SRMcollider(), par, pep, cursor, transitions=transitions))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_get_all_collisions2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        cursor = self.db.cursor()
+
+        collisions = list(collider.SRMcollider._get_all_collisions(
+                collider.SRMcollider(), par, pep, cursor))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+        #now test the with transitions fxn
+        collisions = list(collider.SRMcollider._get_all_collisions(
+                collider.SRMcollider(), par, pep, cursor, transitions=transitions))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
+    def test_get_all_collisions_pertr1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        cursor = self.db.cursor()
+
+        collisions = list(collider.SRMcollider._get_all_collisions_per_transition(
+                collider.SRMcollider(), par, pep, transitions, cursor))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_get_all_collisions_pertr2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        cursor = self.db.cursor()
+
+        collisions = list(collider.SRMcollider._get_all_collisions_per_transition(
+                collider.SRMcollider(), par, pep, transitions, cursor))
+        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
+    def test_get_coll_per_peptide(self): 
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        cursor = self.db.cursor()
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor, do_not_calculate=True)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor, forceNonCpp=True)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_get_coll_per_peptide2(self): 
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        cursor = self.db.cursor()
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor, do_not_calculate=True)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor, forceNonCpp=True)
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
+    def test_get_coll_per_peptide_debug(self): 
+        """This is a small example with very few interferences, 
+        good to debug"""
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        self.par.q3_window = 0.1 / 2.0
+        self.par.q1_window = 0.1 / 2.0
+        self.par.ssrcalc_window = 2.0 / 2.0 
+        self.par.query2_add = ''
+        self.par.peptide_table = 'hroest.srmPeptides_human'
+        self.par.print_query = False
+
+        # Our q1 from peptide 'ELNQLEDK' is 494.751462374, the q1 of the
+        # interfering NISVAEVEK is 494.769652374
+        #
+        # Our 5 transitions from peptide 'ELNQLEDK' are
+        # [3, 5, 6, 9, 14]
+        # [(504.26693971600002, 3), (357.17740503200002, 5), (485.23598503200003,
+        #   6), (842.38957503200004, 9), (421.69870003200003, 14)]
+        # The 5 transitions of the interfering peptide are
+        #
+        # 21406312 |   359414 |  1 | 504.266939716 | y4 | 
+        # 21406339 |   359414 |  2 | 357.195595032 | b7 | 
+        # 21406321 |   359414 |  1 | 485.272365032 | b5 | 
+        # 21406324 |   359414 |  1 | 842.425955032 | b8 | 
+        # 21406340 |   359414 |  2 | 421.716890032 | b8 | 
+        #
+
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        cursor = self.db.cursor()
+        collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
+           transitions, par, pep, cursor)
+        self.assertEqual(59, len(collisions_per_peptide))
+        self.assertEqual(19, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 1]))
+        self.assertEqual(25, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 2]))
+        self.assertEqual(6, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 3]))
+        self.assertEqual(8, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 4]))
+        self.assertEqual(1, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 5]))
+        self.assertEqual(0, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 6]))
+
+    #TODO also test uis option of clashes_small
     def test_1(self):
 
         par  = collider.testcase()
@@ -95,6 +353,7 @@ class Test_collider_sqlite(unittest.TestCase):
         try:
             import sqlite
             from sqlite import DatabaseError
+            self.database_available = True
         except ImportError:
             print """Module sqlite not available.
             
@@ -102,6 +361,7 @@ class Test_collider_sqlite(unittest.TestCase):
             Use the following command (on Ubuntu systems):
                 sudo apt-get install python-sqlite
             """
+            self.database_available = False
 
         try:
             #the database file must exist and the databases must be created
@@ -110,14 +370,18 @@ class Test_collider_sqlite(unittest.TestCase):
             cursor.execute("select count(*) from srmPeptides_test")
             #print cursor.fetchall()
         except DatabaseError:
+            print 
             print "=" * 75
             print """The sqlite database is not available.
             
             Please run the sqlite_setupdb.py script first."""
+            print "=" * 75
+            self.database_available = False
 
 
     def test_1(self):
 
+        if not self.database_available: return
         par = collider.testcase()
         par.quiet = True
         par.transition_table = 'srmTransitions_test'

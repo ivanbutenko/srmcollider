@@ -3,6 +3,7 @@ body {
    * create a dark brown background
   */
   background-color: #8B542B;
+  color: #801313; 
 } 
 
 div.whole {
@@ -16,3 +17,10 @@ div.whole {
 div.header {
     background: #D58440;
 }
+
+.navigation span a { color: #801313; }
+.active-nav a { background-color: #EADEAA; }
+.inactive-nav a { background-color: #D5A480; }
+.inactive-nav :hover { background-color: #EADEAA; }
+
+

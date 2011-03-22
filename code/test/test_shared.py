@@ -1,6 +1,24 @@
 #
 # vim:set fdm=marker:
 
+def ignoreImportError_rangetree(f):
+    def new(*args):
+        try:
+            import c_rangetree
+            return f(*args)
+        except ImportError: pass
+    return new
+
+def ignoreImportError_cget(f):
+    def new(*args):
+        try:
+            import c_getnonuis
+            return f(*args)
+        except ImportError: pass
+    return new
+
+
+
 #{{{
 #collisions
 #q3, q1, srm_id, peptide_key
@@ -226,6 +244,28 @@ lennonuis4 = [6 ,8 ,3 ,0 ,0]
 
 #}}}
 
+
+transitions_def5 = ( (500.0,1), 
+                (600,2), 
+                (700,3), 
+                (800,4), 
+                (900,5), 
+                (1000,6), 
+              )
+#peptide 201 is shares transitions 1-3,6 and 
+#peptide 202 is shares transitions 2-4
+#peptide 203 is shares transitions 4-6
+collisions_def5 = (  (500.4,400.0,101,201),
+                (600.6,400.0,102,201), 
+                (700.6,401.0,103,201),
+                (1000.7,400.0,106,201),
+                (600.6,401.0,104,202), 
+                (700.7,400.0,105,202),
+                (800.7,400.0,106,202),
+                (800.7,400.0,106,203),
+                (900.7,400.0,106,203),
+                (1000.7,400.0,106,203),
+             )
 #}}}
 
 #{{{ peptide 1

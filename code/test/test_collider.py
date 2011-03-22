@@ -1,12 +1,84 @@
 import unittest
 
 import sys
-sys.path.append( '..')
+sys.path.extend(['.', '..', '../extra/', 'extra/'])
 import collider
 
 from test_shared import *
 import test_shared 
+import time
 
+#
+# inc     means it is included in another test
+# nc      means non critical (print fxn etc)
+# db      means tested in test_db
+# OK      means tested here
+#
+###################################
+###################################
+#         def eval(self):
+#         def get_copy(self):
+#         def get_q3range_transitions(self):
+#         def get_q3range_collisions(self):
+#         def get_q3_window_transitions(self, q3):
+#         def get_common_filename(self):
+#         def transition_db(self): return self.transition_table.split('.')[0]
+#         def transition_tbl(self): return self.transition_table.split('.')[1]
+#         def peptide_db(self): return self.peptide_table.split('.')[0]
+#         def peptide_tbl(self): 
+#         def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
+#     
+#     
+# db      def find_clashes_small(self, db, par, use_per_transition=False,
+# db      def _get_all_precursors(self, par, pep, cursor, 
+# db      def _get_all_collisions_calculate(self, par, pep, cursor, 
+# OK      def _get_all_collisions_calculate_sub(self, precursors, R, q3_low, q3_high):
+# db      def find_clashes(self, db, par, toptrans=False, pepids=None, 
+#         def find_clashes_toptrans_paola(self, db, par,
+# OK      def _getMinNeededTransitions(self, par, transitions, collisions):
+#         def find_clashes_toptrans_3strike(self, db, par, pepids=None, 
+#         def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
+#         def _get_unique_pepids_toptransitions(self, par, cursor):
+#         def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
+#         def _get_all_transitions(self, par, pep, cursor, values = "q3, srm_id"):
+# db      def _get_all_collisions_per_transition(self, par, pep, transitions, cursor):
+# db      def _get_all_collisions(self, par, pep, cursor, 
+# incl     def _get_collisions_per_transition(self, par, pep, q3, cursor, 
+# nc      def store_object(self, par):
+# nc      def store_in_file(self, par):
+# nc      def load_from_file(self, par, directory):
+# nc      def print_unique_histogram(self, par):
+# nc      def print_cumm_unique(self, par):
+# nc      def print_cumm_unique_all(self, par, cursor):
+# nc          #def print_cumm_unique(self, par, mydist, filename):
+# nc      def print_q3min(self, par):
+# nc      def print_q3min_ppm(self, par):
+# nc      def print_q1all(self, par, bars = 50):
+# nc      def print_q3all_ppm(self, par, bars = 50):
+# nc      def print_stats(self):
+#     def get_cum_dist(original):
+# OK  def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
+# db def get_coll_per_peptide(self, transitions, par, pep):
+# OK  def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
+# OK  def get_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
+# nc  def get_peptide_from_table(t, row):
+# ??  def insert_peptide_in_db(self, db, peptide_table, transition_group):
+# ??  def get_actual_mass(self):
+# ??  def insert_in_db(self, db, fragment_charge, transition_table):
+# ??  def fast_insert_in_db(self, db, fragment_charge, transition_table, transition_group):
+# ??  def all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic, 
+# ??  def calculate_clashes_in_series_insert_db(S, S2, charge1, charge2, pairs_dic, 
+# ??  def reset_pairs_unique(mass_bins):
+# ??  def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic, 
+# inc def get_non_uis(pepc, non_uis, order):
+# inc def get_non_uis_unsorted(pepc, non_uis, order):
+# OK  def choose(i,r):
+# OK  def get_uis(srm_ids, non_uis, order):
+#     def permutations(iterable, r=None):
+#     def _permutations(iterable, r=None):
+# inc def _combinations(N, M):
+# OK  def combinations(iterable, r):
+#     
 class Test_collider_function(unittest.TestCase): 
 
     def setUp(self):
@@ -20,10 +92,107 @@ class Test_collider_function(unittest.TestCase):
         self.q3_high = 1500
         self.q3_low = 300
 
+        self.par.aions      = False
+        self.par.aMinusNH3  = False
+        self.par.bMinusH2O  = False
+        self.par.bMinusNH3  = False
+        self.par.bPlusH2O   = False
+        self.par.yMinusH2O  = False
+        self.par.yMinusNH3  = False
+        self.par.cions      = False
+        self.par.xions      = False
+        self.par.zions      = False
+
+
+        def returnrange(): return self.q3_high, self.q3_low
+        self.par.get_q3range_collisions = returnrange
+
         import sys
         sys.path.append( '/home/hroest/projects/' )
+        sys.path.append( '/home/hroest/lib/' )
         import silver
         self.R = silver.Residues.Residues('mono')
+
+        self.acollider = collider.SRMcollider()
+        self.aparamset = collider.testcase()
+
+    def test_getMinNeededTransitions_1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        par.max_uis = 15
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 8)
+
+        #now also test with lower q3 window
+        par.q3_window = 1.0
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 4)
+
+    def test_getMinNeededTransitions_2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        par.max_uis = len(transitions) +  1
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, -1)
+
+        #now also test with lower q3 window
+        par.q3_window = 1.0
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 6)
+
+    def test_getMinNeededTransitions_unit(self):
+        par = self.par
+        par.max_uis = 5
+        transitions = self.transitions
+        collisions = self.collisions
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, -1)
+
+        par.max_uis = 10 
+        transitions = transitions_def3
+        collisions = collisions_def3
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, -1)
+
+        transitions = transitions_def4
+        collisions = collisions_def4
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 4)
+
+        transitions = transitions_def5
+        collisions = collisions_def5
+        m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
+        self.assertEqual(m, 4)
+
+    def test_get_non_uis(self):
+        test = set()
+        collider.get_non_uis( [1,2,3], test,2 )
+        self.assertEqual(test, set([(1, 2), (1, 3), (2, 3)]) )
+        test = set()
+        collider.get_non_uis( [1,2,3,4], test,2 )
+        self.assertEqual(test, set([(1, 2), (1, 3), (1, 4), (2, 3), (3, 4), (2, 4)]))
 
     def test_get_non_UIS_from_transitions1(self): 
         oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions, self.collisions, 
@@ -117,7 +286,7 @@ class Test_collider_function(unittest.TestCase):
         R = self.R
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         collisions_per_peptide = {}
         q3_window_used = par.q3_window
         for t in transitions:
@@ -144,7 +313,7 @@ class Test_collider_function(unittest.TestCase):
         R = self.R
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         collisions_per_peptide = {}
         q3_window_used = par.q3_window
         for t in transitions:
@@ -168,10 +337,56 @@ class Test_collider_function(unittest.TestCase):
         uis_list = collider.get_uis(srm_ids, nonuis, order)
         self.assertEqual( len(uis_list), 0)
 
+    def test_choose(self): 
+        self.assertEqual(10,  collider.choose( 5,2) )
+        self.assertEqual(10,  collider.choose( 5,3) )
+        self.assertEqual(45,  collider.choose(10,2) )
+        self.assertEqual(120, collider.choose(10,3) )
+        self.assertEqual(210, collider.choose(10,4) )
 
+    def test_combinations(self):
+        comb52 = list(collider.combinations( range(5), 2 ) )
+        self.assertEqual(comb52, [
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (2, 3),
+            (2, 4),
+            (3, 4)
+        ])
+        comb53 = list(collider.combinations( range(5), 3 ) )
+        self.assertEqual( comb53, [
+            (0, 1, 2),
+            (0, 1, 3),
+            (0, 1, 4),
+            (0, 2, 3), 
+            (0, 2, 4),
+            (0, 3, 4),
+            (1, 2, 3),
+            (1, 2, 4),
+            (1, 3, 4),
+            (2, 3, 4)
+        ])
 
-
-
+    def test_combdifflen(self):
+        N = [3, 5]
+        result = list(collider._combinationsDiffLen(N) )
+        assert len(result) == 3*5
+        assert result == [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 0], [1, 1], [1, 2], [1, 3], [1, 4], [2, 0], [2, 1], [2, 2], [2, 3], [2, 4]]
+        #
+        N = [2, 2, 1]
+        result = list(collider._combinationsDiffLen(N) )
+        assert len(result) == 4
+        assert result == [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0]]
+        #
+        N = [3, 5, 9]
+        result = list(collider._combinationsDiffLen(N) )
+        assert len(result) == 3*9*5
+        assert result == [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 4], [0, 0, 5], [0, 0, 6], [0, 0, 7], [0, 0, 8], [0, 1, 0], [0, 1, 1], [0, 1, 2], [0, 1, 3], [0, 1, 4], [0, 1, 5], [0, 1, 6], [0, 1, 7], [0, 1, 8], [0, 2, 0], [0, 2, 1], [0, 2, 2], [0, 2, 3], [0, 2, 4], [0, 2, 5], [0, 2, 6], [0, 2, 7], [0, 2, 8], [0, 3, 0], [0, 3, 1], [0, 3, 2], [0, 3, 3], [0, 3, 4], [0, 3, 5], [0, 3, 6], [0, 3, 7], [0, 3, 8], [0, 4, 0], [0, 4, 1], [0, 4, 2], [0, 4, 3], [0, 4, 4], [0, 4, 5], [0, 4, 6], [0, 4, 7], [0, 4, 8], [1, 0, 0], [1, 0, 1], [1, 0, 2], [1, 0, 3], [1, 0, 4], [1, 0, 5], [1, 0, 6], [1, 0, 7], [1, 0, 8], [1, 1, 0], [1, 1, 1], [1, 1, 2], [1, 1, 3], [1, 1, 4], [1, 1, 5], [1, 1, 6], [1, 1, 7], [1, 1, 8], [1, 2, 0], [1, 2, 1], [1, 2, 2], [1, 2, 3], [1, 2, 4], [1, 2, 5], [1, 2, 6], [1, 2, 7], [1, 2, 8], [1, 3, 0], [1, 3, 1], [1, 3, 2], [1, 3, 3], [1, 3, 4], [1, 3, 5], [1, 3, 6], [1, 3, 7], [1, 3, 8], [1, 4, 0], [1, 4, 1], [1, 4, 2], [1, 4, 3], [1, 4, 4], [1, 4, 5], [1, 4, 6], [1, 4, 7], [1, 4, 8], [2, 0, 0], [2, 0, 1], [2, 0, 2], [2, 0, 3], [2, 0, 4], [2, 0, 5], [2, 0, 6], [2, 0, 7], [2, 0, 8], [2, 1, 0], [2, 1, 1], [2, 1, 2], [2, 1, 3], [2, 1, 4], [2, 1, 5], [2, 1, 6], [2, 1, 7], [2, 1, 8], [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 2, 3], [2, 2, 4], [2, 2, 5], [2, 2, 6], [2, 2, 7], [2, 2, 8], [2, 3, 0], [2, 3, 1], [2, 3, 2], [2, 3, 3], [2, 3, 4], [2, 3, 5], [2, 3, 6], [2, 3, 7], [2, 3, 8], [2, 4, 0], [2, 4, 1], [2, 4, 2], [2, 4, 3], [2, 4, 4], [2, 4, 5], [2, 4, 6], [2, 4, 7], [2, 4, 8]]
 
 
 if __name__ == '__main__':
