@@ -292,6 +292,85 @@ python::list _find_clashes_calculate_clashes(python::tuple precursors,
 
 
 
+
+/*
+ * Function to calculate the collision density out of a set of transitions
+ * and precursor peptides that are colliding peptides.
+ *
+ * It will return a
+ * dictionary where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held.
+ * Transitions are tuples of the form (q3, srm_id), precursors are tuples of
+ * the form (q1, sequence, peptide_key).
+ */
+python::list _find_clashes_calculate_colldensity(python::tuple transitions,
+    python::list precursors, double q3_low, double q3_high, double q3window,
+    bool ppm) {
+
+    python::dict collisions_per_peptide, tmpdict;
+    python::tuple clist;
+    python::tuple tlist;
+
+    python::list tmplist;
+
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int fragcount, i, j, k, ch;
+
+    double q3used = q3window;
+    char* sequence;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    int* cresult = new int[transitions_length];
+    for (i=0; i<transitions_length; i++) cresult[i] = 0;
+
+    double* tmptrans = new double[transitions_length];
+    double* tmpq3used = new double[transitions_length];
+    for (i=0; i<transitions_length; i++) {
+        tlist = python::extract< python::tuple >(transitions[i]);
+        //ppm is 10^-6
+        tmptrans[i] = python::extract< double >(tlist[0]);
+        if(ppm) {q3used = q3window / 1000000.0 * tmptrans[i]; } 
+        tmpq3used[i] =q3used;
+    }
+
+    // go through all (potential) collisions
+    // and store the colliding SRM ids in a dictionary (they can be found at
+    // position 3 and 1 respectively)
+    for (j=0; j<precursor_length; j++) {
+        clist = python::extract< python::tuple >(precursors[j]);
+        sequence = python::extract<char *>(clist[1]);
+
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+
+            for (i=0; i<transitions_length; i++) {
+
+                    // go through all fragments of this precursor
+                    for (k=0; k<fragcount; k++) {
+                        if(fabs(tmptrans[i]-y_series[k]) < tmpq3used[i]) cresult[i]++;
+                        if(fabs(tmptrans[i]-b_series[k]) < tmpq3used[i]) cresult[i]++; 
+                    }
+                } //loop over all transitions
+            }
+    } //end of loop over all precursors
+
+    delete [] b_series;
+    delete [] y_series;
+
+    python::list result;
+    for (i=0; i<transitions_length; i++) result.append( cresult[i] ) ;
+
+    delete [] cresult ;
+    delete [] tmptrans;
+    delete [] tmpq3used;
+    return result;
+}
+
+
+
 /*
  * Function to calculate the collisions_per_peptide out of a set of transitions
  * and precursor peptides that are colliding peptides.  It will return a
@@ -824,6 +903,8 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 
             
             );
+ def("calculate_density", _find_clashes_calculate_colldensity, "");
+
 }
 
 
