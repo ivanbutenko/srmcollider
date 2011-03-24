@@ -14,6 +14,7 @@ db = MySQLdb.connect("orl.ethz.ch", "srmcollider", "srmcollider", db="hroest")
 c = db.cursor()
 c2 = db.cursor()
 import collider
+import c_getnonuis
 
 #myCSVFile = '/nas/www/html/hroest/srmcollider.csv'
 myCSVFile = '/var/www/documents/srmcollider.csv'
@@ -57,8 +58,11 @@ myCSVFile_rel = '/../documents/srmcollider.csv'
 #        res.append( r)
 #    return t, res
 
-
 def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
+
+    q3_low = low
+    q3_high = high
+    cursor = db.cursor()
 
     #sanitize input
     import re
@@ -85,6 +89,7 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     else: print "Genome not recognized"; exit()
     #create the parameter object
     par = collider.SRM_parameters()
+    par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     par.q1_window = q1_w / 2.0
     par.q3_window = q3_w / 2.0
     par.ssrcalc_window = ssr_w / 2.0 
@@ -105,6 +110,206 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             exit()
 
     
+    ###########################################################################
+    ###########################################################################
+
+
+    ssr_query = """
+    select sequence, ssrcalc
+    from hroest.ssrcalc_pr_copy
+    where sequence in (%(seqs)s)
+    """ % { 'seqs' : seqs, }
+    cursor.execute( ssr_query )
+    pepmap = dict( cursor.fetchall() )
+    class Peak():
+        def __init__(self, t=None): 
+            if not t is None: 
+                self.transition = t
+
+    for s in input_sequences:
+        try: ssrcalc = pepmap[s]
+        except KeyError: ssrcalc = 25
+
+
+        import DDB
+
+        import silver
+        import DDB 
+        R = silver.Residues.Residues('mono')
+
+        peptide = DDB.Peptide()
+        peptide.set_sequence(s)
+        peptide.charge = 2
+        peptide.create_fragmentation_pattern(R)
+        b_series = peptide.b_series
+        y_series = peptide.y_series
+        peaks = [ ]
+
+        pcount = 0
+        for ch in [1]:
+            scount = 0
+            for pred in y_series:
+                scount += 1
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                if q3 < q3_low or q3 > q3_high: continue
+                p = Peak( [q3, pcount] ) 
+                p.annotation = 'y' + str(len(y_series) + 1 - scount) 
+                pcount += 1
+                peaks.append( p )
+            scount = 0
+            for pred in b_series:
+                scount += 1
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                # print "b" + str(scount)  + ' ' +  str(q3 ) +  "<br />"
+                if q3 < q3_low or q3 > q3_high: continue
+                p = Peak( [q3, pcount] ) 
+                p.annotation = 'b' + str(scount)
+                pcount += 1
+                peaks.append( p )
+
+        # print transitions
+        # print '===========================================================================<br />'
+        # print [ (p.transition[0], p.annotation) for p in peaks]
+        # #print s, nr_transitions, transitions
+
+        q1 = peptide.charged_mass #c_getnonuis.calculate_charged_mass(( 0, s, 0), 2)
+        transitions = c_getnonuis.calculate_transitions_ch(
+            ((q1, s, 1),), [1], q3_low, q3_high)
+        transitions = [ (p[0], i) for i,p in enumerate(transitions)]
+
+        # print transitions
+        # transitions = [tuple(p.transition) for p in peaks]
+        # print transitions
+        # print '===========================================================================<br />'
+
+
+        nr_transitions = len( transitions )
+        if nr_transitions == 0: continue #no transitions in this window
+
+
+        pep = {
+            'mod_sequence' : s,
+            'parent_id' :  -1,
+            'q1' :         q1,
+            'q1_charge' :  2,
+            'ssrcalc' :    ssrcalc,
+            'peptide_key' :-1,
+        }
+        precursors = mycollider._get_all_precursors(par, pep, cursor, 
+            values="q1, modified_sequence, peptide_key, q1_charge")
+        precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
+        precdic = dict( [ (p[2], p) for p in precursors] )
+
+        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
+            tuple(transitions), tuple(precursors),
+            q3_low, q3_high, par.q3_window, par.ppm)
+
+        useable = []
+        for peak in peaks: 
+            peak.test = 'asdf'
+            peak.collisions = 0
+            peak.collstring = ''
+            for c in collisions_per_peptide: 
+                if peak.transition[1] in collisions_per_peptide[c]:
+                    peak.collisions += 1
+                    peak.collstring += repr(precdic[c]) + '<br />'
+
+        print "<h2 id='%s'>Peptide %s</h2>" % (s, s)
+        print "<div class='pep_property'>"
+        print "<p>Q1: %s</p>" % pep['q1']
+        print "<p>SSRCalc: %s</p>" % round(pep['ssrcalc'], 2)
+        print "<p>Percent Useable: %d %%</p>" % (len([p for p in peaks if p.collisions == 0])*100.0 / len(transitions)  )
+        print "</div>"
+
+        print "<h3>Useable transitions</h3>"
+        print "<table class='tr_table'>"
+        print "<tr><td>Type</td> <td>Q3</td> </tr>"
+        for peak in [p for p in peaks if p.collisions == 0]: 
+            print "<tr><td>"
+            print peak.annotation
+            print "</td><td>"
+            print peak.transition[0]
+            print "</td><td>"
+        print "</table>"
+
+        print "<h3>Unuseable transitions (Collisions)</h3>"
+        print "<table class='col_table'>"
+        for peak in [p for p in peaks if p.collisions >0]: 
+        #for peak in peaks:
+            print "<tr><td>"
+            print peak.annotation
+            print peak.transition[0]
+            print "</td><td>"
+            print peak.collstring
+            print "</td></tr>"
+        print "</table>"
+
+        # min_needed = -1
+        # for j in range(par.max_uis,0,-1):
+        #     #take top j transitions
+        #     mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
+        #     unuseable = False
+        #     for k,v in collisions_per_peptide.iteritems():
+        #         if tuple(sorted(v)[:j]) == mytransitions:
+        #             unuseable=True
+        #     #if spectrum.name == 'HFIQEDAPDR/3': print j, min_needed, not unuseable
+        #     if not unuseable: min_needed = j
+
+
+        #  print len(precursors)
+        #  print '<br/>' 
+
+
+def main_slow(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
+
+    q3_low = low
+    q3_high = high
+    cursor = db.cursor()
+
+    #sanitize input
+    import re
+    seqs = "'"
+    input_sequences = []
+    for inp in myinput.split():
+        #only alphanumeric
+        sanitized = filter(str.isalnum, inp)
+        seqs += sanitized + "','"
+        input_sequences.append(sanitized)
+
+    seqs = seqs[:-2]
+
+    #figure out which db to use 
+    db_used = 'hroest'
+    if genome == 'yeast':
+        table_used =  'yeast'
+    elif genome == 'yeastN15':
+        table_used =  'yeastN15'
+    elif genome == 'mouse':
+        table_used =  'mouse'
+    elif genome == 'human':
+        table_used =  'human'
+    else: print "Genome not recognized"; exit()
+    #create the parameter object
+    par = collider.SRM_parameters()
+    par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
+    par.q1_window = q1_w / 2.0
+    par.q3_window = q3_w / 2.0
+    par.ssrcalc_window = ssr_w / 2.0 
+    par.ppm = False
+    par.considerIsotopes = True
+    par.q3_range = [low, high]
+    par.peptide_table = db_used + '.srmPeptides_' + table_used
+    par.transition_table = db_used + '.srmTransitions_' + table_used
+    par.eval()
+    extra_table = 'ddb.peptide'
+    mycollider = collider.SRMcollider()
+
+    if uis > 0:
+        print "<p>Calculated UIS for peptide %s" % myinput.split()[0]
+        print "<a href ='%s'>Download csv file with UIS</a></p>" % myUIS_CSVFile_rel
+        if uis >  5 or len( myinput.split() ) > 1:
+            print "Can only calculate up to order 5 and only 1 peptide"
+            exit()
 
     #get input transitions
     input_q  = """
@@ -392,6 +597,7 @@ if form.has_key('peptides'):
     #print peptides
     #peptides = myinput
     start = time.time()
+    main_slow( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
