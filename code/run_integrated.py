@@ -129,11 +129,6 @@ print "building tree with %s Nodes" % len(alltuples)
 c_integrated.create_tree(tuple(alltuples))
 #print "finished build tree : ", time.time() - start
 
-print "building tree with %s Nodes" % len(alltuples)
-c_rangetree.create_tree(tuple(alltuples))
-#print "finished build tree : ", time.time() - start
-
-
 self = mycollider
 self.mysqlnewtime = 0
 self.pepids = mypepids
@@ -164,48 +159,23 @@ for kk, pep in enumerate(self.pepids):
                          pep['peptide_key'],  min(MAX_UIS,nr_transitions) , 
                                    par.q3_window, #q3_low, q3_high,
                                    par.ppm )
-
-    for order in range(1, len(result)): 
+    for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (result[order], collider.choose(nr_transitions, 
             order), p_id , order, exp_key)  )
-    #print "That took " , time.time() - st
-    #print "0"*75
     progressm.update(1)
-    continue
-    newres = result
-    ##
-    ##
-    ##
-    ##
-
-    precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
-                                                 q1_high,  ssrcalc_high )  )
-    precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                        #dont select myself 
-                       if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
-    #
-    #now calculate coll per peptide the new way
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-        transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-    
-    non_uis_list = [{} for i in range(MAX_UIS+1)]
-    for order in range(1,MAX_UIS+1):
-        non_uis_list[order] = c_getnonuis.get_non_uis(
-            collisions_per_peptide, order)
-    #
-    for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
-        prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
-            order), p_id , order, exp_key) )
-    oldres = [len(non_uis_list[order]) for order in range(1,min(MAX_UIS+1, nr_transitions+1))]
-    #print oldres, newres
-    assert oldres == newres
-    fkey =  collisions_per_peptide.keys()[1]
-    #print "0"*75
-    #print 'fkey', fkey, collisions_per_peptide[fkey]
-
 
 print len(prepare)
-cursor.executemany('insert into hroest.result_srmuis (non_useable_UIS, total_UIS, \
+cursor.executemany('insert into hroest.result_completegraph (non_useable_UIS, total_UIS, \
                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 
 
+"""
+create table hroest.result_completegraph (
+exp_key          int(11),
+parent_key       int(11),
+non_useable_UIS  int(11),
+total_UIS        int(11),
+uisorder         int(4) 
+)
+
+"""

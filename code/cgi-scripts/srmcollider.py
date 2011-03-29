@@ -58,14 +58,17 @@ myCSVFile_rel = '/../documents/srmcollider.csv'
 #    return t, res
 
 
-def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
+def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
 
     #sanitize input
     import re
     seqs = "'"
-    for inp in input.split():
+    input_sequences = []
+    for inp in myinput.split():
         #only alphanumeric
-        seqs += filter(str.isalnum, inp)+ "','"
+        sanitized = filter(str.isalnum, inp)
+        seqs += sanitized + "','"
+        input_sequences.append(sanitized)
 
     seqs = seqs[:-2]
 
@@ -93,9 +96,9 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     mycollider = collider.SRMcollider()
 
     if uis > 0:
-        print "<p>Calculated UIS for peptide %s" % input.split()[0]
+        print "<p>Calculated UIS for peptide %s" % myinput.split()[0]
         print "<a href ='%s'>Download csv file with UIS</a></p>" % myUIS_CSVFile_rel
-        if uis >  5 or len( input.split() ) > 1:
+        if uis >  5 or len( myinput.split() ) > 1:
             print "Can only calculate up to order 5 and only 1 peptide"
             exit()
 
@@ -135,10 +138,10 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
 
     #print some links to csv file and input/output validation
     #print "<a href ='/../documents/srmcollider.csv'>Download csv file</a>"
-    unique = utils.unique(input.split() )
+    unique = utils.unique(myinput.split() )
     print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
     print "<br/>"
-    print "input: %s peptides" % (len( input.split() )) 
+    print "input: %s peptides" % (len( myinput.split() )) 
     print "<br/>"
     print "unique: %s peptides" % (len( unique )) 
     print "<br/>"
@@ -204,6 +207,7 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
         collisions= []
         non_unique = {}
         mysequence = pep['sequence']
+        pep['mod_sequence'] = pep['sequence']
         transitions = mycollider._get_all_transitions(par, pep, cursor, values="q3, srm_id, type, fragment_number")
         collisions = mycollider._get_all_collisions(par, pep, cursor, 
             values="q3, q1, srm_id, peptide_key, type, fragment_number, modified_sequence, ssrcalc, isotope_nr")
@@ -280,7 +284,7 @@ def main(input, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
 
     f.close()
 
-input = """
+myinput = """
 DDGSGVDIIDRPSMCLEYTTSK   
 DLEILPAGDLTEIGEK         
 AVGIGFIAVGIIGYAIK        
@@ -386,7 +390,7 @@ if form.has_key('peptides'):
     isotope = 3
     uis = int(form.getvalue('uis') )
     #print peptides
-    #peptides = input
+    #peptides = myinput
     start = time.time()
     main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)

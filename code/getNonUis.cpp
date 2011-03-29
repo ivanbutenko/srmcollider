@@ -141,6 +141,241 @@ python::dict _getnonuis_wrapper(python::tuple transitions,
     return collisions_per_peptide;
 }
 
+
+/* Input
+ * precursors: (q1, sequence, peptide_key)
+ *
+ * Function to calculate all transitions of a list of precursor peptides and
+ * allows to select the charge states of these precursors.
+ * Precursors are tuples of the form (q1, sequence, peptide_key).
+ * It will return a list of tuples that are of the form 
+ * (q3, q1, 0, peptide_key) 
+ */
+python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
+        python::list charges, double q3_low, double q3_high ) {
+
+    python::tuple clist;
+    python::list result;
+
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int charges_length = python::extract<int>(charges.attr("__len__")());
+    long peptide_key;
+    int ch, fragcount, k;
+    double q3, q1;
+    char* sequence;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    for (int i=0; i<precursor_length; i++) {
+        clist = python::extract< python::tuple >(precursors[i]);
+        q1 = python::extract< double >(clist[0]);
+        sequence = python::extract<char *>(clist[1]);
+        peptide_key = python::extract< long >(clist[2]);
+
+        for (int kk=0; kk<charges_length; kk++) {
+            ch = python::extract< int >(charges[kk]);
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+            // go through all fragments of this precursor
+            for (k=0; k<fragcount; k++) {
+                q3 = y_series[k];
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+            for (k=0; k<fragcount; k++) {
+                q3 = b_series[k];
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+        }
+    }
+
+    delete [] b_series;
+    delete [] y_series;
+
+    return result;
+}        
+
+
+
+double calculate_charged_mass(python::tuple clist, int ch) {
+
+    double charged_mass;
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    char* sequence = python::extract<char *>(clist[1]);
+    int fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+
+    //In order to get the full mass, we need the "last" element of the b-series
+    //(which is not technically part of the b series) and add water as well as
+    //protons according to the charge to it. Then, the fragment has to be
+    //divided by the charge.
+    charged_mass = (b_series[fragcount] + MASS_H*ch + MASS_OH ) /ch  ;
+
+    delete [] b_series;
+    delete [] y_series;
+
+    return charged_mass;
+}        
+
+
+
+/* Input
+ * precursors: (q1, sequence, peptide_key)
+ *
+ * Function to calculate all transitions of a list of precursor peptides.
+ * Precursors are tuples of the form (q1, sequence, peptide_key).
+ * It will return a list of tuples that are of the form 
+ * (q3, q1, 0, peptide_key) 
+ */
+python::list _find_clashes_calculate_clashes(python::tuple precursors,
+        double q3_low, double q3_high ) {
+
+    python::tuple clist;
+    python::list result;
+
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    long peptide_key;
+    int ch, fragcount, k;
+    double q3, q1;
+    char* sequence;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    for (int i=0; i<precursor_length; i++) {
+        clist = python::extract< python::tuple >(precursors[i]);
+        q1 = python::extract< double >(clist[0]);
+        sequence = python::extract<char *>(clist[1]);
+        peptide_key = python::extract< long >(clist[2]);
+
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+            // go through all fragments of this precursor
+            for (k=0; k<fragcount; k++) {
+                q3 = y_series[k];
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+            for (k=0; k<fragcount; k++) {
+                q3 = b_series[k];
+                if (q3 > q3_low && q3 < q3_high)
+                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
+            }
+        }
+    }
+
+    /*
+     * Python code
+     *
+
+        for c in self.__get_all_precursors(par, pep, cursor, values=values):
+            q1 = c[0]
+            peptide_key = c[2]
+            peptide = DDB.Peptide()
+            peptide.set_sequence(c[1])
+            peptide.charge = c[3]
+            peptide.create_fragmentation_pattern(R)
+            b_series = peptide.b_series
+            y_series = peptide.y_series
+            for ch in [1,2]:
+                for pred in y_series:
+                    q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    if q3 < q3_low or q3 > q3_high: continue
+                    yield (q3, q1, 0, peptide_key)
+                for pred in b_series:
+                    q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    if q3 < q3_low or q3 > q3_high: continue
+                    yield (q3, q1, 0, peptide_key)
+    */
+    delete [] b_series;
+    delete [] y_series;
+
+    return result;
+}        
+
+
+
+
+/*
+ * Function to calculate the collision density out of a set of transitions
+ * and precursor peptides that are colliding peptides.
+ *
+ * It will return a
+ * dictionary where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held.
+ * Transitions are tuples of the form (q3, srm_id), precursors are tuples of
+ * the form (q1, sequence, peptide_key).
+ */
+python::list _find_clashes_calculate_colldensity(python::tuple transitions,
+    python::list precursors, double q3_low, double q3_high, double q3window,
+    bool ppm) {
+
+    python::dict collisions_per_peptide, tmpdict;
+    python::tuple clist;
+    python::tuple tlist;
+
+    python::list tmplist;
+
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int fragcount, i, j, k, ch;
+
+    double q3used = q3window;
+    char* sequence;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    int* cresult = new int[transitions_length];
+    for (i=0; i<transitions_length; i++) cresult[i] = 0;
+
+    double* tmptrans = new double[transitions_length];
+    double* tmpq3used = new double[transitions_length];
+    for (i=0; i<transitions_length; i++) {
+        tlist = python::extract< python::tuple >(transitions[i]);
+        //ppm is 10^-6
+        tmptrans[i] = python::extract< double >(tlist[0]);
+        if(ppm) {q3used = q3window / 1000000.0 * tmptrans[i]; } 
+        tmpq3used[i] =q3used;
+    }
+
+    // go through all (potential) collisions
+    // and store the colliding SRM ids in a dictionary (they can be found at
+    // position 3 and 1 respectively)
+    for (j=0; j<precursor_length; j++) {
+        clist = python::extract< python::tuple >(precursors[j]);
+        sequence = python::extract<char *>(clist[1]);
+
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+
+            for (i=0; i<transitions_length; i++) {
+
+                    // go through all fragments of this precursor
+                    for (k=0; k<fragcount; k++) {
+                        if(fabs(tmptrans[i]-y_series[k]) < tmpq3used[i]) cresult[i]++;
+                        if(fabs(tmptrans[i]-b_series[k]) < tmpq3used[i]) cresult[i]++; 
+                    }
+                } //loop over all transitions
+            }
+    } //end of loop over all precursors
+
+    delete [] b_series;
+    delete [] y_series;
+
+    python::list result;
+    for (i=0; i<transitions_length; i++) result.append( cresult[i] ) ;
+
+    delete [] cresult ;
+    delete [] tmptrans;
+    delete [] tmpq3used;
+    return result;
+}
+
+
+
 /*
  * Function to calculate the collisions_per_peptide out of a set of transitions
  * and precursor peptides that are colliding peptides.  It will return a
@@ -385,6 +620,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
 
             
             );
-    def ("thirdstrike", thirdstrike);
+ def("calculate_density", _find_clashes_calculate_colldensity, "");
 }
 
