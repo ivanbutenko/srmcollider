@@ -236,13 +236,42 @@ for spectrum in library:
     transitions = [ (p.peak, i) for i,p in enumerate(peaks)]
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
+    #
     precursors = mycollider._get_all_precursors(par, pep, cursor)
     precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
     R = silver.Residues.Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
-    collisions = list( mycollider._get_all_collisions_calculate_sub(precursors, par, R, q3_low, q3_high) )
-    min_needed = mycollider._getMinNeededTransitions(par, transitions, collisions)
-    mycollider.min_transitions.append( [spectrum.name, min_needed] )
+    #
+    # check for q3_low and q3_high values, if the transitions are outside this
+    # range, we will not find collisions for those == incorrect results
+    #
+    for t in transitions: 
+        if t[0] < q3_low or t[0] > q3_high:
+            err = "\n"+ "Error: Found transition %s out of range\n" % t[0] + \
+            "Please adjust the --q3_low and --q3_high parameters to get correct results\n"
+            print err
+            sys.stderr.write(err) 
+            sys.exit()
+    #
+    if False:
+        collisions = list( mycollider._get_all_collisions_calculate_sub(precursors, par, R, q3_low, q3_high) )
+        min_needed = mycollider._getMinNeededTransitions(par, transitions, collisions)
+    if True:
+        import c_getnonuis
+        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(tuple(transitions), tuple(precursors),
+            q3_low, q3_high, par.q3_window, par.ppm)
+        min_needed = -1
+        for j in range(par.max_uis,0,-1): 
+            #take top j transitions
+            mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
+            unuseable = False
+            for k,v in collisions_per_peptide.iteritems():
+                if tuple(sorted(v)[:j]) == mytransitions: 
+                    unuseable=True
+            #if spectrum.name == 'HFIQEDAPDR/3': print j, min_needed, not unuseable
+            if not unuseable: min_needed = j
+    #
+    mycollider.min_transitions.append( [spectrum.name, min_needed, nr_transitions] )
     if min_needed != -1: mycollider.minstats[ min_needed ] += 1
     spectrum.min_needed = min_needed
     end = time.time()
