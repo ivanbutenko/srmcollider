@@ -18,20 +18,38 @@ import DDB
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
         " *      spectrallibrary: path to library WITHOUT the splib ending\n" +\
-        " *      backgroundorganism: e.g. 'yeast' or 'human', others need to be requested "
+        " *      backgroundorganism: e.g. 'yeast' or 'human', others need to be requested " +\
+        "\n" + \
+        "This program overrides the options --q3_low and --q3_high default values" + \
+        "with values of 0 to "
+
+    
 parser = OptionParser(usage=usage)
 
 group = OptionGroup(parser, "Spectral library Options", "")
 group.add_option("--safety", dest="safetytransitions", default=3, type="float",
                   help="Number of transitions to add above the absolute minimum. " + 
                   "Defaults to 3" , metavar='3')
-group.add_option("-f", "--file", dest="outfile", default='outfile',
+group.add_option("-f", "--file", dest="outfile", default='outfile', metavar='out',
                   help="Output file"   )
-group.add_option("--mapfile", dest="pepmapfile", default='',
+group.add_option("--mapfile", dest="pepmapfile", default='', metavar='File',
                   help="Text file with one sequence and SSRCalc value per line"   )
 group.add_option("--csv", dest="csv", default=False, action='store_true',
-                  help="File given by first option is a mprophet style csv file")
+                  help="""The file passed as the first option is a mprophet style csv file
+ The format is a header row which MUST contain the following fields:
+ 'ModifiedSequence',
+ 'PrecursorCharge',
+ 'PeptideSequence',
+ 'PrecursorMz',
+ 'LibraryIntensity',
+ 'ProductMz'.
+All other fields are ignored.
+"""
+                )
 parser.add_option_group(group)
+
+
+
 
 #parameters evaluation
 parameters = collider.SRM_parameters()
@@ -94,7 +112,8 @@ else:
     print ' '*5, 'Using csv file library: %s' % csvfile
     print ' '*5, 'Using background organism: %s' % args[1]
 
-    #another way to do it, parsing csv files
+    # some dummy classes that can do the same thing as the spectral library
+    # classes
     class Peak():
         def __init__(self): pass
 
@@ -107,7 +126,6 @@ else:
         def get_peaks(self):
             return self.peaks
 
-    #r = csv.reader( open('/IMSB/users/hroest/mprophet.txt', 'rU') , delimiter='\t') 
     r = csv.reader( open(csvfile, 'rU') , delimiter='\t') 
     header = r.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
@@ -168,10 +186,13 @@ if len(seqdic) > len(pepmap):
     print "If you want to use SSRCalc predictions, please provide a file with SSRCalc values."
     print "Otherwise your results will be wrong because you are missing some SSRcalc values."
 
-if par.max_uis == 0:
-    print "max uis needs to be larger than 0"
-    sys.exit()
 
+
+if par.max_uis == 0:
+    err = "Error: --max_uis needs to be larger than 0"
+    print err
+    sys.stderr.write(err) 
+    sys.exit()
 
 parameters.aions      =  True
 parameters.aMinusNH3  =  True
@@ -234,8 +255,15 @@ for i,v in enumerate(mycollider.minstats):
     print "Peptides needing %s transitions: " % i, v
     sumtrans += i*v
 
-not_observeable = len( [0 for a,b in mycollider.min_transitions if b == -1])
-print "Peptides not possible to observe (too few transitions): " ,  not_observeable
+not_observeable = len( [0 for a,b,c in mycollider.min_transitions if b == -1])
+print "Peptides not possible to observe (too few transitions): ",  not_observeable
+"""
+for n,m in  [(a,b) for a,b in mycollider.min_transitions if b == -1]:
+    print n
+"""
+import numpy
+a, b = numpy.histogram([c for a,b,c in mycollider.min_transitions if b == -1], 10, (0,10) )
+print a, b
 
 print "Minimal number of transitions needed to measure these %s peptides:" % (icount - not_observeable), sumtrans
 
