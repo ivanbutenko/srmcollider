@@ -701,7 +701,7 @@ class SRMcollider(object):
 
     def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
         query = """
-        select parent_id, q1, q1_charge, ssrcalc, peptide.id, sequence
+        select parent_id, q1, q1_charge, ssrcalc, peptide.id, modified_sequence
          from %s
          inner join
          ddb.peptide on peptide.id = %s.peptide_key
@@ -711,7 +711,7 @@ class SRMcollider(object):
         """ % (par.peptide_table, par.peptide_table, par.query_add )
         if ignore_genomeoccurence:
             query = """
-            select parent_id, q1, q1_charge, ssrcalc, peptide_key
+            select parent_id, q1, q1_charge, ssrcalc, peptide_key, modified_sequence
              from %s
              where 4 = 4
              %s
