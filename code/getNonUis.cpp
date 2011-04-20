@@ -35,6 +35,7 @@
 
 //include our own libraries
 #include "srmcollider.h"
+#include "srmcolliderLib.cpp"
 
 // Function declarations
 

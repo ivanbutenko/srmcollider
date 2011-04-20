@@ -52,25 +52,20 @@ setup(name="srmcollider",
     requires=["MySQLdb", "sqlite"],
 
     ext_modules=[
-        #order is important, need the library first
-        Extension("libsrmcolliderLib", ["srmcolliderLib.cpp"],
-            libraries = ["boost_python" ]),
         Extension("c_combinations", ["combinations.cpp"],
             libraries = ["boost_python"]),
         Extension("c_getnonuis", ["getNonUis.cpp"], 
                   include_dirs=["./"],
                   library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/" ],
                   runtime_library_dirs=["./", "../"],
-                  depends=["srmcolliderLib.cpp"],
-            libraries = ["boost_python", "srmcolliderLib"]),
+            libraries = ["boost_python"]),
         Extension("c_rangetree", ["rangetree.cpp"],
             libraries = ["boost_python", "CGAL"]),
         Extension("c_integrated", ["integratedrun.cpp"], 
                   include_dirs=["./"],
                   library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/" ],
                   runtime_library_dirs=["./", "../"],
-                  depends=["srmcolliderLib.cpp"],
-            libraries = ["boost_python", "CGAL", 'srmcolliderLib']),
+            libraries = ["boost_python", "CGAL"]),
     ],
      ) 
 
