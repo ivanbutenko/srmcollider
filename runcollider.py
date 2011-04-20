@@ -233,8 +233,6 @@ if use_experimental_height:
 ###########################################################################
 
 mycollider = collider.SRMcollider()
-mycollider.min_transitions = []
-
 pepmap = {}
 seqs = ''
 seqdic = {}
@@ -295,9 +293,6 @@ parameters.zions      =  True
 
 
 progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
-#mycollider.minstats = [0 for i in range(par.max_uis+1)]
-#mycollider.persequence = dict([ (s, []) for s in seqdic])
-#mycollider.peptides = dict([ (s, []) for s in seqdic])
 for counter,spectrum in enumerate(library):
     spectrum.score = -99
     spectrum.min_needed = -1
@@ -359,60 +354,12 @@ for counter,spectrum in enumerate(library):
                 if len(non_uis) < mymax: break
             if len(non_uis) < mymax: min_needed  = order
             else: min_needed = -1
-    #mycollider.min_transitions.append( [spectrum.name, min_needed, nr_transitions] )
     spectrum.score = min_needed * nr_transitions
     spectrum.min_needed = min_needed
     if min_needed != -1: spectrum.score = nr_transitions - min_needed
-    #    #mycollider.minstats[ min_needed ] += 1
-    #    #mycollider.persequence[ spectrum.sequence ].append( spectrum.score)
-    #mycollider.peptides[ spectrum.sequence ].append( spectrum )
     end = time.time()
     if not par.quiet: progressm.update(1)
 
-
-sys.exit()
-
-if False:
-    print '\n'
-    print numpy.histogram([s.score for s in library if s.score > -99], 20, (-10,10) )
-    print mycollider.persequence
-    mycollider.persequenceminstats = [0 for i in range(par.max_uis+1)]
-    for k,v in mycollider.persequence.iteritems():
-        if len(v) == 0: continue
-        #print k, min(v)
-        mycollider.persequenceminstats[ min(v) ] += 1
-
-    mycollider.perprotein = [0 for i in range(par.max_uis+1)]
-    try: 
-        proteins = {}
-        for spectrum in library:
-            #print spectrum.protein
-            if spectrum.min_needed == -1: continue
-            if proteins.has_key( spectrum.protein ): proteins[spectrum.protein].append( spectrum.score )
-            else: proteins[ spectrum.protein ]  = [ spectrum.score]
-        for k,v in proteins.iteritems():
-            if len(v) == 0: continue
-            #print k, min(v)
-            mycollider.perprotein[ min(v) ] += 1
-
-    except Exception: pass
-    # print mycollider.persequenceminstats
-    # print sum(mycollider.persequenceminstats)
-    # print len(seqdic) - sum(mycollider.persequenceminstats)
-
-    #write report
-    sumtrans = 0
-    for i,v in enumerate(mycollider.minstats):
-        print "Precursors needing %s transitions: " % i, v, \
-                '\t(Peptides %s)' % mycollider.persequenceminstats[i], \
-                '\t(Proteins %s)' % mycollider.perprotein[i]
-        sumtrans += i*v
-
-    not_observeable = len( [0 for a,b,c in mycollider.min_transitions if b == -1])
-    print "Precursors not possible to observe (too few transitions): ",  not_observeable
-    print "Proteins not possible to observe (too few transitions): ",  \
-            len(dict( [(s.protein,0) for s in library])) - sum( mycollider.perprotein)
-    print "Peptides not possible to observe (too few transitions): ",  len(seqdic) - sum(mycollider.persequenceminstats)
 
 
 if not use_experimental_height:
@@ -497,16 +444,6 @@ else:
                 '\t(Proteins %s)' % mycollider.perprotein[i]
         sumtrans += i*mycollider.perprecursor[i]
 
-    # not_observeable = len( [0 for a,b,c in mycollider.min_transitions if b == -1])
-    # print "Precursors not possible to observe (too few transitions): %s / %s" % (
-    #   len([s for s in library if s.score < 0]) , len(library))
-    # print "Peptides not possible to observe (too few transitions): %s / %s" % (
-    #         len(peptides)- sum( mycollider.perpeptide), len(peptides) )
-    # print "Proteins not possible to observe (too few transitions): %s / %s" % (
-    #         len(proteins)- sum( mycollider.perprotein), len(proteins) )
-
-    # #print "Peptides not possible to observe (too few transitions): ",  len(seqdic) - sum(mycollider.persequenceminstats)
-
     measured_precursors = len([s for s in library 
         if s.peaks[0].__dict__.has_key('measured')])
     measured_peptides = len(dict( [(s.sequence,0) for s in library 
@@ -536,14 +473,3 @@ for spectrum in library:
 f.close()
 print "Wrote transition list into file ", outfile
 
-
-
-"""
-
-drop table hroest.ssrcalc_pr_copy ;
-create table 
-hroest.ssrcalc_pr_copy as
-select * from compep.ssrcalc_prediction;
-alter table hroest.ssrcalc_pr_copy add index(sequence);
-
-"""
