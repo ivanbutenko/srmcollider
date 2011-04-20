@@ -51,6 +51,16 @@ class SRM_parameters(object):
         self.print_query = False
         #self.select_floor = False
         self.quiet = False
+        self.aions      =  False
+        self.aMinusNH3  =  False
+        self.bMinusH2O  =  False
+        self.bMinusNH3  =  False
+        self.bPlusH2O   =  False
+        self.yMinusH2O  =  False
+        self.yMinusNH3  =  False
+        self.cions      =  False
+        self.xions      =  False
+        self.zions      =  False
 
     def parse_cmdl_args(self, parser):
         from optparse import OptionGroup
@@ -691,7 +701,7 @@ class SRMcollider(object):
 
     def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
         query = """
-        select parent_id, q1, q1_charge, ssrcalc, peptide.id
+        select parent_id, q1, q1_charge, ssrcalc, peptide.id, sequence
          from %s
          inner join
          ddb.peptide on peptide.id = %s.peptide_key
@@ -715,7 +725,8 @@ class SRMcollider(object):
                 'q1' :         r[1],
                 'q1_charge' :  r[2],
                 'ssrcalc' :    r[3],
-                'peptide_key' :r[4]
+                'peptide_key' :r[4],
+                'mod_sequence':r[5],
             }
             for r in res
         ]

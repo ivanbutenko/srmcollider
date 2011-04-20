@@ -2,6 +2,7 @@ import unittest
 
 import sys
 sys.path.append( '..')
+sys.path.append( '../extra')
 import collider
 
 from test_shared import *
@@ -30,6 +31,16 @@ class Test_cintegrated(unittest.TestCase):
         self.MAX_UIS = 5
         self.q3_high = 1500
         self.q3_low = 300
+        self.par.aions      =  False
+        self.par.aMinusNH3  =  False
+        self.par.bMinusH2O  =  False
+        self.par.bMinusNH3  =  False
+        self.par.bPlusH2O   =  False
+        self.par.yMinusH2O  =  False
+        self.par.yMinusNH3  =  False
+        self.par.cions      =  False
+        self.par.xions      =  False
+        self.par.zions      =  False
 
         def returnrange(): return self.q3_high, self.q3_low
         self.par.get_q3range_collisions = returnrange
@@ -55,7 +66,7 @@ class Test_cintegrated(unittest.TestCase):
         par.max_uis = 15
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 8)
 
@@ -66,7 +77,7 @@ class Test_cintegrated(unittest.TestCase):
         #now also test with lower q3 window
         par.q3_window = 1.0
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 4)
 
@@ -87,9 +98,10 @@ class Test_cintegrated(unittest.TestCase):
         par.max_uis = len(transitions) +  1
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
-        self.assertEqual(m, 16)
+        #negative result, the transitions are not sufficient
+        self.assertEqual(m, -1)
 
         m = c_integrated.getMinNeededTransitions(transitions, tuple(precursors), 
             par.max_uis, par.q3_window, par.ppm)
@@ -98,7 +110,7 @@ class Test_cintegrated(unittest.TestCase):
         #now also test with lower q3 window
         par.q3_window = 1.0
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 6)
 

@@ -3,6 +3,7 @@ import unittest
 
 import sys
 sys.path.append( '..')
+sys.path.append( '../extra')
 import collider
 
 import test_shared 
