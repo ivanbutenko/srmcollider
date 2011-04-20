@@ -1,20 +1,12 @@
 #!/usr/bin/python
 import MySQLdb, time, sys
 from string import Template
-import numpy
-sys.path.append( '/IMSB/users/hroest/projects')
-sys.path.append( '/IMSB/users/hroest/projects/hlib')
-sys.path.append( '/IMSB/users/hroest/projects/msa/code/')
-sys.path.append( '/IMSB/users/hroest/projects/srm_clashes/code/')
+import numpy, csv
+sys.path.extend(['/IMSB/users/hroest/projects', '/IMSB/users/hroest/projects/hlib', '/IMSB/users/hroest/projects/msa/code/', '/IMSB/users/hroest/projects/srm_clashes/code/'])
 db = MySQLdb.connect(read_default_file="/IMSB/users/hroest/.srm.cnf")
 cursor = db.cursor()
-
-import collider
-import speclib_db_lib
-import progress
-import silver
-import DDB 
-import csv
+# own libs
+import collider, speclib_db_lib, progress, silver, DDB, c_getnonuis
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
@@ -26,15 +18,14 @@ usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
 
     
 parser = OptionParser(usage=usage)
-
 group = OptionGroup(parser, "Spectral library Options", "")
 group.add_option("--safety", dest="safetytransitions", default=3, type="float",
-                  help="Number of transitions to add above the absolute minimum. " + 
-                  "Defaults to 3" , metavar='3')
+    help="Number of transitions to add above the absolute minimum. " + 
+    "Defaults to 3" , metavar='3')
 group.add_option("-f", "--file", dest="outfile", default='outfile', metavar='out',
-                  help="Output file"   )
+    help="Output file"   )
 group.add_option("--mapfile", dest="pepmapfile", default='', metavar='File',
-                  help="Text file with one sequence and SSRCalc value per line"   )
+    help="Text file with one sequence and SSRCalc value per line"   )
 group.add_option("--csv", dest="csv", default=False, action='store_true',
                   help="""The file passed as the first option is a mprophet style csv file
  The format is a header row which MUST contain the following fields:
@@ -48,7 +39,7 @@ All other fields are ignored.
 """
                 )
 group.add_option("--exp", dest="exp_resultfile", default='', #metavar='out',
-                  help="""Experimental result file (mProphet output) that contains information, which peptides could be measured with how many transitions. 
+    help="""Experimental result file (mProphet output) that contains information, which peptides could be measured with how many transitions. 
  The format is a header row which MUST contain the following fields:
 'target_height'
 'transition_group_id'
@@ -56,10 +47,11 @@ group.add_option("--exp", dest="exp_resultfile", default='', #metavar='out',
 'target_trs'. Optionally the fields can be filtered with a threshold for target_height.
                  """ )
 group.add_option("--thr", dest="threshold", default=0, 
-                 help="Threshold for target_height (e.g. the noise level)")
+    help="Threshold for target_height (e.g. the noise level)")
 parser.add_option_group(group)
 
-
+###########################################################################
+###########################################################################
 
 
 #parameters evaluation
@@ -73,6 +65,8 @@ outfile = options.outfile
 pepmapfile = options.pepmapfile
 libfile = args[0]
 peptide_table = 'hroest.srmPeptides_'  + args[1]
+use_experimental_height = False
+if options.exp_resultfile != '': use_experimental_height = True
 
 par = parameters
 par.__dict__.update( options.__dict__ )
@@ -91,36 +85,10 @@ pepidx = libfile + ".pepidx"
 print par.get_common_filename()
 #print par.experiment_type
 
-if not options.csv:
-    print "Experiment Type"
-    print ' '*5, 'Check transitions from a spectral library with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using spectral library: %s' % sptxt
-    print ' '*5, 'Using background organism: %s' % args[1]
+###########################################################################
+###########################################################################
 
-    #peak into file, see how many peptides there are 
-    for i,l in enumerate(open(pepidx)): pass
-    if i > 10000: 
-        print '\n'*5, "Do you really want to create assays for %s peptides?" % i
-        print "Please filter the spectral library first."
-        print '\n'*1, "Sorry, I give  up."
-        sys.exit(9)
-
-    library_key = 4242 
-    library = speclib_db_lib.Library(library_key)
-    library.read_sptxt_pepidx( sptxt, pepidx, library_key )
-
-
-else: 
-    csvfile = libfile
-    print "Experiment Type"
-    print ' '*5, 'Check transitions from a csv transitions list with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using csv file library: %s' % csvfile
-    print ' '*5, 'Using background organism: %s' % args[1]
-
+def parse_mprophet_methodfile(csvfile):
     # some dummy classes that can do the same thing as the spectral library
     # classes
     class Peak():
@@ -167,36 +135,20 @@ else:
             p.mprophetline = peak
             s.peaks.append(p)
         library.append(s)
+    return library
 
-
-###########################################################################
-###########################################################################
-use_experimental_height = False
-if options.exp_resultfile != '': use_experimental_height = True
-if use_experimental_height:
-    #parse the experimental infile 
+def parse_mprophet_resultfile(library, infile, threshold):
+    # parse the experimental infile 
     # here we try to map back the outfile of the mProphet to the
     # originally used transition list. Of course this fails sometimes.
     # libdict cotains the PEPTIDE.2 identifier for sequence.charge_state
     # the column "target_trs" should contain y7_1 typeNr_charge
     exp_peptides = {}
     libdict = dict([ (s.name.replace('/', '.'), s) for s in library ] )
-    # infile = '/IMSB/users/hroest/detected_assays_depl_plasma_trs_selected_columns.csv'
-    # infile = '/IMSB/users/hroest/detected_assays_depl_urine_trs_selected_columns.csv'
-    # outfile = '/tmp/outtest'
-    # threshold = 200
-    infile = options.exp_resultfile
-    threshold = float(options.threshold)
-    #
     experimental_infile = csv.reader( open(infile, 'rU') , delimiter='\t') 
-    print infile
     header = experimental_infile.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
     headerdict['target_height']
-    ## #here we write to the outfile
-    ## f = open(outfile, 'w')
-    ## w = csv.writer(f)
-    ## w.writerow(header)
     sequence_n_found = []
     tr_n_found = []
     for l in experimental_infile:
@@ -217,19 +169,52 @@ if use_experimental_height:
                 l[ headerdict['target_trs'] ], 
                 [p.type for p in libdict[ gr_id ].peaks]
             ]  )
-            # w.writerow(l)
     print "found %s peptides experimentally" % len( exp_peptides)
     print "found %s peptides not in the library input file" % len( sequence_n_found)
     print "found %s transitions not in the library input file" % len(tr_n_found)
-    f = open('error.log', 'w')
-    f.write('Could not find the following peptides:\n')
-    for s in sequence_n_found:
-        f.write(s + '\n')
-    f.write('Could not find the following transitions:\n')
-    for t in tr_n_found:
-        f.write( t[0].sequence + '\t'  + t[1] + '\n')
-    f.close()
+    #
+    err = 'Could not find the following peptides:\n'
+    for s in sequence_n_found: err += s + '\n'
+    err += 'Could not find the following transitions:\n'
+    for t in tr_n_found: err += t[0].sequence + '\t'  + t[1] + '\n'
+    sys.stderr.write(err) 
 
+
+# here we parse the files
+if not options.csv:
+    print "Experiment Type"
+    print ' '*5, 'Check transitions from a spectral library with'
+    print ' '*5, par.thresh
+    print ' '*5, 'Da for the q3 transitions.'
+    print ' '*5, 'Using spectral library: %s' % sptxt
+    print ' '*5, 'Using background organism: %s' % args[1]
+
+    #peak into file, see how many peptides there are 
+    for i,l in enumerate(open(pepidx)): pass
+    if i > 10000: 
+        print '\n'*5, "Do you really want to create assays for %s peptides?" % i
+        print "Please filter the spectral library first."
+        print '\n'*1, "Sorry, I give  up."
+        sys.exit(9)
+
+    library_key = 4242 
+    library = speclib_db_lib.Library(library_key)
+    library.read_sptxt_pepidx( sptxt, pepidx, library_key )
+else: 
+    print "Experiment Type"
+    print ' '*5, 'Check transitions from a csv transitions list with'
+    print ' '*5, par.thresh
+    print ' '*5, 'Da for the q3 transitions.'
+    print ' '*5, 'Using csv file library: %s' % libfile
+    print ' '*5, 'Using background organism: %s' % args[1]
+    library = parse_mprophet_methodfile(libfile)
+
+if use_experimental_height:
+    infile = options.exp_resultfile
+    threshold = float(options.threshold)
+    parse_mprophet_resultfile(library, infile, threshold)
+
+###########################################################################
 ###########################################################################
 
 mycollider = collider.SRMcollider()
@@ -258,7 +243,6 @@ if pepmapfile != '':
         print "Could not read pepmapfile. Please provide a file that has one "+\
               "sequence and SSRCalc value per line separated by a space."
 
-start = time.time()
 print "%s peptide precursors provided" % icount
 print "%s unique peptide sequences provided" % len(seqdic)
 print "%s unique peptide sequences have SSRCalc values " % len(pepmap)
@@ -271,26 +255,6 @@ if par.max_uis == 0:
     print err
     sys.stderr.write(err) 
     sys.exit()
-
-parameters.aions      =  True
-parameters.aMinusNH3  =  True
-parameters.bMinusH2O  =  True
-parameters.bMinusNH3  =  True
-parameters.bPlusH2O   =  True
-parameters.yMinusH2O  =  True
-parameters.yMinusNH3  =  True
-parameters.cions      =  True
-parameters.xions      =  True
-parameters.zions      =  True
-
-
-
-
-
-
-
-
-
 
 progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
 for counter,spectrum in enumerate(library):
@@ -332,35 +296,27 @@ for counter,spectrum in enumerate(library):
             sys.stderr.write(err) 
             sys.exit()
     #
-    if False:
-        collisions = list( mycollider._get_all_collisions_calculate_sub(precursors, par, R, q3_low, q3_high) )
-        min_needed = mycollider._getMinNeededTransitions(par, transitions, collisions)
-    if True:
-        import c_getnonuis
-        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
-            tuple(transitions), tuple(precursors), q3_low, q3_high, 
-            par.q3_window, par.ppm)
-        if not use_experimental_height:
-            min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
-        else:
-            # here we consider the case that we have measured a number of
-            # transitions experimentally and want to know how many of them are
-            # sufficient to establish uniqueness. For this, all we need is
-            # that one tuple of transitions establishes uniqueness since we
-            # were able to measure it above the background noise.
-            for order in range(1,nr_transitions+1): 
-                mymax = collider.choose(nr_transitions, order)
-                non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
-                if len(non_uis) < mymax: break
-            if len(non_uis) < mymax: min_needed  = order
-            else: min_needed = -1
+    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
+        tuple(transitions), tuple(precursors), q3_low, q3_high, 
+        par.q3_window, par.ppm)
+    if not use_experimental_height:
+        min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
+    else:
+        # here we consider the case that we have measured a number of
+        # transitions experimentally and want to know how many of them are
+        # sufficient to establish uniqueness. For this, all we need is
+        # that one tuple of transitions establishes uniqueness since we
+        # were able to measure it above the background noise.
+        for order in range(1,nr_transitions+1): 
+            mymax = collider.choose(nr_transitions, order)
+            non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
+            if len(non_uis) < mymax: break
+        if len(non_uis) < mymax: min_needed  = order
+        else: min_needed = -1
     spectrum.score = min_needed * nr_transitions
     spectrum.min_needed = min_needed
     if min_needed != -1: spectrum.score = nr_transitions - min_needed
-    end = time.time()
     if not par.quiet: progressm.update(1)
-
-
 
 if not use_experimental_height:
     mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
