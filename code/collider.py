@@ -591,7 +591,9 @@ class SRMcollider(object):
                         if not t[1] in collisions_per_peptide[c[3]]:
                             collisions_per_peptide[c[3]].append( t[1] )
                     else: collisions_per_peptide[c[3]] = [ t[1] ] 
+        return self._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
 
+    def _sub_getMinNeededTransitions(self, par, transitions, collisions_per_peptide):
         #take the top j transitions and see whether they, as a tuple, are
         #shared
         min_needed = -1
