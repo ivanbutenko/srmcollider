@@ -440,17 +440,22 @@ python::dict _find_clashes_forall(python::tuple transitions,
                             if( result.has_key(t1) ) {
                                 tmplist = python::extract<python::list>(result[t1]);
                                 if(fabs(t0-y_series[k]) < q3used)
-                                    tmplist.append( python::make_tuple(y_series[k], q1, 0, peptide_key, "y", k+1, clist[1], ssrcalc, isotope_nr, ch));
+                                    // for the y series, the ion number is backwards
+                                    tmplist.append( python::make_tuple(y_series[k],
+                                    q1, 0, peptide_key, "y", fragcount - k, clist[1], ssrcalc, isotope_nr, ch));
                                 else if(fabs(t0-b_series[k]) < q3used)
-                                    tmplist.append( python::make_tuple(b_series[k], q1, 0, peptide_key, "b", k+1, clist[1], ssrcalc, isotope_nr, ch));
+                                    tmplist.append( python::make_tuple(b_series[k],
+                                    q1, 0, peptide_key, "b", k+1, clist[1], ssrcalc, isotope_nr, ch));
                             }
                             else{
                                 python::list newlist;
                                 tmplist = newlist;
                                 if(fabs(t0-y_series[k]) < q3used)
-                                    tmplist.append( python::make_tuple(y_series[k], q1, 0, peptide_key, "y", k+1, clist[1], ssrcalc, isotope_nr, ch));
+                                    tmplist.append( python::make_tuple(y_series[k],
+                                    q1, 0, peptide_key, "y", fragcount - k, clist[1], ssrcalc, isotope_nr, ch));
                                 else if(fabs(t0-b_series[k]) < q3used)
-                                    tmplist.append( python::make_tuple(b_series[k], q1, 0, peptide_key, "b", k+1, clist[1], ssrcalc, isotope_nr, ch));
+                                    tmplist.append( python::make_tuple(b_series[k], 
+                                    q1, 0, peptide_key, "b", k+1, clist[1], ssrcalc, isotope_nr, ch));
                                 result[t1] = tmplist;
                             }
                         }

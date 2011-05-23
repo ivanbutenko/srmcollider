@@ -22,58 +22,33 @@ myUIS_CSVFile = '/var/www/documents/uis_srmcollider.csv'
 myUIS_CSVFile_rel = '/../documents/uis_srmcollider.csv'
 myCSVFile_rel = '/../documents/srmcollider.csv'
 
-#def get_collisions( q1, q3, ssrcalc, q1_window, q3_window, ssrcalc_window, 
-#                   exp_key, db):
-#    select_temp = """
-#    select * from hroest.srmClashes 
-#    inner join ddb.peptide on peptide.id = srmClashes.peptide_key
-#    where q1 between %s and %s
-#    and q3 between %s and %s
-#    and ssrcalc between %s and %s
-#    and srmClashes.experiment_key = %s
-#    ;
-#    """
-#    q1_low      =  q1 - q1_window /2.0
-#    q1_high     =  q1 + q1_window /2.0
-#    q3_low      =  q3 - q3_window /2.0   
-#    q3_high     =  q3 + q3_window /2.0
-#    ssrcalc_low =  ssrcalc - ssrcalc_window /2.0 
-#    ssrcalc_high=  ssrcalc + ssrcalc_window /2.0   
-#    ##q1_low      =   518
-#    ##q2_high     =   519
-#    ##q3_low      =   740
-#    ##q3_high     =   760
-#    ##ssrcalc_low =   20
-#    ##ssrcalc_high=   25
-#    c2 = db.cursor()
-#    t = utils.db_table( c2 )
-#    t.read( select_temp, [q1_low, q1_high, q3_low, q3_high, 
-#                            ssrcalc_low, ssrcalc_high, exp_key])
-#    #TODO implement
-#    #res = t.fetchall()
-#    res = []
-#    while True:
-#        r = t.fetchone()
-#        if r == None: break
-#        res.append( r)
-#    return t, res
 
 def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
 
+    import csv, re
     q3_low = low
     q3_high = high
     cursor = db.cursor()
 
+    import silver
+    import DDB 
+    R = silver.Residues.Residues('mono')
+    if genome in ['yeastN15']: R.recalculate_monisotopic_data_for_N15()
+
+    #prepare a csv
+    f = open( myCSVFile, 'w')
+    w = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    w.writerow( ['sequence', 'q1', 'q3', 'type', 'charge'] )
+
     #sanitize input
-    import re
     seqs = "'"
     input_sequences = []
     for inp in myinput.split():
-        #only alphanumeric
-        sanitized = filter(str.isalnum, inp)
-        seqs += sanitized + "','"
+        #only alphanumeric and [ ]
+        sanitized = "".join( [i for i in inp if (str.isalnum(i) or i in [ '[', ']']  )] )
+        #to look ssrcalc up in the db, we need no modifications
+        seqs += filter(str.isalpha, inp) + "','"
         input_sequences.append(sanitized)
-
     seqs = seqs[:-2]
 
     #figure out which db to use 
@@ -87,6 +62,7 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     elif genome == 'human':
         table_used =  'human'
     else: print "Genome not recognized"; exit()
+
     #create the parameter object
     par = collider.SRM_parameters()
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
@@ -95,6 +71,7 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     par.ssrcalc_window = ssr_w / 2.0 
     par.ppm = False
     par.considerIsotopes = True
+    par.isotopes_up_to = isotope
     par.q3_range = [low, high]
     par.peptide_table = db_used + '.srmPeptides_' + table_used
     par.transition_table = db_used + '.srmTransitions_' + table_used
@@ -109,10 +86,27 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             print "Can only calculate up to order 5 and only 1 peptide"
             exit()
 
+    # Print headers, link to csv file and table of content
+    unique = utils.unique(myinput.split() )
+    print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
+    print "<br/>"
+    print "input: %s peptides" % (len( myinput.split() )) 
+    print "<br/>"
+    print "unique: %s peptides" % (len( unique )) 
+    print "<div class='toc'><ul>"
+    for u in input_sequences: print '<li><a href="#%s">%s</a></li>' % (u,u)
+    print "</ul></div>"
+    print shared.toggleDisplay # Javascript function to toggle a div
     
-    ###########################################################################
-    ###########################################################################
 
+    ###########################################################################
+    # Start analysis
+    # 1. Find SSRCalc values for all peptides
+    # 2. Iterate through all sequences and calculate the b / y series
+    # 3. Find all (potentially) interferring precursors
+    # 4. For each precursors, find the list of transitions that interfers
+    # 5. For each transition, find the precursors that interfere 
+    ###########################################################################
 
     ssr_query = """
     select sequence, ssrcalc
@@ -126,16 +120,13 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             if not t is None: 
                 self.transition = t
 
-    for s in input_sequences:
-        try: ssrcalc = pepmap[s]
+        @property
+        def pQ3(self):
+            return round(self.transition[0], 2)
+
+    for ii,s in enumerate(input_sequences):
+        try: ssrcalc = pepmap[filter(str.isalpha,s)]
         except KeyError: ssrcalc = 25
-
-
-        import DDB
-
-        import silver
-        import DDB 
-        R = silver.Residues.Residues('mono')
 
         peptide = DDB.Peptide()
         peptide.set_sequence(s)
@@ -143,7 +134,7 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
         peptide.create_fragmentation_pattern(R)
         b_series = peptide.b_series
         y_series = peptide.y_series
-        peaks = [ ]
+        peaks = []
 
         pcount = 0
         for ch in [1]:
@@ -154,38 +145,26 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
                 if q3 < q3_low or q3 > q3_high: continue
                 p = Peak( [q3, pcount] ) 
                 p.annotation = 'y' + str(len(y_series) + 1 - scount) 
+                p.charge = ch
                 pcount += 1
                 peaks.append( p )
             scount = 0
             for pred in b_series:
                 scount += 1
                 q3 = ( pred + (ch -1)*R.mass_H)/ch
-                # print "b" + str(scount)  + ' ' +  str(q3 ) +  "<br />"
                 if q3 < q3_low or q3 > q3_high: continue
                 p = Peak( [q3, pcount] ) 
                 p.annotation = 'b' + str(scount)
+                p.charge = ch
                 pcount += 1
                 peaks.append( p )
 
-        # print transitions
-        # print '===========================================================================<br />'
-        # print [ (p.transition[0], p.annotation) for p in peaks]
-        # #print s, nr_transitions, transitions
-
-        q1 = peptide.charged_mass #c_getnonuis.calculate_charged_mass(( 0, s, 0), 2)
+        q1 = peptide.charged_mass 
         transitions = c_getnonuis.calculate_transitions_ch(
             ((q1, s, 1),), [1], q3_low, q3_high)
         transitions = [ (p[0], i) for i,p in enumerate(transitions)]
-
-        # print transitions
-        # transitions = [tuple(p.transition) for p in peaks]
-        # print transitions
-        # print '===========================================================================<br />'
-
-
         nr_transitions = len( transitions )
         if nr_transitions == 0: continue #no transitions in this window
-
 
         pep = {
             'mod_sequence' : s,
@@ -196,69 +175,110 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             'peptide_key' :-1,
         }
         precursors = mycollider._get_all_precursors(par, pep, cursor, 
-            values="q1, modified_sequence, peptide_key, q1_charge")
+            values="q1, modified_sequence, peptide_key, ssrcalc, isotope_nr, q1_charge")
         precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
         precdic = dict( [ (p[2], p) for p in precursors] )
 
+        # 4. Find interferences per precursor
         collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
             tuple(transitions), tuple(precursors),
             q3_low, q3_high, par.q3_window, par.ppm)
 
-        useable = []
-        for peak in peaks: 
-            peak.test = 'asdf'
-            peak.collisions = 0
-            peak.collstring = ''
-            for c in collisions_per_peptide: 
-                if peak.transition[1] in collisions_per_peptide[c]:
-                    peak.collisions += 1
-                    peak.collstring += repr(precdic[c]) + '<br />'
+        # 5. Find interferences per transition
+        nonunique = c_getnonuis._find_clashes_forall(
+            tuple(transitions), tuple(precursors),
+            q3_low, q3_high, par.q3_window, par.ppm)
 
+        useable = []
+        unuseable = []
+        for peak in peaks: 
+            if peak.transition[1] in nonunique:
+                unuseable.append(peak)
+            else: useable.append(peak)
+
+        ########################################################################
+        # Printing
+        ########################################################################
         print "<h2 id='%s'>Peptide %s</h2>" % (s, s)
         print "<div class='pep_property'>"
         print "<p>Q1: %s</p>" % pep['q1']
         print "<p>SSRCalc: %s</p>" % round(pep['ssrcalc'], 2)
-        print "<p>Percent Useable: %d %%</p>" % (len([p for p in peaks if p.collisions == 0])*100.0 / len(transitions)  )
+        print "<p>Percent Useable: %d %%</p>" % (len(useable)*100.0 / len(transitions)  )
         print "</div>"
 
-        print "<h3>Useable transitions</h3>"
-        print "<table class='tr_table'>"
-        print "<tr><td>Type</td> <td>Q3</td> </tr>"
-        for peak in [p for p in peaks if p.collisions == 0]: 
-            print "<tr><td>"
-            print peak.annotation
-            print "</td><td>"
-            print peak.transition[0]
-            print "</td><td>"
-        print "</table>"
+        if len( useable ) > 0:
+            print "<h3>Useable transitions</h3>"
+            print "<table class='tr_table'>"
+            print "<tr><td>Type</td> <td>Q3</td> </tr>"
+            for peak in useable:
+                print "<tr><td>"
+                print peak.annotation
+                print "</td><td>"
+                print peak.pQ3
+                w.writerow( [ s, pep['q1'], round(peak.pQ3), peak.annotation, 
+                             peak.charge ] )
+                print "</td><td>"
+            print "</table>"
+        else: 
+            print "<p>No useable transitions for this peptide!</p>"
+            w.writerow( ['"Sorry: no useable transitions for this peptide. Try to calculate UIS."' ] )
 
-        print "<h3>Unuseable transitions (Collisions)</h3>"
-        print "<table class='col_table'>"
-        for peak in [p for p in peaks if p.collisions >0]: 
-        #for peak in peaks:
+        coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
+
+        print """
+        <a title="Show Tables" href="javascript:toggleDisplay('col_peptides_%s')">
+            <h3>Colliding peptides</h3>
+        </a>""" % ii
+
+        #helper functions
+        def sortpep_by_ssr(x,y):
+            if len(x[1]) != len(y[1]): return -cmp( len(x[1]), len(y[1]) )
+            #by SSRCalc
+            return cmp( precdic[x[0]][3], precdic[y[0]][3]) 
+        def sortpep_by_q1(x,y):
+            #by difference in q1
+            return cmp( abs(precdic[x[0]][0] - pep['q1']), abs(precdic[y[0]][0] - pep['q1'])) 
+
+        coll.sort( sortpep_by_ssr )
+        print "<table class='col_table' id='col_peptides_%i'>" % ii
+        print "<tr> <td>Q1</td> <td>RT</td> <td>Sequence</td>  <td>Transitions</td> </tr>"
+        for c in coll:
             print "<tr><td>"
-            print peak.annotation
-            print peak.transition[0]
+            print round(precdic[c[0]][0], 2)
             print "</td><td>"
-            print peak.collstring
+            print precdic[c[0]][3]
+            print "</td><td>"
+            print precdic[c[0]][1]
+            print "</td><td>"
+            for t in c[1]:
+                print peaks[t].annotation
+            print ' <br />'
             print "</td></tr>"
         print "</table>"
 
-        # min_needed = -1
-        # for j in range(par.max_uis,0,-1):
-        #     #take top j transitions
-        #     mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
-        #     unuseable = False
-        #     for k,v in collisions_per_peptide.iteritems():
-        #         if tuple(sorted(v)[:j]) == mytransitions:
-        #             unuseable=True
-        #     #if spectrum.name == 'HFIQEDAPDR/3': print j, min_needed, not unuseable
-        #     if not unuseable: min_needed = j
 
+        print """
+        <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
+            <h3>Unuseable transitions (Collisions)</h3>
+        </a>""" % ii
+        print "<table class='col_table' id='col_transitions_%s'>" % ii
+        print "<tr> <td>Type / Q3</td> <td>Colliding (Q1, Q3) / SSRCalc / Type / Sequence / Isotope </td> </tr>"
+        unuseable.sort( lambda x,y: cmp(len(nonunique[x.transition[1]]), len(nonunique[y.transition[1]])))
+        for peak in unuseable: 
+            print "<tr><td>"
+            print peak.annotation
+            print peak.pQ3
+            print "</td><td>"
+            for c in nonunique[ peak.transition[1] ]:
+                print '(%s,%s)' % (round(c[1], 2), round(c[0], 2))
+                print c[7]
+                print c[4] + str(c[5])
+                if c[8] != 0:
+                    print c[6], 'isotope', c[8], ' </br>'
+                else: print c[6], ' </br>'
 
-        #  print len(precursors)
-        #  print '<br/>' 
-
+            print "</td></tr>"
+        print "</table>"
 
 def main_slow(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
 
@@ -593,11 +613,12 @@ if form.has_key('peptides'):
     low = float(form.getvalue('low_mass') )
     genome = form.getvalue('genome') 
     isotope = int(form.getvalue('isotope') )
-    uis = int(form.getvalue('uis') )
+    #uis = int(form.getvalue('uis') )
+    uis = 0
     #print peptides
     #peptides = myinput
     start = time.time()
-    main_slow( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
+    #main_slow( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
@@ -654,13 +675,15 @@ else:
 
     <p class='input_field'>
         <label class="mylabel" for="uis">Find UIS up to order* </label>
-        <input class="number_input" type="text" name="uis" value="0"> 
+        <input class="number_input" disabled="True" type="text" name="uis" value="0"> 
     </p>
 
     <INPUT type="submit" value="Send"> 
 
  </form>
+<!-- 
 * due to computational constraints, only one peptide at a time can be searched in UIS mode
+-->
 
 <!-- 
 q1_window = 1 Da <br/>

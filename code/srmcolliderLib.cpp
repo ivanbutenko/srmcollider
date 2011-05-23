@@ -26,7 +26,13 @@
 //include our own libraries
 #include "srmcollider.h"
 
-/* Function to calculate the b and y fragment series given a peptide sequence */
+/* 
+ * Function to calculate the b and y fragment series given a peptide sequence 
+ * Note that the y series is calculated "backwards" starting from left to right
+ * instead of right to left. Whereas b_series[0] holds the b-1 ion, y_series[0]
+ * holds the y-(n-1) ion and y_series[n-1] holds the y-1 ion.
+ */
+
 int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
         double ch) {
 
@@ -42,7 +48,7 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
     inside = false;
     start = 0;
     j = 0; 
-    //go through all  characters in the sequnence until 0 is hit
+    //go through all characters in the sequence until 0 is hit
     while((c = sequence[j++])) {
         if(sequence[j] == '[') {
             start = j-1;
