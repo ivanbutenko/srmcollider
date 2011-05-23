@@ -3,6 +3,7 @@ import unittest
 
 import sys
 sys.path.append( '..')
+sys.path.append( '../extra')
 import collider
 
 from test_shared import *
@@ -167,30 +168,6 @@ class Test_collider_mysql(unittest.TestCase):
         #now test the with transitions fxn
         collisions = list(collider.SRMcollider._get_all_collisions(
                 collider.SRMcollider(), par, pep, cursor, transitions=transitions))
-        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
-        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
-
-    def test_get_all_collisions_pertr1(self):
-        pep = test_shared.runpep1
-        transitions = test_shared.runtransitions1
-        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-        par = self.par
-        cursor = self.db.cursor()
-
-        collisions = list(collider.SRMcollider._get_all_collisions_per_transition(
-                collider.SRMcollider(), par, pep, transitions, cursor))
-        collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
-        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
-
-    def test_get_all_collisions_pertr2(self):
-        pep = test_shared.runpep2
-        transitions = test_shared.runtransitions2
-        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-        par = self.par
-        cursor = self.db.cursor()
-
-        collisions = list(collider.SRMcollider._get_all_collisions_per_transition(
-                collider.SRMcollider(), par, pep, transitions, cursor))
         collisions_per_peptide = self._reducecollisionstoperpep(transitions, collisions, par)
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
 

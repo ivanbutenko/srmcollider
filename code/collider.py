@@ -52,6 +52,16 @@ class SRM_parameters(object):
         self.print_query = False
         #self.select_floor = False
         self.quiet = False
+        self.aions      =  False
+        self.aMinusNH3  =  False
+        self.bMinusH2O  =  False
+        self.bMinusNH3  =  False
+        self.bPlusH2O   =  False
+        self.yMinusH2O  =  False
+        self.yMinusNH3  =  False
+        self.cions      =  False
+        self.xions      =  False
+        self.zions      =  False
 
     def parse_cmdl_args(self, parser):
         from optparse import OptionGroup
@@ -593,7 +603,9 @@ class SRMcollider(object):
                         if not t[1] in collisions_per_peptide[c[3]]:
                             collisions_per_peptide[c[3]].append( t[1] )
                     else: collisions_per_peptide[c[3]] = [ t[1] ] 
+        return self._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
 
+    def _sub_getMinNeededTransitions(self, par, transitions, collisions_per_peptide):
         #take the top j transitions and see whether they, as a tuple, are
         #shared
         min_needed = -1
@@ -691,7 +703,7 @@ class SRMcollider(object):
 
     def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
         query = """
-        select parent_id, q1, q1_charge, ssrcalc, peptide.id
+        select parent_id, q1, q1_charge, ssrcalc, peptide.id, modified_sequence
          from %s
          inner join
          ddb.peptide on peptide.id = %s.peptide_key
@@ -701,7 +713,7 @@ class SRMcollider(object):
         """ % (par.peptide_table, par.peptide_table, par.query_add )
         if ignore_genomeoccurence:
             query = """
-            select parent_id, q1, q1_charge, ssrcalc, peptide_key
+            select parent_id, q1, q1_charge, ssrcalc, peptide_key, modified_sequence
              from %s
              where 4 = 4
              %s
@@ -715,7 +727,8 @@ class SRMcollider(object):
                 'q1' :         r[1],
                 'q1_charge' :  r[2],
                 'ssrcalc' :    r[3],
-                'peptide_key' :r[4]
+                'peptide_key' :r[4],
+                'mod_sequence':r[5],
             }
             for r in res
         ]

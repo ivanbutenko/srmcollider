@@ -1,37 +1,58 @@
 #!/usr/bin/python
 import MySQLdb, time, sys
 from string import Template
-sys.path.append( '/IMSB/users/hroest/projects')
-sys.path.append( '/IMSB/users/hroest/projects/hlib')
-sys.path.append( '/IMSB/users/hroest/projects/msa/code/')
-sys.path.append( '/IMSB/users/hroest/projects/srm_clashes/code/')
+import numpy, csv
+sys.path.extend(['/IMSB/users/hroest/projects', '/IMSB/users/hroest/projects/hlib', '/IMSB/users/hroest/projects/msa/code/', '/IMSB/users/hroest/projects/srm_clashes/code/'])
 db = MySQLdb.connect(read_default_file="/IMSB/users/hroest/.srm.cnf")
 cursor = db.cursor()
-
-import collider
-import utils
-import speclib_db_lib
-import progress
-import silver
-import DDB 
+# own libs
+import collider, speclib_db_lib, progress, silver, DDB, c_getnonuis
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
         " *      spectrallibrary: path to library WITHOUT the splib ending\n" +\
-        " *      backgroundorganism: e.g. 'yeast' or 'human', others need to be requested "
-parser = OptionParser(usage=usage)
+        " *      backgroundorganism: e.g. 'yeast' or 'human', others need to be requested " +\
+        "\n" + \
+        "This program overrides the options --q3_low and --q3_high default values" + \
+        "with values of 0 to "
 
+    
+parser = OptionParser(usage=usage)
 group = OptionGroup(parser, "Spectral library Options", "")
 group.add_option("--safety", dest="safetytransitions", default=3, type="float",
-                  help="Number of transitions to add above the absolute minimum. " + 
-                  "Defaults to 3" , metavar='3')
-group.add_option("-f", "--file", dest="outfile", default='outfile',
-                  help="Output file"   )
-group.add_option("--mapfile", dest="pepmapfile", default='',
-                  help="Text file with one sequence and SSRCalc value per line"   )
+    help="Number of transitions to add above the absolute minimum. " + 
+    "Defaults to 3" , metavar='3')
+group.add_option("-f", "--file", dest="outfile", default='outfile', metavar='out',
+    help="Output file"   )
+group.add_option("--mapfile", dest="pepmapfile", default='', metavar='File',
+    help="Text file with one sequence and SSRCalc value per line"   )
 group.add_option("--csv", dest="csv", default=False, action='store_true',
-                  help="File given by first option is a mprophet style csv file")
+                  help="""The file passed as the first option is a mprophet style csv file
+ The format is a header row which MUST contain the following fields:
+ 'ModifiedSequence',
+ 'PrecursorCharge',
+ 'PeptideSequence',
+ 'PrecursorMz',
+ 'LibraryIntensity',
+ 'ProductMz'.
+All other fields are ignored.
+"""
+                )
+group.add_option("--exp", dest="exp_resultfile", default='', #metavar='out',
+    help="""Experimental result file (mProphet output) that contains information, which peptides could be measured with how many transitions. 
+ The format is a header row which MUST contain the following fields:
+'target_height'
+'transition_group_id'
+'transition_group_pepseq'
+'target_trs'. Optionally the fields can be filtered with a threshold for target_height.
+                 """ )
+group.add_option("--thr", dest="threshold", default=0, 
+    help="Threshold for target_height (e.g. the noise level)")
 parser.add_option_group(group)
+
+###########################################################################
+###########################################################################
+
 
 #parameters evaluation
 parameters = collider.SRM_parameters()
@@ -44,6 +65,8 @@ outfile = options.outfile
 pepmapfile = options.pepmapfile
 libfile = args[0]
 peptide_table = 'hroest.srmPeptides_'  + args[1]
+use_experimental_height = False
+if options.exp_resultfile != '': use_experimental_height = True
 
 par = parameters
 par.__dict__.update( options.__dict__ )
@@ -62,41 +85,15 @@ pepidx = libfile + ".pepidx"
 print par.get_common_filename()
 #print par.experiment_type
 
-if not options.csv:
-    print "Experiment Type"
-    print ' '*5, 'Check transitions from a spectral library with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using spectral library: %s' % sptxt
-    print ' '*5, 'Using background organism: %s' % args[1]
+###########################################################################
+###########################################################################
 
-    #peak into file, see how many peptides there are 
-    for i,l in enumerate(open(pepidx)): pass
-    if i > 10000: 
-        print '\n'*5, "Do you really want to create assays for %s peptides?" % i
-        print "Please filter the spectral library first."
-        print '\n'*1, "Sorry, I give  up."
-        sys.exit(9)
-
-
-    library_key = 4242 
-    library = speclib_db_lib.Library(library_key)
-    library.read_sptxt_pepidx( sptxt, pepidx, library_key )
-
-
-else: 
-    csvfile = libfile
-    import csv
-    print "Experiment Type"
-    print ' '*5, 'Check transitions from a csv transitions list with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using csv file library: %s' % csvfile
-    print ' '*5, 'Using background organism: %s' % args[1]
-
-    #another way to do it, parsing csv files
+def parse_mprophet_methodfile(csvfile):
+    # some dummy classes that can do the same thing as the spectral library
+    # classes
     class Peak():
-        def __init__(self): pass
+        def __init__(self):
+            self.experimental_height  = 0
 
     class Spectrum():
         def __init__(self):
@@ -104,10 +101,10 @@ else:
             self.sequence = None
             self.name = None
             self.precursorMZ = None
+            self.protein = ''
         def get_peaks(self):
             return self.peaks
 
-    #r = csv.reader( open('/IMSB/users/hroest/mprophet.txt', 'rU') , delimiter='\t') 
     r = csv.reader( open(csvfile, 'rU') , delimiter='\t') 
     header = r.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
@@ -124,17 +121,103 @@ else:
         s.name        = key
         s.sequence    = lines[0][headerdict['PeptideSequence']]
         s.precursorMZ = float(lines[0][headerdict['PrecursorMz']])
+        try: s.protein = lines[0][headerdict['protein_name']]
+        except Exception: pass
         for peak in lines:
             p = Peak()
-            p.intensity        = float(peak[headerdict['LibraryIntensity']])
-            p.peak             = float(peak[headerdict['ProductMz']])
+            try:
+                p.peak             = float(peak[headerdict['ProductMz']])
+                p.intensity        = float(peak[headerdict['LibraryIntensity']])
+            except Exception: p.intensity = 0
+            #
+            try: p.type        = peak[headerdict['frg_type']] + peak[headerdict['frg_nr']] + '_' +  peak[headerdict['frg_z']]
+            except Exception: pass
             p.mprophetline = peak
             s.peaks.append(p)
         library.append(s)
+    return library
+
+def parse_mprophet_resultfile(library, infile, threshold):
+    # parse the experimental infile 
+    # here we try to map back the outfile of the mProphet to the
+    # originally used transition list. Of course this fails sometimes.
+    # libdict cotains the PEPTIDE.2 identifier for sequence.charge_state
+    # the column "target_trs" should contain y7_1 typeNr_charge
+    exp_peptides = {}
+    libdict = dict([ (s.name.replace('/', '.'), s) for s in library ] )
+    experimental_infile = csv.reader( open(infile, 'rU') , delimiter='\t') 
+    header = experimental_infile.next()
+    headerdict = dict([(t,i) for i,t in enumerate(header)])
+    headerdict['target_height']
+    sequence_n_found = []
+    tr_n_found = []
+    for l in experimental_infile:
+        if float(l[ headerdict['target_height'] ] ) > threshold:
+            gr_id = l[ headerdict['transition_group_id'] ]
+            charge = gr_id.split('.')[1]
+            gr_id = l[ headerdict['transition_group_pepseq'] ] + '.' + charge
+            exp_peptides[ l[ headerdict['transition_group_pepseq'] ] ] = 0
+            try:
+                pp = [p for p in libdict[ gr_id ].peaks 
+                      if p.type == l[ headerdict['target_trs'] ] ]
+                assert len(pp) == 1
+                pp[0].experimental_height = l[headerdict['target_height']]
+                pp[0].measured = True
+            except KeyError: sequence_n_found.append( gr_id)
+            except AssertionError: tr_n_found.append( [
+                libdict[ gr_id ],
+                l[ headerdict['target_trs'] ], 
+                [p.type for p in libdict[ gr_id ].peaks]
+            ]  )
+    print "found %s peptides experimentally" % len( exp_peptides)
+    print "found %s peptides not in the library input file" % len( sequence_n_found)
+    print "found %s transitions not in the library input file" % len(tr_n_found)
+    #
+    err = 'Could not find the following peptides:\n'
+    for s in sequence_n_found: err += s + '\n'
+    err += 'Could not find the following transitions:\n'
+    for t in tr_n_found: err += t[0].sequence + '\t'  + t[1] + '\n'
+    sys.stderr.write(err) 
+
+
+# here we parse the files
+if not options.csv:
+    print "Experiment Type"
+    print ' '*5, 'Check transitions from a spectral library with'
+    print ' '*5, par.thresh
+    print ' '*5, 'Da for the q3 transitions.'
+    print ' '*5, 'Using spectral library: %s' % sptxt
+    print ' '*5, 'Using background organism: %s' % args[1]
+
+    #peak into file, see how many peptides there are 
+    for i,l in enumerate(open(pepidx)): pass
+    if i > 10000: 
+        print '\n'*5, "Do you really want to create assays for %s peptides?" % i
+        print "Please filter the spectral library first."
+        print '\n'*1, "Sorry, I give  up."
+        sys.exit(9)
+
+    library_key = 4242 
+    library = speclib_db_lib.Library(library_key)
+    library.read_sptxt_pepidx( sptxt, pepidx, library_key )
+else: 
+    print "Experiment Type"
+    print ' '*5, 'Check transitions from a csv transitions list with'
+    print ' '*5, par.thresh
+    print ' '*5, 'Da for the q3 transitions.'
+    print ' '*5, 'Using csv file library: %s' % libfile
+    print ' '*5, 'Using background organism: %s' % args[1]
+    library = parse_mprophet_methodfile(libfile)
+
+if use_experimental_height:
+    infile = options.exp_resultfile
+    threshold = float(options.threshold)
+    parse_mprophet_resultfile(library, infile, threshold)
+
+###########################################################################
+###########################################################################
 
 mycollider = collider.SRMcollider()
-mycollider.min_transitions = []
-
 pepmap = {}
 seqs = ''
 seqdic = {}
@@ -160,42 +243,23 @@ if pepmapfile != '':
         print "Could not read pepmapfile. Please provide a file that has one "+\
               "sequence and SSRCalc value per line separated by a space."
 
-start = time.time()
 print "%s peptide precursors provided" % icount
-print "%s unique peptides provided" % len(seqdic)
-print "%s unique peptides have SSRCalc values " % len(pepmap)
+print "%s unique peptide sequences provided" % len(seqdic)
+print "%s unique peptide sequences have SSRCalc values " % len(pepmap)
 if len(seqdic) > len(pepmap):
     print "If you want to use SSRCalc predictions, please provide a file with SSRCalc values."
     print "Otherwise your results will be wrong because you are missing some SSRcalc values."
 
 if par.max_uis == 0:
-    print "max uis needs to be larger than 0"
+    err = "Error: --max_uis needs to be larger than 0"
+    print err
+    sys.stderr.write(err) 
     sys.exit()
 
-
-parameters.aions      =  True
-parameters.aMinusNH3  =  True
-parameters.bMinusH2O  =  True
-parameters.bMinusNH3  =  True
-parameters.bPlusH2O   =  True
-parameters.yMinusH2O  =  True
-parameters.yMinusNH3  =  True
-parameters.cions      =  True
-parameters.xions      =  True
-parameters.zions      =  True
-
-
-
-
-
-
-
-
-
-
 progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
-mycollider.minstats = [0 for i in range(par.max_uis+1)]
-for spectrum in library:
+for counter,spectrum in enumerate(library):
+    spectrum.score = -99
+    spectrum.min_needed = -1
     peaks = spectrum.get_peaks()
     peaks.sort( lambda x,y: -cmp(x.intensity, y.intensity))
     bgpar = parameters
@@ -211,36 +275,147 @@ for spectrum in library:
         'ssrcalc' :    ssrcalc,
         'peptide_key' :-1,
     }
-    #
     transitions = [ (p.peak, i) for i,p in enumerate(peaks)]
+    if use_experimental_height: transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
+    pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]')
     precursors = mycollider._get_all_precursors(par, pep, cursor)
     precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
     R = silver.Residues.Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
-    collisions = list( mycollider._get_all_collisions_calculate_sub(precursors, par, R, q3_low, q3_high) )
-    min_needed = mycollider._getMinNeededTransitions(par, transitions, collisions)
-    mycollider.min_transitions.append( [spectrum.name, min_needed] )
-    if min_needed != -1: mycollider.minstats[ min_needed ] += 1
+    #
+    # check for q3_low and q3_high values, if the transitions are outside this
+    # range, we will not find collisions for those == incorrect results
+    #
+    for t in transitions: 
+        if t[0] < q3_low or t[0] > q3_high:
+            err = "\n"+ "Error: Found transition %s out of range\n" % t[0] + \
+            "Please adjust the --q3_low and --q3_high parameters to get correct results\n"
+            print err
+            sys.stderr.write(err) 
+            sys.exit()
+    #
+    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
+        tuple(transitions), tuple(precursors), q3_low, q3_high, 
+        par.q3_window, par.ppm)
+    if not use_experimental_height:
+        min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
+    else:
+        # here we consider the case that we have measured a number of
+        # transitions experimentally and want to know how many of them are
+        # sufficient to establish uniqueness. For this, all we need is
+        # that one tuple of transitions establishes uniqueness since we
+        # were able to measure it above the background noise.
+        for order in range(1,nr_transitions+1): 
+            mymax = collider.choose(nr_transitions, order)
+            non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
+            if len(non_uis) < mymax: break
+        if len(non_uis) < mymax: min_needed  = order
+        else: min_needed = -1
+    spectrum.score = min_needed * nr_transitions
     spectrum.min_needed = min_needed
-    end = time.time()
+    if min_needed != -1: spectrum.score = nr_transitions - min_needed
     if not par.quiet: progressm.update(1)
 
+if not use_experimental_height:
+    mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
+    mycollider.perpeptide = [0 for i in range(par.max_uis+1)]
+    mycollider.perprotein = [0 for i in range(par.max_uis+1)]
 
-#write report
-sumtrans = 0
-for i,v in enumerate(mycollider.minstats):
-    print "Peptides needing %s transitions: " % i, v
-    sumtrans += i*v
+    precursors = {}
+    peptides = {}
+    proteins = {}
+    for spectrum in library:
+        peptides[spectrum.sequence] = []
+        proteins[spectrum.protein] = []
 
-not_observeable = len( [0 for a,b in mycollider.min_transitions if b == -1])
-print "Peptides not possible to observe (too few transitions): " ,  not_observeable
+    for spectrum in library:
+        if spectrum.min_needed == -1: continue
+        peptides[spectrum.sequence].append( spectrum.min_needed )
+        proteins[spectrum.protein].append( spectrum.min_needed )
+        mycollider.perprecursor[ spectrum.min_needed ] += 1
 
-print "Minimal number of transitions needed to measure these %s peptides:" % (icount - not_observeable), sumtrans
+    for k,v in proteins.iteritems():
+        if len(v) == 0: continue
+        mycollider.perprotein[ min(v) ] += 1
+    for k,v in peptides.iteritems():
+        if len(v) == 0: continue
+        mycollider.perpeptide[ min(v) ] += 1
+
+    #write report
+    sumtrans = 0
+    for i in range(par.max_uis+1):
+        print "Precursors needing %s transitions: " % i, mycollider.perprecursor[i], \
+                '\t(Peptides %s)' % mycollider.perpeptide[i], \
+                '\t(Proteins %s)' % mycollider.perprotein[i]
+        sumtrans += i*mycollider.perprecursor[i]
+
+    measured_precursors = len(library)
+    measured_peptides = len(dict( [(s.sequence,0) for s in library]))
+    measured_proteins = len(dict( [(s.protein,0) for s in library ]))
+    print "Precursors not possible to observe (too few transitions):  %s / %s" %( 
+        measured_precursors - sum( mycollider.perprecursor), measured_precursors)
+    print "Peptides not possible to observe (too few transitions):  %s / %s" % (
+        measured_peptides - sum( mycollider.perpeptide) , measured_peptides)
+    print "Proteins not possible to observe (too few transitions):  %s / %s" % (
+        measured_proteins - sum( mycollider.perprotein) , measured_proteins)
+
+    ## a, b = numpy.histogram([c for a,b,c in mycollider.min_transitions if b == -1], 10, (0,10) )
+    ## print "Transition distribution of not observeable precursors"
+    ## print a, b
+    print "Minimal number of transitions needed to measure these %s peptides:" % (
+        icount - measured_precursors + sum(mycollider.perprecursor) ), sumtrans
+else:
+    #use experimental height
+    mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
+    mycollider.perpeptide = [0 for i in range(par.max_uis+1)]
+    mycollider.perprotein = [0 for i in range(par.max_uis+1)]
+
+    precursors = {}
+    peptides = {}
+    proteins = {}
+    for spectrum in library:
+        peptides[spectrum.sequence] = []
+        proteins[spectrum.protein] = []
+
+    for spectrum in library:
+        if spectrum.min_needed == -1: continue
+        peptides[spectrum.sequence].append( spectrum.score )
+        proteins[spectrum.protein].append( spectrum.score )
+        mycollider.perprecursor[ spectrum.score ] += 1
+
+    for k,v in proteins.iteritems():
+        if len(v) == 0: continue
+        mycollider.perprotein[ max(v) ] += 1
+    for k,v in peptides.iteritems():
+        if len(v) == 0: continue
+        mycollider.perpeptide[ max(v) ] += 1
+
+    #write report
+    sumtrans = 0
+    for i in range(par.max_uis+1):
+        print "Precursors having %s extra transitions: " % i, mycollider.perprecursor[i], \
+                '\t(Peptides %s)' % mycollider.perpeptide[i], \
+                '\t(Proteins %s)' % mycollider.perprotein[i]
+        sumtrans += i*mycollider.perprecursor[i]
+
+    measured_precursors = len([s for s in library 
+        if s.peaks[0].__dict__.has_key('measured')])
+    measured_peptides = len(dict( [(s.sequence,0) for s in library 
+        if s.peaks[0].__dict__.has_key('measured')]))
+    measured_proteins = len(dict( [(s.protein,0) for s in library 
+        if s.peaks[0].__dict__.has_key('measured')]))
+
+    print "Precursors not possible to observe (too few transitions):  %s / %s" %( 
+        measured_precursors - sum( mycollider.perprecursor), measured_precursors)
+    print "Peptides not possible to observe (too few transitions):  %s / %s" % (
+        measured_peptides - sum( mycollider.perpeptide) , measured_peptides)
+    print "Proteins not possible to observe (too few transitions):  %s / %s" % (
+        measured_proteins - sum( mycollider.perprotein) , measured_proteins)
+
 
 #here we write to the outfile
-import csv
 f = open(outfile, 'w')
 w = csv.writer(f)
 for spectrum in library:
@@ -254,14 +429,3 @@ for spectrum in library:
 f.close()
 print "Wrote transition list into file ", outfile
 
-
-
-"""
-
-drop table hroest.ssrcalc_pr_copy ;
-create table 
-hroest.ssrcalc_pr_copy as
-select * from compep.ssrcalc_prediction;
-alter table hroest.ssrcalc_pr_copy add index(sequence);
-
-"""
