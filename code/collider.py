@@ -39,6 +39,7 @@ class SRM_parameters(object):
         self.do_vs1 = False #background only one charge state?
         self.dontdo2p2f = True #do not look at 2+ parent / 2+ fragment ions
         self.considerIsotopes = False #do not consider the C13 isotopes
+        self.isotopes_up_to = 0
         self.ppm = True #measure q3 in ppm
         self.transition_table = 'hroest.srmTransitions_yeast'
         self.peptide_table = 'hroest.srmPeptides_yeast'
@@ -286,6 +287,7 @@ class SRMcollider(object):
         if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
         else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
         vdict['selectby'] = selectby
+        vdict['query_add'] += vdict['query_add'] + ' and isotope_nr <= %s ' % par.isotopes_up_to
         query2 = """
         select %(values)s
         from %(pep)s
