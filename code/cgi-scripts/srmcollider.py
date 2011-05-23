@@ -39,6 +39,9 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     f = open( myCSVFile, 'w')
     w = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     w.writerow( ['sequence', 'q1', 'q3', 'type', 'charge'] )
+    fuis = open( myUIS_CSVFile, 'w')
+    wuis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    MAX_UIS = uis
 
     #sanitize input
     seqs = "'"
@@ -80,11 +83,12 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     mycollider = collider.SRMcollider()
 
     if uis > 0:
-        print "<p>Calculated UIS for peptide %s" % myinput.split()[0]
-        print "<a href ='%s'>Download csv file with UIS</a></p>" % myUIS_CSVFile_rel
-        if uis >  5 or len( myinput.split() ) > 1:
-            print "Can only calculate up to order 5 and only 1 peptide"
+        if uis > 5:
+            print "I will only calculate UIS up to order 5 \
+                    (otherwise your Excel might break)." #and we dont want that
             exit()
+        print "<a href ='%s'>Download csv file with UIS</a>" % myUIS_CSVFile_rel
+        print "<br/>"
 
     # Print headers, link to csv file and table of content
     unique = utils.unique(myinput.split() )
@@ -189,6 +193,37 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             tuple(transitions), tuple(precursors),
             q3_low, q3_high, par.q3_window, par.ppm)
 
+        non_uis = []
+        if uis > 0:
+            wuis.writerow([s])
+
+            srm_ids = [peak.transition[1] for peak in peaks]
+            srm_lookup = [ (peak.transition[1] , peak) for peak in peaks]
+            srm_lookup = dict(srm_lookup) 
+            for order in range(1,uis+1): 
+                non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
+                really_calculate_uis = True
+                if not really_calculate_uis:
+                    # here we just output the non-UIS combinations. Usually
+                    # these are more informative and are preferable to a list
+                    # of UIS combinations.
+                    for comb in non_uis:
+                        tmp = [ srm_lookup[elem] for elem in comb]  
+                        myrow = []
+                        for tt in tmp:
+                            myrow.extend( [ tt.transition[0], tt.annotation ])
+                        wuis.writerow(myrow)
+                if really_calculate_uis:
+                    # if you want the real deal, go ahead. 
+                    uis_list = collider.get_uis(srm_ids, non_uis, order)
+                    for comb in uis_list:
+                        tmp = [ srm_lookup[elem] for elem in comb]  
+                        myrow = []
+                        for tt in tmp:
+                            myrow.extend( [ tt.transition[0], tt.annotation ])
+                        wuis.writerow(myrow)
+
+
         useable = []
         unuseable = []
         for peak in peaks: 
@@ -280,6 +315,9 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             print "</td></tr>"
         print "</table>"
 
+    fuis.close()
+    f.close()
+
 def main_slow(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
 
     q3_low = low
@@ -351,7 +389,8 @@ def main_slow(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotop
             'q1_charge' :  r[2],
             'ssrcalc' :    r[3],
             'peptide_key' :r[4],
-            'sequence'    :r[5]
+            'sequence'    :r[5],
+            'mod_sequence'    :r[5]
         }
         for r in res
     ]
@@ -613,10 +652,7 @@ if form.has_key('peptides'):
     low = float(form.getvalue('low_mass') )
     genome = form.getvalue('genome') 
     isotope = int(form.getvalue('isotope') )
-    #uis = int(form.getvalue('uis') )
-    uis = 0
-    #print peptides
-    #peptides = myinput
+    uis = int(form.getvalue('uis') )
     start = time.time()
     #main_slow( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
     main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
@@ -675,15 +711,17 @@ else:
 
     <p class='input_field'>
         <label class="mylabel" for="uis">Find UIS up to order* </label>
-        <input class="number_input" disabled="True" type="text" name="uis" value="0"> 
+        <input class="number_input" type="text" name="uis" value="0"> 
     </p>
 
     <INPUT type="submit" value="Send"> 
 
  </form>
-<!-- 
-* due to computational constraints, only one peptide at a time can be searched in UIS mode
--->
+<p>
+* This will print out a list of all UIS combinations of transitions for all
+peptides. Preferably, only combinations of less than 5 transitions are
+considered, otherwise the result might get quite large.
+</p>
 
 <!-- 
 q1_window = 1 Da <br/>

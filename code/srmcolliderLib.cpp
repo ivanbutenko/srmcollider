@@ -439,6 +439,51 @@ void _combinations(int M, int N, const python::list &mapping,
                             mapping[index[2]], mapping[index[3]]); break;
             case 5: tmptuple = python::make_tuple( mapping[index[0]], mapping[index[1]], 
                             mapping[index[2]], mapping[index[3]], mapping[index[4]]); break;
+            case 6: tmptuple = python::make_tuple( mapping[index[0]],
+                            mapping[index[1]], 
+                            mapping[index[2]],
+                            mapping[index[3]],
+                            mapping[index[4]],
+                            mapping[index[5]]
+                    ); break;
+            case 7: tmptuple = python::make_tuple( mapping[index[0]],
+                            mapping[index[1]], 
+                            mapping[index[2]],
+                            mapping[index[3]],
+                            mapping[index[4]],
+                            mapping[index[5]],
+                            mapping[index[6]]
+                    ); break;
+            case 8: tmptuple = python::make_tuple( mapping[index[0]],
+                            mapping[index[1]], 
+                            mapping[index[2]],
+                            mapping[index[3]],
+                            mapping[index[4]],
+                            mapping[index[5]],
+                            mapping[index[6]],
+                            mapping[index[7]]
+                    ); break;
+            case 9: tmptuple = python::make_tuple( mapping[index[0]],
+                            mapping[index[1]], 
+                            mapping[index[2]],
+                            mapping[index[3]],
+                            mapping[index[4]],
+                            mapping[index[5]],
+                            mapping[index[6]],
+                            mapping[index[7]],
+                            mapping[index[8]]
+                    ); break;
+            case 10: tmptuple = python::make_tuple( mapping[index[0]],
+                            mapping[index[1]], 
+                            mapping[index[2]],
+                            mapping[index[3]],
+                            mapping[index[4]],
+                            mapping[index[5]],
+                            mapping[index[6]],
+                            mapping[index[7]],
+                            mapping[index[8]],
+                            mapping[index[9]]
+                    ); break;
             default:
                 PyErr_SetString(PyExc_ValueError, 
                     "Order (M) larger than 5 is not implemented");
