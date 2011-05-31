@@ -269,8 +269,10 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
 
                         if(fabs(t0-y_series[k]) < q3used || 
                            fabs(t0-b_series[k]) < q3used) {
+                            // extract SRM_id from transition list and store it
+                            // as dirty in a temporary dict
                             t1 = python::extract<long>(tlist[1]);
-                            tmpdict[t1] = 0; //dummy dict
+                            tmpdict[t1] = 0;
                             listmembers++; 
                         
                         }
@@ -362,6 +364,131 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
     return non_unique;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+ * Function to calculate the exact interfering transitions for each peptide.
+ * .  It will return a
+ * Transitions are tuples of the form (q3, srm_id), precursors are tuples of
+ * the form (q1, sequence, peptide_key).
+ */
+python::dict _find_clashes_forall(python::tuple transitions,
+    python::tuple precursors, double q3_low, double q3_high, double q3window,
+    bool ppm) {
+
+    python::dict result, tmpdict;
+    python::tuple clist;
+    python::tuple tlist;
+    python::list tmplist;
+
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    int fragcount, i, j, k, ch, listmembers = 0;
+    int isotope_nr;
+
+    long t1, peptide_key;
+    double t0, q1, ssrcalc, q3used = q3window;
+    char* sequence;
+
+    double* b_series = new double[256];
+    double* y_series = new double[256];
+
+    // go through all (potential) collisions
+    // and store the colliding SRM ids in a dictionary (they can be found at
+    // position 3 and 1 respectively)
+    for (j=0; j<precursor_length; j++) {
+        clist = python::extract< python::tuple >(precursors[j]);
+        q1 = python::extract<double>(clist[0]);
+        sequence = python::extract<char *>(clist[1]);
+        peptide_key = python::extract<long>(clist[2]);
+
+        ssrcalc = python::extract<double>(clist[3]);
+        isotope_nr = python::extract<int>(clist[4]);
+
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+
+            for (i=0; i<transitions_length; i++) {
+                tlist = python::extract< python::tuple >(transitions[i]);
+                //ppm is 10^-6
+                t0 = python::extract< double >(tlist[0]);
+                if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+
+                    // go through all fragments of this precursor
+                    for (k=0; k<fragcount; k++) {
+
+                        if(fabs(t0-y_series[k]) < q3used || 
+                           fabs(t0-b_series[k]) < q3used) {
+                            // extract SRM_id from transition list and store it
+                            // as dirty in a temporary dict
+                            t1 = python::extract<long>(tlist[1]);
+                            if( result.has_key(t1) ) {
+                                tmplist = python::extract<python::list>(result[t1]);
+                                if(fabs(t0-y_series[k]) < q3used)
+                                    // for the y series, the ion number is backwards
+                                    tmplist.append( python::make_tuple(y_series[k],
+                                    q1, 0, peptide_key, "y", fragcount - k, clist[1], ssrcalc, isotope_nr, ch));
+                                else if(fabs(t0-b_series[k]) < q3used)
+                                    tmplist.append( python::make_tuple(b_series[k],
+                                    q1, 0, peptide_key, "b", k+1, clist[1], ssrcalc, isotope_nr, ch));
+                            }
+                            else{
+                                python::list newlist;
+                                tmplist = newlist;
+                                if(fabs(t0-y_series[k]) < q3used)
+                                    tmplist.append( python::make_tuple(y_series[k],
+                                    q1, 0, peptide_key, "y", fragcount - k, clist[1], ssrcalc, isotope_nr, ch));
+                                else if(fabs(t0-b_series[k]) < q3used)
+                                    tmplist.append( python::make_tuple(b_series[k], 
+                                    q1, 0, peptide_key, "b", k+1, clist[1], ssrcalc, isotope_nr, ch));
+                                result[t1] = tmplist;
+                            }
+                        }
+                    }
+                } //loop over all transitions
+            }
+
+        /*
+         * In Python, this corresponds to the following function
+         *
+        for t in transitions:
+            #if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            this_min = q3_window_used
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= this_min:
+                    try: 
+                        non_unique[ t[1] ].append( c )
+                    except:
+                        non_unique[ t[1] ] = [c]
+        */
+
+    } //end of loop over all precursors
+
+    delete [] b_series;
+    delete [] y_series;
+    return result;
+}
+
+
+
+
+
+
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
 {
@@ -392,8 +519,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "dict calculate_collisions_per_peptide(tuple transitions, tuple precursors, \n"
  "       double q3_low, double q3_high, double q3window, bool ppm)\n"
  );
-
-
 
 
     def("get_non_uis", get_non_uis, 
@@ -465,5 +590,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
             
             );
  def("calculate_density", _find_clashes_calculate_colldensity, "");
+ def("_find_clashes_forall", _find_clashes_forall, "");
+
 }
 

@@ -46,3 +46,16 @@ warm_welcome = topdiv % """
     <span class="inactive-nav"> <a href="download.html">Download </a> </span>
     <span class="inactive-nav"> <a href="about.html">About </a> </span>
 """
+
+
+
+# Javascript function to toggle a div
+toggleDisplay = """
+<script language="javascript">
+function toggleDisplay(e){
+    element = document.getElementById(e).style;
+    /* element.display == 'none' ? element.display = 'block' : element.display='none'; */
+    element.display == 'block' ? element.display = 'none' : element.display='block';
+}
+</script>
+"""

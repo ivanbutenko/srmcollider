@@ -4,8 +4,10 @@
 Store all parent ions and their transitions (srmPeptides and srmTransitions)
 """
 
-
 import sys
+print "Script is deactivated, please edit if you want to use it."
+sys.exit() #remove this if you want to use this script
+
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" 
 parser = OptionParser(usage=usage)
