@@ -40,7 +40,7 @@ group = OptionGroup(parser, "Run uis Options",
 group.add_option("--swath_mode", action='store_true', dest="swath_mode", default=False,
                   help="SWATH mode enabled (use fixed window)")
 group.add_option("--use_db", action='store_true', dest="use_db", default=False,
-                  help="Use db instead of rangetree")
+                  help="Use db instead of rangetree (slower, but necessary for large Q1 windows)")
 group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
                   help="Only a dry run, do not start processing (but create experiment)")
 group.add_option("--restable", dest="restable", default='hroest.result_srmuis', type="str",
@@ -147,8 +147,6 @@ cursor.execute(q)
 
 #print "finished query execution: ", time.time() - start
 alltuples =  list(cursor.fetchall() )
-#from random import shuffle
-#shuffle(alltuples)
 
 #print "finished query fetch: ", time.time() - start
 mypepids = [
@@ -218,32 +216,12 @@ for kk, pep in enumerate(self.pepids):
     nr_transitions = len(transitions)
     #
     #in SWATH mode, we have a fixed window independent of q1
-    start = time.time()
     if swath_mode: q1_low = min_q1; q1_high = max_q1
     else: q1_low = q1 - par.q1_window ; q1_high = q1 + par.q1_window
     #
     if use_db and not swath_mode:
         precursors = self._get_all_precursors(par, pep, cursor)
     elif use_db and swath_mode:
-        ##values="q1, modified_sequence, peptide_key, q1_charge"
-        ###we compare the parent ion against 4 different parent ions
-        ###thus we need to take the PEPTIDE key here
-        ##query2 = """
-        ##select %(values)s
-        ##from %(pep)s
-        ##where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
-        ##    and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-        ##and q1 > %(q1_low)s and q1 < %(q1_high)s
-        ##and %(pep)s.peptide_key != %(peptide_key)d
-        ##%(query_add)s
-        ##""" % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
-        ##       'ssrcalc' : pep['ssrcalc'], 
-        ##        'peptide_key' : pep['peptide_key'],
-        ##       'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-        ##       'pep' : par.peptide_table,
-        ##       'values' : values}
-        ##cursor.execute( query2 )
-        ##precursors = list(cursor.fetchall() )
         if par.ssrcalc_window > 1000:
             precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] ]
         else:
@@ -252,6 +230,7 @@ for kk, pep in enumerate(self.pepids):
             precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] 
                          and p[4] > ssrcalc_low and p[4] < ssrcalc_high ]
     elif not use_db:
+        # Use the rangetree
         # correct rounding errors, s.t. we get the same results as before!
         # use the rangetree
         ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
@@ -261,37 +240,13 @@ for kk, pep in enumerate(self.pepids):
         precursors = [parentid_lookup[myid[0]] for myid in precursor_ids
                             #dont select myself 
                            if parentid_lookup[myid[0]][2]  != pep['peptide_key']]
-    #
-    #now calculate coll per peptide the new way
-    mtime = time.time() - start 
-    start = time.time()
-    #print "par q3" , par.q3_window
-    if True:
-        colldensity = c_getnonuis.calculate_density( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-        #
-        assert len(colldensity) == nr_transitions
-        assert MAX_UIS == 1
-        #print pep, transitions
-        nonuseable = len( [c for c in colldensity if c >0 ] )
-        prepare.append( (nonuseable, nr_transitions, p_id , 1, exp_key) )
-    else:
-
-        precursors = tuple( precursors )
-        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-        non_uis_list = [{} for i in range(MAX_UIS+1)]
-        for order in range(1,MAX_UIS+1):
-            non_uis_list[order] = c_getnonuis.get_non_uis(
-                collisions_per_peptide, order)
-        #
-        for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
-            prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
-                order), p_id , order, exp_key) )
+    #now calculate collisions in this area of the space
+    colldensity = c_getnonuis.calculate_density( 
+        transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+    assert MAX_UIS == 1
+    nonuseable = len( [c for c in colldensity if c >0 ] )
+    prepare.append( (nonuseable, nr_transitions, p_id , 1, exp_key) )
     progressm.update(1)
-    ctime = time.time() - start 
-    #print "time ratio", ctime / mtime, "total time", mtime + ctime, " precursors: ", len(precursors)
-    #print kk,nonuseable
 
 
 cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
