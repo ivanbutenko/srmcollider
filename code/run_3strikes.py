@@ -230,6 +230,23 @@ for kk, pep in enumerate(self.pepids):
             if dirty_t in mytuple: contaminated += 1.0
         if contaminated <= contamination_allow: tuples_2strike.append(mytuple)
 
+
+    #here we generate code to be executed later
+    depth = myorder
+    if True:
+        code = ''
+        for i in range(depth):
+            code += i*' ' + 'for ssr%s in ssrcalcvalues[%s]:\n' % (i,i)
+        code += depth* ' ' + 'avgv = ('
+        for i in range(depth):
+            code += 'ssr%s +' % (i)
+        code = code[:-1] + ') /%s\n' % depth
+        code += depth* ' ' + 'contaminationfree = False\n'
+        code += depth* ' ' + 'if ('
+        for i in range(depth):
+            code += 'abs(ssr%s - avgv) < strike3_ssrcalcwindow and\n' % i
+        code = code[:-4] + '): contaminated = True\n'
+
     ###############################################################
     #strike 3: the transitions in the tuple shall not coelute elsewhere
     tuples_3strike = []
@@ -261,19 +278,7 @@ for kk, pep in enumerate(self.pepids):
             continue
         contaminated = False
         combstart = time.time()
-        for comb in collider._combinationsDiffLen(N):
-           myssr = [ssrcalcvalues[i][cc] for i,cc in enumerate(comb)]
-           avgv = sum(myssr) / len(myssr)
-           contaminationfree = False
-           for ssr in myssr:
-               if abs(ssr - avgv) > strike3_ssrcalcwindow: contaminationfree = True 
-           if not contaminationfree: 
-               #print "contamination"
-               #print "=" * 75
-               #print mytuple, N, myssr #, tmpv
-               #print "=" * 75
-               contaminated = True
-               break
+        exec(code)
         if not contaminated: tuples_3strike.append( mytuple )
         totaltime += time.time() - topstart
         combtime += time.time() - combstart
