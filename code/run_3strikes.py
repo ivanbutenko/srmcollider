@@ -230,37 +230,15 @@ for kk, pep in enumerate(self.pepids):
             if dirty_t in mytuple: contaminated += 1.0
         if contaminated <= contamination_allow: tuples_2strike.append(mytuple)
 
-
-    #here we generate code to be executed later
-    depth = myorder
-    if True:
-        code = ''
-        for i in range(depth):
-            code += i*' ' + 'for ssr%s in ssrcalcvalues[%s]:\n' % (i,i)
-        code += depth* ' ' + 'avgv = ('
-        for i in range(depth):
-            code += 'ssr%s +' % (i)
-        code = code[:-1] + ') /%s\n' % depth
-        code += depth* ' ' + 'contaminationfree = False\n'
-        code += depth* ' ' + 'if ('
-        for i in range(depth):
-            code += 'abs(ssr%s - avgv) < strike3_ssrcalcwindow and\n' % i
-        code = code[:-4] + '): contaminated = True\n'
-
     ###############################################################
     #strike 3: the transitions in the tuple shall not coelute elsewhere
     tuples_3strike = []
-    strike3_ssrcalcwindow = par.ssrcalc_window
-    strike3_ssrcalcwindow = 1.0
-    totaltime = 0
-    combtime  = 0
     # 1. For each tuple that we found, find all peptides that collide with
     #    each single transition and store their SSRCalc values. For a tuple of
     #    n transitions, we get n vectors with a number of SSRCalc values.
     # 2. Check whether there exists one retention time (SSRcalc value) that is
     #    present in all vectors.
     for mytuple in tuples_2strike: 
-        topstart = time.time()
         thistransitions = [ t for t in transitions if t[1] in mytuple]
         ssrcalc_low = -999
         ssrcalc_high = 999
@@ -272,18 +250,9 @@ for kk, pep in enumerate(self.pepids):
                 [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] )
         N = [len(v) for v in ssrcalcvalues]
         # if one of the transitions is contamination-free, the whole set is ok
-        if min(N) == 0: 
-            print "cont-free", N, mytuple
-            tuples_3strike.append( mytuple )
-            continue
-        contaminated = False
-        combstart = time.time()
-        exec(code)
+        if min(N) == 0: tuples_3strike.append( mytuple ); continue
+        contaminated = c_getnonuis.thirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow)
         if not contaminated: tuples_3strike.append( mytuple )
-        totaltime += time.time() - topstart
-        combtime += time.time() - combstart
-        #if min(N) > 0: break
-    
 
     print "1 strike", len(tuples_1strike),  "\t2 strike", len(tuples_2strike),\
         "\t3 strike", len(tuples_3strike), pep['sequence']

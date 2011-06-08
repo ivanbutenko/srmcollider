@@ -485,7 +485,131 @@ python::dict _find_clashes_forall(python::tuple transitions,
 }
 
 
+/*
+ * Function to calculate whether there exists any combination of values from M
+ * arrays (one value from each array) such that the M values are within a
+ * certain window. 
+ *
+ * The first argument is a list that contains te length of the lists to be
+ * checked. The second argument a list of lists which contain the values to be
+ * checked, the third argument the window size. The function returns true if an
+ * M-tuple of such values exists, otherwise false.
+ */
+bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
+        ssrwindow ) {
 
+    python::list result;
+    int M = python::extract<int>(myN.attr("__len__")());
+
+    int j, k, i;
+    int* index = new int[M];
+    int* N = new int[M];
+    double* myssr = new double[M];
+    double avg;
+    bool contaminationfree;
+    bool contaminated = false;
+
+    //check whether allocation was successfull
+    if (! (index && N && myssr)) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return false; }
+
+    for(int k=0;k<M;k++) index[k] = 0;
+    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
+    int sumlen = 0;
+    for(int k=0;k<M;k++) sumlen += N[k];
+
+    /*
+     * Memory layout
+     *
+     * First we allocate memory for an array that contains pointers to arrays.
+     * We need M arrays, so this array has M entries. Then we allocate enough
+     * consecutive memory to hold all our data, e.g. sumlen data. After this we
+     * can fill our first array with the points to the correct place in the
+     * second memory allocation space.
+     * 
+     * If our memory looks like this, 
+     *
+     * [ . . . . . . x . . . . . . y . . . . . . . . . . . z . . . ]
+     *
+     * and x,y,z are the starting points of an array, then c_ssrcalcvalues[0]
+     * will point to the start, c_ssrcalcvalues[1] will point to x, 2 to y etc.
+     * We thus have a matrix with different row lengths.
+     * 
+    */
+
+    //allocate and check whether allocation was successfull
+    double **c_ssrcalcvalues = (double **) malloc(M * sizeof(double *));
+    if (!c_ssrcalcvalues) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return false; }
+
+    //allocate and check whether allocation was successfull
+    c_ssrcalcvalues[0] = (double *) malloc(sumlen * sizeof(double));
+    if (!c_ssrcalcvalues[0]) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return false; }
+
+    //calculate start position for each array in allocated memory and then fill 
+    for(i = 1; i < M; i++)  
+        c_ssrcalcvalues[i] = c_ssrcalcvalues[i-1] + N[i-1];
+    python::list tmplist;
+    for(k = 0; k < M; k++) {
+        tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
+        for(i = 0; i < N[k]; i++) {
+            c_ssrcalcvalues[k][i] = python::extract<double>(tmplist[i]); }
+    }
+
+    while(true) {
+        //EVALUATE THE RESULT
+        //
+        avg = 0;
+        for(k=0; k < M; k++) {
+            //get ssrcalc value from precursor index[k] of transition k
+            myssr[k] = c_ssrcalcvalues[k][ index[k] ];
+            avg += myssr[k];
+        }
+        avg /= M;
+        contaminationfree = false;
+        for(k=0; k < M; k++) {
+            //if one of them deviates more than ssrwindow from the avg, 
+            //there is no contamination, we are done with this index combination
+            if( fabs(myssr[k] - avg) > ssrwindow) {
+                contaminationfree = true; break;}
+        }
+        if(not contaminationfree) {contaminated = true; break;}
+
+        //CALCULATE NEW INDEX
+        // go through all combinations of M-tuples from the different arrays
+        index[ M-1 ] += 1;
+        if (index[ M-1 ] >= N[ M-1 ]) {
+            //#now we hit the end, need to increment other positions than last
+            j = M-1;
+            while (j >= 0 and index[j] >= N[j]-1) {j -= 1;}
+            //#j contains the value of the index that needs to be incremented
+            //#when we are at the end of the interation, j will be -1
+            if (j <0) break;
+            index[j] += 1;
+            k = j + 1;
+            //#set all other positions to zero again
+            while (k < M) {index[k] = 0; k += 1;  }
+        }
+
+    }
+
+    free((void *)c_ssrcalcvalues);
+    delete [] index;
+    delete [] N;
+    delete [] myssr;
+
+    return contaminated;
+}
 
 
 
@@ -592,5 +716,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  def("calculate_density", _find_clashes_calculate_colldensity, "");
  def("_find_clashes_forall", _find_clashes_forall, "");
 
+    def ("thirdstrike", thirdstrike);
 }
 
