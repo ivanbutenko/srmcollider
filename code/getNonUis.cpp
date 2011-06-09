@@ -209,6 +209,10 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     delete [] b_series;
     delete [] y_series;
 
+    // TODO replace with std::vector 
+    // http://www.boost.org/doc/libs/1_41_0/libs/python/doc/v2/indexing.html
+    // http://www.cplusplus.com/reference/stl/vector/reserve/
+    //
     python::list result;
     for (i=0; i<transitions_length; i++) result.append( cresult[i] ) ;
 

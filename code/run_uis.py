@@ -34,6 +34,8 @@ ssrcalcwin = 0.25
 
 #11234556 1047 1205 0.25 hroest.srmPeptides_yeast
 
+# count the number of interfering peptides
+count_avg_transitions = False
 
 
 from optparse import OptionParser, OptionGroup
@@ -117,7 +119,7 @@ alltuples =  list(cursor.fetchall() )
 #print "finished query fetch: ", time.time() - start
 mypepids = [
             {
-                'sequence'  :  r[0],
+                'mod_sequence'  :  r[0],
                 'peptide_key' :r[1],
                 'parent_id' :  r[2],
                 'q1_charge' :  r[3],
@@ -138,6 +140,7 @@ if not use_db:
     c_rangetree.create_tree(tuple(alltuples))
 
 
+allintertr = []
 self = mycollider
 self.mysqlnewtime = 0
 self.pepids = mypepids
@@ -152,7 +155,7 @@ for kk, pep in enumerate(self.pepids):
     #
     #new way to calculate the precursors
     transitions = c_getnonuis.calculate_transitions_ch(
-        ((q1, pep['sequence'], p_id),), [1], q3_low, q3_high)
+        ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
     #fake some srm_id for the transitions
     transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
     nr_transitions = len(transitions)
@@ -196,6 +199,16 @@ for kk, pep in enumerate(self.pepids):
     #now calculate coll per peptide the new way
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
         transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+    ## 
+    ## Lets count the number of peptides that interfere
+    if count_avg_transitions:
+        tr_arr = [0 for i in range(nr_transitions)]
+        for v in collisions_per_peptide.values():
+            for vv in v:
+                tr_arr[vv] += 1
+        allintertr.extend( tr_arr )
+    ##
+    ## Get the nonuis list from the collperpep
     non_uis_list = [{} for i in range(MAX_UIS+1)]
     for order in range(1,MAX_UIS+1):
         non_uis_list[order] = c_getnonuis.get_non_uis(
@@ -206,6 +219,11 @@ for kk, pep in enumerate(self.pepids):
             order), p_id , order, exp_key) )
     progressm.update(1)
 
+
+print "\n"
+print "found %s transitions" % len(allintertr)#
+print "found max of %s interferences" % max(allintertr)
+print "found average of %s interferences" % ( sum(allintertr) * 1.0 / len(allintertr) )
 
 cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
