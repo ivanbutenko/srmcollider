@@ -1,12 +1,29 @@
 #!/usr/bin/python
+# -*- coding: utf-8  -*-
+# vim:set fdm=marker:
+"""
+This program allows to input a list of peptides with relative transition
+intensity information and will output the minimal number of transitions needed
+to create a unique assay.
+
+When using mProphet files, it is also possible to use experimental intensities
+to check whether the measured transitions are still sufficient to form an UIS.
+Accepted inputs are srmAtlas tsv files, mProphet csv files and SPECTRAST
+spectral library files.
+
+Example Workflow: 
+    1. go to https://db.systemsbiology.net/sbeams/cgi/PeptideAtlas/GetTransitions
+    2. search for some protein, e.g. YLR304C  
+    3. download file "best_peptides..." and open it in some editor 
+    4. run "python runcollider.py filename background --srmatlas_tsv --max_uis 10"
+"""
 import MySQLdb, time, sys
 from string import Template
 import numpy, csv
 sys.path.extend(['/IMSB/users/hroest/projects', '/IMSB/users/hroest/projects/hlib', '/IMSB/users/hroest/projects/msa/code/', '/IMSB/users/hroest/projects/srm_clashes/code/'])
-db = MySQLdb.connect(read_default_file="/IMSB/users/hroest/.srm.cnf")
-cursor = db.cursor()
 # own libs
-import collider, speclib_db_lib, progress, silver, DDB, c_getnonuis
+import collider, progress, silver, DDB
+import speclib_db_lib
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
@@ -18,12 +35,16 @@ usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
 
     
 parser = OptionParser(usage=usage)
-group = OptionGroup(parser, "Spectral library Options", "")
+group = OptionGroup(parser, "SRMCollider Options", "")
 group.add_option("--safety", dest="safetytransitions", default=3, type="float",
     help="Number of transitions to add above the absolute minimum. " + 
     "Defaults to 3" , metavar='3')
 group.add_option("-f", "--file", dest="outfile", default='outfile', metavar='out',
     help="Output file"   )
+group.add_option("--db_prefix", dest="organism_prefix", default='hroest.srmPeptides_',
+    help="The DB table will be prefix+organism"   )
+group.add_option("--ssrcalc_table", dest="ssrcalc_table", default='hroest.ssrcalc_pr_copy',
+    help="The DB table that holds ssrcalc values" )
 group.add_option("--mapfile", dest="pepmapfile", default='', metavar='File',
     help="Text file with one sequence and SSRCalc value per line"   )
 group.add_option("--csv", dest="csv", default=False, action='store_true',
@@ -36,6 +57,12 @@ group.add_option("--csv", dest="csv", default=False, action='store_true',
  'LibraryIntensity',
  'ProductMz'.
 All other fields are ignored.
+"""
+                )
+group.add_option("--srmatlas_tsv", dest="srmatlas_tsv", default=False, action='store_true',
+                  help="""The file passed as the first option is a srmatlas style tsv file
+The format is one header line and then the following fields:
+  Protein, Pre AA, Sequence, Fol AA, Adj SS, Source, q1_mz, q1_chg, q3_mz, q3_chg, Label, Rank, RI, SSRT, n_obs
 """
                 )
 group.add_option("--exp", dest="exp_resultfile", default='', #metavar='out',
@@ -53,7 +80,6 @@ parser.add_option_group(group)
 ###########################################################################
 ###########################################################################
 
-
 #parameters evaluation
 parameters = collider.SRM_parameters()
 parameters.parse_cmdl_args(parser)
@@ -64,7 +90,7 @@ safetytransitions = options.safetytransitions
 outfile = options.outfile
 pepmapfile = options.pepmapfile
 libfile = args[0]
-peptide_table = 'hroest.srmPeptides_'  + args[1]
+peptide_table = options.organism_prefix + args[1]
 use_experimental_height = False
 if options.exp_resultfile != '': use_experimental_height = True
 
@@ -76,18 +102,74 @@ par.q3_window /= 2.0
 par.ssrcalc_window /= 2.0
 if par.ppm == 'True': par.ppm = True
 elif par.ppm == 'False': par.ppm = False
+elif par.ppm in [True, False]: pass
+else: 'wrong arg for ppm'; assert False
 
 parameters.peptide_table = peptide_table
 parameters.dontdo2p2f = False
 parameters.eval()
-sptxt = libfile + ".splib"
-pepidx = libfile + ".pepidx"
 print par.get_common_filename()
 #print par.experiment_type
 
+db = MySQLdb.connect(read_default_file=options.mysql_config)
+cursor = db.cursor()
+
 ###########################################################################
 ###########################################################################
 
+def parse_srmatlas_file(csvfile):
+    # some dummy classes that can do the same thing as the spectral library
+    # classes
+    class Peak():
+        def __init__(self):
+            self.experimental_height  = 0
+
+    class Spectrum():
+        def __init__(self):
+            self.peaks = []
+            self.sequence = None
+            self.name = None
+            self.precursorMZ = None
+            self.protein = ''
+        def get_peaks(self):
+            return self.peaks
+
+    r = csv.reader( open(csvfile, 'rU') , delimiter='\t') 
+    header = r.next()
+    # We know the header
+    headerdict = {}
+    headerdict['ModifiedSequence'] = 2
+    headerdict['PrecursorCharge'] = 7
+    headerdict['PrecursorMz'] = 6
+    headerdict['ProductMz'] = 8
+    headerdict['frg_z'] = 9
+    headerdict['frg_type'] = 10
+    headerdict['LibraryIntensity'] = 11
+    headerdict['protein_name'] = 0
+    specdict = {}
+    for line in r:
+        key = line[ headerdict['ModifiedSequence']] + '/' + line[headerdict['PrecursorCharge']]
+        if specdict.has_key( key ): specdict[key].append(line)
+        else: specdict[key] = [ line ]
+
+    library = []
+    for key in specdict:
+        lines = specdict[key]
+        s = Spectrum()
+        s.name        = key
+        s.sequence    = lines[0][headerdict['ModifiedSequence']].replace( 'C[160]', 'C')
+        s.precursorMZ = float(lines[0][headerdict['PrecursorMz']])
+        s.protein = lines[0][headerdict['protein_name']]
+        for peak in lines:
+            p = Peak()
+            p.peak             = float(peak[headerdict['ProductMz']])
+            p.intensity        = 10000.0 * 1.0/float(peak[headerdict['LibraryIntensity']]) 
+            p.type             = peak[headerdict['frg_type']] + '_' +  peak[headerdict['frg_z']]
+            p.mprophetline     = peak
+            s.peaks.append(p)
+        library.append(s)
+    return library
+ 
 def parse_mprophet_methodfile(csvfile):
     # some dummy classes that can do the same thing as the spectral library
     # classes
@@ -181,7 +263,10 @@ def parse_mprophet_resultfile(library, infile, threshold):
 
 
 # here we parse the files
-if not options.csv:
+if not options.csv and not options.srmatlas_tsv:
+    sptxt = libfile + ".splib"
+    pepidx = libfile + ".pepidx"
+
     print "Experiment Type"
     print ' '*5, 'Check transitions from a spectral library with'
     print ' '*5, par.thresh
@@ -200,7 +285,7 @@ if not options.csv:
     library_key = 4242 
     library = speclib_db_lib.Library(library_key)
     library.read_sptxt_pepidx( sptxt, pepidx, library_key )
-else: 
+elif options.csv: 
     print "Experiment Type"
     print ' '*5, 'Check transitions from a csv transitions list with'
     print ' '*5, par.thresh
@@ -208,6 +293,14 @@ else:
     print ' '*5, 'Using csv file library: %s' % libfile
     print ' '*5, 'Using background organism: %s' % args[1]
     library = parse_mprophet_methodfile(libfile)
+elif options.srmatlas_tsv: 
+    print "Experiment Type"
+    print ' '*5, 'Check transitions from a csv transitions list with'
+    print ' '*5, par.thresh
+    print ' '*5, 'Da for the q3 transitions.'
+    print ' '*5, 'Using csv file library: %s' % libfile
+    print ' '*5, 'Using background organism: %s' % args[1]
+    library = parse_srmatlas_file(libfile)
 
 if use_experimental_height:
     infile = options.exp_resultfile
@@ -227,9 +320,9 @@ for icount, spectrum in enumerate(library):
 
 ssr_query = """
 select sequence, ssrcalc
-from hroest.ssrcalc_pr_copy
+from %(ssrcalc_table)s
 where sequence in (%(seqs)s)
-""" % { 'seqs' : seqs[:-1], }
+""" % { 'seqs' : seqs[:-1], 'ssrcalc_table' : options.ssrcalc_table}
 cursor.execute( ssr_query )
 pepmap = dict( cursor.fetchall() )
 
@@ -367,7 +460,6 @@ if not use_experimental_height:
     print "Minimal number of transitions needed to measure these %s peptides:" % (
         icount - measured_precursors + sum(mycollider.perprecursor) ), sumtrans
 else:
-    #use experimental height
     mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
     mycollider.perpeptide = [0 for i in range(par.max_uis+1)]
     mycollider.perprotein = [0 for i in range(par.max_uis+1)]
@@ -423,7 +515,8 @@ for spectrum in library:
     peaks.sort( lambda x,y: -cmp(x.intensity, y.intensity))
     for i,p in enumerate(peaks):
         if i > int(spectrum.min_needed-1 + safetytransitions): break
-        if not options.csv: w.writerow( [spectrum.precursorMZ, p.peak, p.peak_annotation, spectrum.name])
+        if not options.csv and not options.srmatlas_tsv:
+            w.writerow( [spectrum.precursorMZ, p.peak, p.peak_annotation, spectrum.name])
         else: w.writerow(p.mprophetline)
 
 f.close()
