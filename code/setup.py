@@ -5,14 +5,28 @@ Store all parent ions and their transitions (srmPeptides and srmTransitions)
 """
 
 import sys
+import MySQLdb
+import sys 
+sys.path.append( '/home/hroest/lib/' )
+sys.path.append( '/home/hroest/srm_clashes/code' ) #Collider
+sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
+sys.path.append( '/home/hroest/lib/hlib' ) #utils
+sys.path.append( '/home/hroest/projects/hlib' ) #utils
+sys.path.append( '/home/hroest/projects' ) #utils
+from hlib import utils
+import Residues
+import DDB 
+import progress
+import collider
+
 print "Script is deactivated, please edit if you want to use it."
 sys.exit() #remove this if you want to use this script
 
 from optparse import OptionParser, OptionGroup
-usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" 
+usage = "usage: %prog [options]\n" 
 parser = OptionParser(usage=usage)
 
-group = OptionGroup(parser, "Spectral library Options", "") 
+group = OptionGroup(parser, "Create db tables Options", "") 
 group.add_option("--exp_key", dest="exp_key", default='',
                   help="Experiment Key(s)"  , metavar='(3475, 3474)' ) 
 group.add_option("--peptide_table", dest="peptide_table", default='hroest.srmPeptides_test',
@@ -21,16 +35,44 @@ group.add_option("--transition_table", dest="transition_table", default='hroest.
                   help="MySQL table containing the transitions" )
 group.add_option("--dotransitions", dest="dotransitions", default=False, action="store_true",
                   help="Also fill the transitions table (not always necessary)")
+group.add_option("--tsv_file", dest="tsv_file", default='',
+                  help="Take TSV file created by SSRCalc as input" )
+group.add_option("--sqlite_database", dest="sqlite_database", default='',
+                  help="Use specified sqlite database instead of MySQL database" )
+group.add_option("--nr_isotopes", dest="nr_isotopes", default='3',
+                  help="Number of isotopes of the precursor to consider" )
+group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
+                  help="Location of mysql config (.my.cnf) file" )
 parser.add_option_group(group)
 
-#parameters evaluation
-#parameters = collider.SRM_parameters()
-#parameters.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 peptide_table = options.peptide_table
 transition_table = options.transition_table
 exp_key = options.exp_key
 dotransitions = options.dotransitions
+tsv_file = options.tsv_file
+sqlite_database = options.sqlite_database
+if tsv_file != '': use_tsv = True
+else: use_tsv = False
+if sqlite_database != '': use_sqlite = True
+else: use_sqlite = False
+
+
+#up to how many isotopes should be considered
+PATTERNS_UP_TO = int(options.nr_isotopes) 
+
+if use_sqlite:
+    import sqlite
+    conn = sqlite.connect(sqlite_database)
+    db = conn
+    c = conn.cursor()
+    c2 = conn.cursor()
+
+else:
+    db = MySQLdb.connect(read_default_file=options.mysql_config)
+    c = db.cursor()
+    c2 = db.cursor()
+
 
 ##exp_key = 3061  #human (800 - 5000 Da)
 ##exp_key = 3130  #human (all)
@@ -40,24 +82,8 @@ dotransitions = options.dotransitions
 ###exp_key = 3445  #mouse (all)
 ##exp_key = '(3475, 3474)' #all TB
 
-import MySQLdb
-import sys 
-sys.path.append( '/home/hroest/lib/' )
-sys.path.append( '/home/hroest/srm_clashes/code' ) #Collider
-sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
-sys.path.append( '/home/hroest/lib/hlib' ) #utils
-import time
-from hlib import utils
-db = MySQLdb.connect(read_default_file="~/.my.cnf")
-c = db.cursor()
-c2 = db.cursor()
-import silver
-import DDB 
-import csv 
-R = silver.Residues.Residues('mono')
-import numpy
-import progress
-import collider
+
+residues = Residues.Residues('mono')
 
 all_peptide_query  = """
 select distinct peptide.sequence, molecular_weight, ssrcalc,
@@ -77,36 +103,78 @@ and length( peptide.sequence ) > 1
 ###################################
 # A) store the transitions
 ###################################
-#read in the data from DB and put into bins
-# 75 peptides/sec
+
 insert_db = True
 modify_cysteins = False
-read_from_db = False
-c.execute( 'use ddb;' )
-t = utils.db_table( c2 )
-t.read( all_peptide_query )
-print "executed the query"
-rows = t.c.fetchall()
 
-c.execute( " drop table if exists %(table)s;" % { 'table' : peptide_table} )
-c.execute( """
-create table %(table)s(
-    parent_id INT PRIMARY KEY AUTO_INCREMENT,
-    peptide_key INT,
-    modified_sequence VARCHAR(255),
-    q1_charge TINYINT,
-    q1 DOUBLE,
-    ssrcalc DOUBLE,
-    isotope_nr TINYINT,
-    transition_group INT
-);
-""" % { 'table' : peptide_table} )
-c.execute("alter table %(table)s add index(peptide_key);" % { 'table' : peptide_table} )
-c.execute("alter table %(table)s add index(q1);" % { 'table' : peptide_table} )
-c.execute("alter table %(table)s add index(ssrcalc);" % { 'table' : peptide_table} )
-c.execute("alter table %(table)s add index(transition_group);" % { 'table' : peptide_table} )
-#c.execute('truncate table ' + peptide_table)
-if dotransitions: c.execute('truncate table ' + transition_table)
+# how to get the peptides (from DB or from file)
+if use_tsv:
+    import csv
+    rows = []
+    #f = open('ssrcalc.out')
+    f = open(tsv_file)
+    reader = csv.reader(f, delimiter='\t')
+    for id, line in enumerate(reader):
+        if len(line[0]) < 2: continue
+        peptide = DDB.Peptide()
+        peptide.set_sequence( line[0] )
+        peptide.ssr_calc = line[2] 
+        peptide.id = id
+        rows.append(peptide)
+
+else:
+    c.execute( 'use ddb;' )
+    t = utils.db_table( c2 )
+    t.read( all_peptide_query )
+    rows = t.c.fetchall()
+
+
+
+
+# where to store the peptides (in MySQL or sqlite)
+if use_sqlite:
+    try: c.execute( " drop table %(table)s;" % { 'table' : peptide_table} )
+    except Exception: pass
+    c.execute(
+    """
+    create table %(table)s(
+        parent_id INT PRIMARY KEY,
+        peptide_key INT,
+        modified_sequence VARCHAR(255),
+        q1_charge TINYINT,
+        q1 DOUBLE,
+        ssrcalc DOUBLE,
+        isotope_nr TINYINT,
+        transition_group INT
+    );
+    create index %(table)spepkey   on %(table)s (peptide_key);
+    create index %(table)sq1       on %(table)s (q1);
+    create index %(table)sssrcalc  on %(table)s (ssrcalc);
+    create index %(table)strgroup  on %(table)s (transition_group);
+        """ % {'table' : peptide_table}
+    )
+
+else:
+    c.execute( " drop table if exists %(table)s;" % { 'table' : peptide_table} )
+    c.execute( """
+    create table %(table)s(
+        parent_id INT PRIMARY KEY AUTO_INCREMENT,
+        peptide_key INT,
+        modified_sequence VARCHAR(255),
+        q1_charge TINYINT,
+        q1 DOUBLE,
+        ssrcalc DOUBLE,
+        isotope_nr TINYINT,
+        transition_group INT
+    );
+    """ % { 'table' : peptide_table} )
+    c.execute("alter table %(table)s add index(peptide_key);" % { 'table' : peptide_table} )
+    c.execute("alter table %(table)s add index(q1);" % { 'table' : peptide_table} )
+    c.execute("alter table %(table)s add index(ssrcalc);" % { 'table' : peptide_table} )
+    c.execute("alter table %(table)s add index(transition_group);" % { 'table' : peptide_table} )
+    #c.execute('truncate table ' + peptide_table)
+    if dotransitions: c.execute('truncate table ' + transition_table)
+
 mass_bins = [ []  for i in range(0, 10000) ]
 rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
@@ -117,10 +185,11 @@ for row in rows:
     transition_group += 1 
     #if transition_group >= 1001: break #####FOR TESTING ONLY
     for mycharge in [2,3]:  #precursor charge 2 and 3
-        peptide = collider.get_peptide_from_table(t, row)
+        if not use_tsv: peptide = collider.get_peptide_from_table(t, row)
+        else: peptide = row
         peptide.charge = mycharge
         if modify_cysteins: peptide.modify_cysteins()
-        peptide.create_fragmentation_pattern(R)
+        peptide.create_fragmentation_pattern(residues)
         if insert_db:
             #insert peptide into db
             collider.insert_peptide_in_db(peptide, db, peptide_table,
@@ -128,7 +197,7 @@ for row in rows:
     #we want to insert the fragments only once per peptide
     if insert_db and dotransitions:
         #insert fragment charge 1 and 2 into database
-        peptide.mass_H = R.mass_H
+        peptide.mass_H = residues.mass_H
         collider.fast_insert_in_db(peptide, db, 1, transition_table,
                                    transition_group=transition_group)
         collider.fast_insert_in_db(peptide, db, 2, transition_table,
@@ -136,7 +205,6 @@ for row in rows:
 
 
 #A2 create the additional parent ions for the isotope patterns
-PATTERNS_UP_TO = 3 #up to how many isotopes should be considered
 cursor = c
 vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
 query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
@@ -146,10 +214,16 @@ prepared = []
 for p in allpeptides:
     q1_charge = p[2]
     for i in range(1,1+PATTERNS_UP_TO):
-        prepared.append( [p[1], p[2], p[3] + (R.mass_diffC13 * i* 1.0) / q1_charge,
+        prepared.append( [p[1], p[2], p[3] + (residues.mass_diffC13 * i* 1.0) / q1_charge,
                               p[4], p[5], i, p[7]] )
 
 q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
      " VALUES (" + "%s," *6 + "%s)"
 c.executemany( q, prepared)
+
+# if any problems with the packet/buffer length occur, try this:
+## set global max_allowed_packet=1000000000;
+## set global net_buffer_length=1000000;
+
+if use_sqlite: db.commit()
 

@@ -93,6 +93,8 @@ class SRM_parameters(object):
                           help="MySQL table containing the peptides" )
         group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_yeast',
                           help="MySQL table containing the transitions" )
+        group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
+                          help="Location of mysql config (.my.cnf) file" )
         group.add_option("-q", "--quiet", dest="quiet", default=False,
                           help="don't print status messages to stdout")
         parser.add_option_group(group)
@@ -310,6 +312,7 @@ class SRMcollider(object):
         if par.print_query: print query2
         cursor.execute( query2 )
         return cursor.fetchall()
+
 
     def _get_all_collisions_calculate(self, par, pep, cursor, 
       values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):
@@ -1163,6 +1166,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
 
+
 def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
 
     try:
@@ -1486,6 +1490,54 @@ def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic,
     #    else: pairs_dic[ S.peptide ] = [ S2.peptide ]
     clash_distr[ share ] += 1
     return share
+
+
+
+def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
+    import silver
+    import DDB 
+    R = silver.Residues.Residues('mono')
+    for p in peptides:
+        q1 = p[0]
+        peptide_key = p[2]
+        peptide = DDB.Peptide()
+        peptide.set_sequence(p[1])
+        peptide.charge = 2 #dummy, wont need it later
+        peptide.create_fragmentation_pattern(R)
+        b_series = peptide.b_series
+        y_series = peptide.y_series
+        for ch in charges:
+            for pred in y_series:
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                if q3 < q3_low or q3 > q3_high: continue
+                yield (q3, q1, 0, peptide_key)
+            for pred in b_series:
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                if q3 < q3_low or q3 > q3_high: continue
+                yield (q3, q1, 0, peptide_key)
+
+def calculate_transitions_ch(peptides, charges, q3_low, q3_high):
+    try: 
+        import c_getnonuis
+        return c_getnonuis.calculate_transitions_ch(
+            peptides, charges, q3_low, q3_high)
+    except ImportError:
+        return list(_calculate_transitions_ch(
+            peptides, charges, q3_low, q3_high))
+
+
+def get_nonuis_list(collisions_per_peptide, MAX_UIS):
+    non_uis_list = [set() for i in range(MAX_UIS+1)]
+    try:
+        import c_getnonuis
+        for order in range(1,MAX_UIS+1):
+                non_uis_list[order] = c_getnonuis.get_non_uis(
+                    collisions_per_peptide, order)
+    except ImportError:
+        for pepc in collisions_per_peptide.values():
+            for i in range(1,MAX_UIS+1):
+                get_non_uis(pepc, non_uis_list[i], i)
+    return non_uis_list 
 
 ###UIS Code
 def get_non_uis(pepc, non_uis, order):
