@@ -56,13 +56,15 @@ All other fields are ignored.
 """
                 )
 group.add_option("--srmatlas_tsv", dest="srmatlas_tsv", default=False, action='store_true',
-                  help="""The file passed as the first option is a srmatlas style tsv file
-The format is one header line and then the following fields:
-  Protein, Pre AA, Sequence, Fol AA, Adj SS, Source, q1_mz, q1_chg, q3_mz, q3_chg, Label, Rank, RI, SSRT, n_obs
+    help="""The file passed as the first option is a srmatlas style tsv file
+    The format is one header line and then the following fields: Protein, Pre
+    AA, Sequence, Fol AA, Adj SS, Source, q1_mz, q1_chg, q3_mz,
+    q3_chg, Label, Rank, RI, SSRT, n_obs
 """
                 )
 group.add_option("--exp", dest="exp_resultfile", default='', #metavar='out',
-    help="""Experimental result file (mProphet output) that contains information, which peptides could be measured with how many transitions. 
+    help="""Experimental result file (mProphet output) that contains information,
+                 which peptides could be measured with how many transitions. 
  The format is a header row which MUST contain the following fields:
 'target_height'
 'transition_group_id'
@@ -104,8 +106,17 @@ else: 'wrong arg for ppm'; assert False
 parameters.peptide_table = peptide_table
 parameters.dontdo2p2f = False
 parameters.eval()
-print par.get_common_filename()
-#print par.experiment_type
+
+if par.max_uis == 0:
+    err = "Error: --max_uis needs to be larger than 0"
+    print err
+    sys.stderr.write(err) 
+    sys.exit()
+
+try:
+    import c_getnonuis
+    use_cpp = True
+except ImportError: use_cpp = False
 
 db = MySQLdb.connect(read_default_file=options.mysql_config)
 cursor = db.cursor()
@@ -305,8 +316,11 @@ if use_experimental_height:
     parse_mprophet_resultfile(library, infile, threshold)
 
 ###########################################################################
+# Start program
 ###########################################################################
 
+##
+## First create the mapping of the SSRcalc values to the peptide sequences 
 mycollider = collider.SRMcollider()
 pepmap = {}
 seqs = ''
@@ -315,13 +329,16 @@ for icount, spectrum in enumerate(library):
     seqs += "'%s'," % spectrum.sequence
     seqdic[ spectrum.sequence ] = 0
 
-ssr_query = """
-select sequence, ssrcalc
-from %(ssrcalc_table)s
-where sequence in (%(seqs)s)
-""" % { 'seqs' : seqs[:-1], 'ssrcalc_table' : options.ssrcalc_table}
-cursor.execute( ssr_query )
-pepmap = dict( cursor.fetchall() )
+# try to find SSRCalc values
+try:
+    ssr_query = """
+    select sequence, ssrcalc
+    from %(ssrcalc_table)s
+    where sequence in (%(seqs)s)
+    """ % { 'seqs' : seqs[:-1], 'ssrcalc_table' : options.ssrcalc_table}
+    cursor.execute( ssr_query )
+    pepmap = dict( cursor.fetchall() )
+except Exception: pepmap = {}
 
 #add more SSRCalc values from the pepmap file
 if pepmapfile != '':
@@ -340,17 +357,6 @@ if len(seqdic) > len(pepmap):
     print "If you want to use SSRCalc predictions, please provide a file with SSRCalc values."
     print "Otherwise your results will be wrong because you are missing some SSRcalc values."
 
-if par.max_uis == 0:
-    err = "Error: --max_uis needs to be larger than 0"
-    print err
-    sys.stderr.write(err) 
-    sys.exit()
-
-try:
-    import c_getnonuis
-    use_cpp = True
-except ImportError: use_cpp = False
-
 ## 
 ## START the main loop
 ## 
@@ -358,11 +364,11 @@ progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
 for counter,spectrum in enumerate(library):
     spectrum.score = -99
     spectrum.min_needed = -1
+    # Get the spectrum peaks, sort by intensity
+    # Assign a ssrcalc value to (if not present, use default value).
+    # Then create a peptide hash and get the transitions
     peaks = spectrum.get_peaks()
     peaks.sort( lambda x,y: -cmp(x.intensity, y.intensity))
-    bgpar = parameters
-    par = parameters
-    msequence = spectrum.name.split('/')[0]
     try: ssrcalc = pepmap[spectrum.sequence]
     except KeyError: ssrcalc = 25
     pep = {
@@ -379,8 +385,9 @@ for counter,spectrum in enumerate(library):
     if nr_transitions == 0: continue #no transitions in this window
     # some bug in mProphet
     pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]')
-    # get all precursors but not the one of the current peptide
-    # if we dont use cpp, we need to get the peptide_key correct
+    #
+    # Get all interfering precursors (all but the one of the current peptide)
+    # If we dont use C++, we need to get the peptide_key correct
     precursors = mycollider._get_all_precursors(par, pep, cursor)
     if not use_cpp: 
         own_peptide = [p for p in precursors if p[1] == pep['mod_sequence'] ]
@@ -431,8 +438,11 @@ for counter,spectrum in enumerate(library):
     if min_needed != -1: spectrum.score = nr_transitions - min_needed
     if not par.quiet: progressm.update(1)
 
+##
 ## PRINT some statistics of our results
+# For each precursor, peptide and protein print the number necessary transitions
 if not use_experimental_height:
+    # default case
     mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
     mycollider.perpeptide = [0 for i in range(par.max_uis+1)]
     mycollider.perprotein = [0 for i in range(par.max_uis+1)]
@@ -475,12 +485,10 @@ if not use_experimental_height:
     print "Proteins not possible to observe (too few transitions):  %s / %s" % (
         measured_proteins - sum( mycollider.perprotein) , measured_proteins)
 
-    ## a, b = numpy.histogram([c for a,b,c in mycollider.min_transitions if b == -1], 10, (0,10) )
-    ## print "Transition distribution of not observeable precursors"
-    ## print a, b
     print "Minimal number of transitions needed to measure these %s peptides:" % (
         icount - measured_precursors + sum(mycollider.perprecursor) ), sumtrans
 else:
+    # we have experimental data
     mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
     mycollider.perpeptide = [0 for i in range(par.max_uis+1)]
     mycollider.perprotein = [0 for i in range(par.max_uis+1)]
@@ -526,7 +534,6 @@ else:
         measured_peptides - sum( mycollider.perpeptide) , measured_peptides)
     print "Proteins not possible to observe (too few transitions):  %s / %s" % (
         measured_proteins - sum( mycollider.perprotein) , measured_proteins)
-
 
 #here we write to the outfile
 f = open(outfile, 'w')
