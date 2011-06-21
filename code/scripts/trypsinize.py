@@ -1,9 +1,11 @@
 from optparse import OptionParser, OptionGroup
+import sys; sys.path.append('..')
 from Bio import SeqIO
 import DDB
-import sys
-usage = "usage: %prog fasta_file outputfile\nAfterwards run SSRcalc:\n" 
-usage += "perl external/SSRCalc4.pl --alg 3.0 --source_file outfile  --output tsv --B 1 --A 0  >> ssrcalc.out"
+
+usage = 'A script to read a fasta file and output trypsinized peptides, one per line\n'
+usage += "usage: %prog fasta_file outputfile\nAfterwards run SSRcalc:\n" 
+usage += "perl SSRCalc3.pl --alg 3.0 --source_file outfile  --output tsv --B 1 --A 0  > ssrcalc.out"
 parser = OptionParser(usage=usage)
 options, args = parser.parse_args(sys.argv[1:])
 
