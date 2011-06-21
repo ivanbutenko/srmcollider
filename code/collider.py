@@ -8,29 +8,7 @@ sys.path.append( '/IMSB/users/hroest/projects/tppGhost' )
 import numpy
 import progress
 import gnuplot
-
 import DDB
-
-#with this method, I can do 
-##method 2
-# 22.2 per second (1Da), thus do 500k in 6 hours ==> using per peptide methods
-# 5 per second (25Da), thus do 500k in 24 hours ==> using per peptide methods
-#
-#10ppm, 1Da => 200 / s
-#10ppm, 9Da => 20 / s
-#10ppm, 25Da => 7 / s
-#10ppm, 50Da => 4 / s
-##method 1
-# 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
-
-#for the first 20 peptides of human, it takes
-#with regular: 73 seconds (71% collisions)
-#with optimized SQL query (pass transitions along): 29 seconds (95% collisions)
-#with silver 300 seconds (50% collisions)
-#with my own fragmentation 80 seconds (50% collisions)
-#with my own fragmentation and list from generator 45s (47% collision) 
-#with my own fragmentation and generator 40s 
-
 
 class SRM_parameters(object):
 
@@ -324,9 +302,9 @@ class SRMcollider(object):
         then create a DDB.Peptide object for each precursor, and get the
         fragmentation patterns from those.
         """
-        import silver
+        import Residues
         import DDB 
-        R = silver.Residues.Residues('mono')
+        R = Residues.Residues('mono')
         q3_low, q3_high = par.get_q3range_collisions()
         for c in self._get_all_precursors(par, pep, cursor, values=values):
             q1 = c[0]
@@ -1494,9 +1472,9 @@ def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic,
 
 
 def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
-    import silver
+    import Residues
     import DDB 
-    R = silver.Residues.Residues('mono')
+    R = Residues.Residues('mono')
     for p in peptides:
         q1 = p[0]
         peptide_key = p[2]

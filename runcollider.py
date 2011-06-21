@@ -17,13 +17,9 @@ Example Workflow:
     3. download file "best_peptides..." and open it in some editor 
     4. run "python runcollider.py filename background --srmatlas_tsv --max_uis 10"
 """
-import MySQLdb, time, sys
-from string import Template
-import numpy, csv
-sys.path.extend(['/IMSB/users/hroest/projects', '/IMSB/users/hroest/projects/hlib', '/IMSB/users/hroest/projects/msa/code/', '/IMSB/users/hroest/projects/srm_clashes/code/'])
-# own libs
-import collider, progress, silver, DDB
-import speclib_db_lib
+import MySQLdb, sys, csv
+sys.path.append('code')
+import collider, progress, Residues
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
@@ -264,6 +260,7 @@ def parse_mprophet_resultfile(library, infile, threshold):
 
 # here we parse the files
 if not options.csv and not options.srmatlas_tsv:
+    import speclib_db_lib
     sptxt = libfile + ".splib"
     pepidx = libfile + ".pepidx"
 
@@ -349,6 +346,14 @@ if par.max_uis == 0:
     sys.stderr.write(err) 
     sys.exit()
 
+try:
+    import c_getnonuis
+    use_cpp = True
+except ImportError: use_cpp = False
+
+## 
+## START the main loop
+## 
 progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
 for counter,spectrum in enumerate(library):
     spectrum.score = -99
@@ -372,10 +377,16 @@ for counter,spectrum in enumerate(library):
     if use_experimental_height: transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
+    # some bug in mProphet
     pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]')
+    # get all precursors but not the one of the current peptide
+    # if we dont use cpp, we need to get the peptide_key correct
     precursors = mycollider._get_all_precursors(par, pep, cursor)
+    if not use_cpp: 
+        own_peptide = [p for p in precursors if p[1] == pep['mod_sequence'] ]
+        if len(own_peptide) > 0: pep['peptide_key'] = own_peptide[0][2]
     precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
-    R = silver.Residues.Residues('mono')
+    R = Residues.Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
     #
     # check for q3_low and q3_high values, if the transitions are outside this
@@ -388,11 +399,14 @@ for counter,spectrum in enumerate(library):
             print err
             sys.stderr.write(err) 
             sys.exit()
-    #
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
-        tuple(transitions), tuple(precursors), q3_low, q3_high, 
-        par.q3_window, par.ppm)
-    if not use_experimental_height:
+
+    if not use_experimental_height and use_cpp:
+        import c_integrated
+        min_needed = c_integrated.getMinNeededTransitions(tuple(transitions), tuple(precursors), 
+            par.max_uis, par.q3_window, par.ppm)
+    elif not use_experimental_height:
+        collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
+            transitions, par, pep, cursor)
         min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
     else:
         # here we consider the case that we have measured a number of
@@ -400,9 +414,15 @@ for counter,spectrum in enumerate(library):
         # sufficient to establish uniqueness. For this, all we need is
         # that one tuple of transitions establishes uniqueness since we
         # were able to measure it above the background noise.
+        collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
+            transitions, par, pep, cursor)
         for order in range(1,nr_transitions+1): 
             mymax = collider.choose(nr_transitions, order)
-            non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
+            if use_cpp: non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
+            else: 
+                non_uis = set()
+                for pepc in collisions_per_peptide.values():
+                    get_non_uis(pepc, non_uis, i)
             if len(non_uis) < mymax: break
         if len(non_uis) < mymax: min_needed  = order
         else: min_needed = -1
@@ -411,6 +431,7 @@ for counter,spectrum in enumerate(library):
     if min_needed != -1: spectrum.score = nr_transitions - min_needed
     if not par.quiet: progressm.update(1)
 
+## PRINT some statistics of our results
 if not use_experimental_height:
     mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
     mycollider.perpeptide = [0 for i in range(par.max_uis+1)]
