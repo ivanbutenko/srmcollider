@@ -68,7 +68,7 @@ class SRM_parameters(object):
         self.xions      =  False
         self.zions      =  False
 
-    def parse_cmdl_args(self, parser):
+    def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup
         group = OptionGroup(parser, "General Options",
                             "These are the general options for the SRM  Collider")
@@ -98,8 +98,8 @@ class SRM_parameters(object):
                           help="MySQL table containing the peptides" )
         group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_yeast',
                           help="MySQL table containing the transitions" )
-        group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
-                          help="Location of mysql config (.my.cnf) file" )
+        group.add_option("--mysql_config", dest="mysql_config", default=default_mysql,
+                          help="Location of mysql config file, defaults to %s" % default_mysql )
         group.add_option("-q", "--quiet", dest="quiet", default=False,
                           help="don't print status messages to stdout")
         parser.add_option_group(group)

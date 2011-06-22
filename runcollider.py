@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
+# vim:set fdm=marker:
 
 """
  *
@@ -26,7 +27,7 @@
  *
 """
 
-"""
+""" {{{
 This program allows to input a list of peptides with relative transition
 intensity information and will output the minimal number of transitions needed
 to create a unique assay.
@@ -41,31 +42,39 @@ Example Workflow:
     2. search for some protein, e.g. YLR304C  
     3. download file "best_peptides..." and open it in some editor 
     4. run "python runcollider.py filename background --srmatlas_tsv --max_uis 10"
+}}}
 """
+
 import MySQLdb, sys, csv
 sys.path.append('code')
 import collider, progress; from Residues import Residues
 #from code import collider, Residues, progress
 
+# some options that can be changed locally for your convenience
+default_mysql = "/IMSB/users/hroest/.srm.cnf"
+default_org_prefix = 'hroest.srmPeptides_'
+default_ssrcalc = 'hroest.ssrcalc_pr_copy'
+
+# Cmd line option parsing
+# {{{
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
         " *      spectrallibrary: path to library WITHOUT the splib ending\n" +\
         " *      backgroundorganism: e.g. 'yeast' or 'human', others need to be requested " +\
-        "\n" + \
-        "This program overrides the options --q3_low and --q3_high default values" + \
-        "with values of 0 to "
+        "\n" #+ \
+#        "This program overrides the options --q3_low and --q3_high default values " + \
+#        "with values of 0 to "
 
-    
 parser = OptionParser(usage=usage)
 group = OptionGroup(parser, "SRMCollider Options", "")
 group.add_option("--safety", dest="safetytransitions", default=3, type="float",
     help="Number of transitions to add above the absolute minimum. " + 
-    "Defaults to 3" , metavar='3')
+    "Defaults to 3." , metavar='3')
 group.add_option("-f", "--file", dest="outfile", default='outfile', metavar='out',
     help="Output file"   )
-group.add_option("--db_prefix", dest="organism_prefix", default='hroest.srmPeptides_',
+group.add_option("--db_prefix", dest="organism_prefix", default=default_org_prefix,
     help="The DB table will be prefix+organism"   )
-group.add_option("--ssrcalc_table", dest="ssrcalc_table", default='hroest.ssrcalc_pr_copy',
+group.add_option("--ssrcalc_table", dest="ssrcalc_table", default=default_ssrcalc,
     help="The DB table that holds ssrcalc values" )
 group.add_option("--mapfile", dest="pepmapfile", default='', metavar='File',
     help="Text file with one sequence and SSRCalc value per line"   )
@@ -101,12 +110,13 @@ group.add_option("--thr", dest="threshold", default=0,
     help="Threshold for target_height (e.g. the noise level)")
 parser.add_option_group(group)
 
-###########################################################################
+# }}}
 ###########################################################################
 
-#parameters evaluation
+# parameter evaluation
+# {{{
 parameters = collider.SRM_parameters()
-parameters.parse_cmdl_args(parser)
+parameters.parse_cmdl_args(parser, default_mysql=default_mysql)
 options, args = parser.parse_args(sys.argv[1:])
 
 #local arguments
@@ -134,7 +144,7 @@ parameters.dontdo2p2f = False
 parameters.eval()
 
 if par.max_uis == 0:
-    err = "Error: --max_uis needs to be larger than 0"
+    err = "Error: --max_uis needs to be larger than 0\n"
     print err
     sys.stderr.write(err) 
     sys.exit()
@@ -146,10 +156,21 @@ except ImportError: use_cpp = False
 
 db = MySQLdb.connect(read_default_file=options.mysql_config)
 cursor = db.cursor()
+try:
+    cursor.execute("desc %s" % parameters.peptide_table)
+except Exception:
+    err = "Could not access database '%s'.\n" % parameters.peptide_table +\
+    "Make sure that your --db_prefix and configuration file are correct.\n" 
+    print err
+    sys.stderr.write(err) 
+    sys.exit()
 
 ###########################################################################
+# }}}
 ###########################################################################
 
+# File parsing routines
+# {{{
 def parse_srmatlas_file(csvfile):
     # some dummy classes that can do the same thing as the spectral library
     # classes
@@ -294,8 +315,12 @@ def parse_mprophet_resultfile(library, infile, threshold):
     for t in tr_n_found: err += t[0].sequence + '\t'  + t[1] + '\n'
     sys.stderr.write(err) 
 
+###########################################################################
+# }}}
+###########################################################################
 
 # here we parse the files
+# {{{
 if not options.csv and not options.srmatlas_tsv:
     import speclib_db_lib
     sptxt = libfile + ".splib"
@@ -341,12 +366,15 @@ if use_experimental_height:
     threshold = float(options.threshold)
     parse_mprophet_resultfile(library, infile, threshold)
 
+# }}}
+
 ###########################################################################
 # Start program
 ###########################################################################
 
 ##
 ## First create the mapping of the SSRcalc values to the peptide sequences 
+## {{{
 mycollider = collider.SRMcollider()
 pepmap = {}
 seqs = ''
@@ -366,7 +394,7 @@ try:
     pepmap = dict( cursor.fetchall() )
 except Exception: pepmap = {}
 
-#add more SSRCalc values from the pepmap file
+# add more SSRCalc values from the pepmap file
 if pepmapfile != '':
     try:
         f = open(pepmapfile)
@@ -383,9 +411,11 @@ if len(seqdic) > len(pepmap):
     print "If you want to use SSRCalc predictions, please provide a file with SSRCalc values."
     print "Otherwise your results will be wrong because you are missing some SSRcalc values."
 
+#}}}
+
 ## 
 ## START the main loop
-## 
+## {{{
 progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
 for counter,spectrum in enumerate(library):
     spectrum.score = -99
@@ -464,9 +494,13 @@ for counter,spectrum in enumerate(library):
     if min_needed != -1: spectrum.score = nr_transitions - min_needed
     if not par.quiet: progressm.update(1)
 
+
+# }}}
+
 ##
 ## PRINT some statistics of our results
-# For each precursor, peptide and protein print the number necessary transitions
+## For each precursor, peptide and protein print the necessary transitions
+## {{{
 if not use_experimental_height:
     # default case
     mycollider.perprecursor = [0 for i in range(par.max_uis+1)]
@@ -561,7 +595,10 @@ else:
     print "Proteins not possible to observe (too few transitions):  %s / %s" % (
         measured_proteins - sum( mycollider.perprotein) , measured_proteins)
 
-#here we write to the outfile
+# }}}
+
+# here we write to the outfile
+# {{{
 f = open(outfile, 'w')
 w = csv.writer(f)
 for spectrum in library:
@@ -575,4 +612,6 @@ for spectrum in library:
 
 f.close()
 print "Wrote transition list into file ", outfile
+
+#}}}
 

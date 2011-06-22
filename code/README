@@ -1,2 +1,117 @@
 
-Standard readme file
+=== Installation ===
+
+The SRMCollider is tested on an Ubuntu 10.04 system and all auxiliary programs
+should be easily installable using the package manager apt-get. In principal, a
+minimal installation should only require Python 2.4 or higher and a MySQL
+server 5.1 or higher. Alternatively there also exists experimental support for
+SQLite.
+
+These components can be installed on ubuntu using the command 
+sudo apt-get install -y python mysql-server python-mysqldb 
+
+In order to compile the C++ extensions, the Boost.Python libraries are
+necessary as well as the CGAL libraries. These can be installed on Ubuntu using
+the command
+
+sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
+
+Then you can try to build the extensions and copy them 
+
+python setup.py build; cp build/lib.*/* .
+
+
+
+
+=== Useage ===
+
+==== Setup ==== 
+
+You can set up the collider on a protein fasta file using these commands:
+
+python scripts/trypsinize.py mygenome.fasta peptides.txt
+./SSRCalc3.pl --alg 3.0 --source_file peptides.txt --output tsv  --B 1 --A 0  \
+        > ssrcalc.out
+python create_db.py --mysql_config=~/.my.cnf --peptide_table=mygenome \
+        --tsv_file=ssrcalc.out 
+
+note that you need SSRCalc installed to compute the second step. This script is
+for instance included in a TPP install and can be optained at
+https://sashimi.svn.sourceforge.net/svnroot/sashimi/tags/release_4-3-1/trans_proteomic_pipeline/perl/
+(SSRCalc3.par and SSRCalc3.pl are the relevant files). The last steps creates a
+MySQL-table called "mygenome" using the given config file. Alternatively, also
+a SQLite database can be created if the packge python-sqlite and sqlite itself
+are installed. The created table is also described in the file
+create_tables.sql and can be created and filled manually.
+
+==== Query individual peptides ==== 
+
+To query single peptides that have relative transition intensity information
+associated with them, there is the runcollider.py script.
+
+It allows to input a list of peptides with relative transition
+intensity information and will output the minimal number of transitions needed
+to create a unique assay. 
+
+Accepted inputs are srmAtlas tsv files and mProphet csv files.
+When using mProphet files, it is also possible to use experimental intensities
+to check whether the measured transitions are still sufficient to form an UIS.
+
+Example Workflow: 
+    1. open https://db.systemsbiology.net/sbeams/cgi/PeptideAtlas/GetTransitions
+    2. search for some protein, e.g. YLR304C  
+    3. download file "best_peptides..." 
+    4. run "./runcollider.py filename mygenome --srmatlas_tsv --max_uis 10"
+
+Note the omission of the --mysql_config=~/.my.cnf parameter, since this is the
+default value. It will output some statistics and a file that contains the
+transitions to use (for each precursor the minimally necessary number of
+transitions plus a specified number of extra (safety) transitions).
+
+==== Set up a webserver using the cgi-scripts ==== 
+
+There are python cgi-scripts in the cgi-scripts folder. You can copy them into
+your cgi-bin folder and add something like the following entry to your apache
+VirtualHost entry:
+
+    ScriptAlias /cgi-bin/ /var/www/cgi-bin/
+    <Directory "/var/www/cgi-bin">
+        AllowOverride None
+        Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch
+        Order allow,deny
+        Allow from all
+    </Directory>
+
+Furthermore the code expects the stylesheets (which can be found in the css
+directory) to be placed under the apache root in a folder called stylesheets,
+e.g. /stylesheets/srmcollider.css -- in addition there is also a color
+stylesheet, e.g. called brown.css which is also necessary.
+
+==== For a full genome ==== 
+
+To run the collider on all peptides between 400 and 1400 Da, execute the
+following command:
+
+python run_uis.py 1 400 1400 --peptide_table=mygenome --max_uis 5 --use_db
+
+Note the omission of the --mysql_config=~/.my.cnf parameter, since this is the
+default value.  However that for large genomes, this might cause all memory of
+the system to be used since it tries to build a rangetree with all peptides in
+the genome.  There are two solutions: 
+* either partition the calls to run_uis.py using the convenient
+  scripts/prepare_rangetree.py script which will generate a .sh file that has
+  many calls to run_uis.py using different ranges such that each range contains
+  a specified number of peptides. 
+* The other solution is to use the --use_db parameter which will query the
+  database to get the interfering transitions instead of using a rangetree.
+  This will also work if you did not compile the C++ extensions.
+
+The drawback with the first method is increased overhead when setting up the
+individual rangetrees, the drawback with the second method is the slowdown
+created by using MySQL queries instead of querying the rangetree.
+
+Changing the constraints for Q1/Q3/RT can be easily done using the --q1_window,
+--q3_window and --ssrcalc_window parameters
+
+
+

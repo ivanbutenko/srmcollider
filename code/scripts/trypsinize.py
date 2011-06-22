@@ -1,5 +1,5 @@
 from optparse import OptionParser, OptionGroup
-import sys; sys.path.append('..')
+import sys; sys.path.extend(['..', '.'])
 from Bio import SeqIO
 import DDB
 

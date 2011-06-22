@@ -52,7 +52,8 @@ import progress
 import collider
 
 print "Script is deactivated, please edit if you want to use it."
-sys.exit() #remove this if you want to use this script
+# Since this drops tables, we done want to run it by accident.
+sys.exit() #remove this if you want to use this script. 
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog [options]\n" 
@@ -72,7 +73,7 @@ group.add_option("--tsv_file", dest="tsv_file", default='',
 group.add_option("--sqlite_database", dest="sqlite_database", default='',
                   help="Use specified sqlite database instead of MySQL database" )
 group.add_option("--nr_isotopes", dest="nr_isotopes", default='3',
-                  help="Number of isotopes of the precursor to consider" )
+                  help="Number of isotopes of the precursor to consider (default 3)" )
 group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
                   help="Location of mysql config (.my.cnf) file" )
 parser.add_option_group(group)
