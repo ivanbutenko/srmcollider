@@ -1,6 +1,31 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
-# vim:set fdm=marker:
+
+"""
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+"""
+
 """
 This program allows to input a list of peptides with relative transition
 intensity information and will output the minimal number of transitions needed
@@ -19,7 +44,8 @@ Example Workflow:
 """
 import MySQLdb, sys, csv
 sys.path.append('code')
-import collider, progress, Residues
+import collider, progress; from Residues import Residues
+#from code import collider, Residues, progress
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
@@ -393,7 +419,7 @@ for counter,spectrum in enumerate(library):
         own_peptide = [p for p in precursors if p[1] == pep['mod_sequence'] ]
         if len(own_peptide) > 0: pep['peptide_key'] = own_peptide[0][2]
     precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
-    R = Residues.Residues('mono')
+    R = Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
     #
     # check for q3_low and q3_high values, if the transitions are outside this

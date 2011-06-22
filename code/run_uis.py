@@ -1,19 +1,38 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
-# vim:set fdm=marker:
 """
-select count(distinct parent_key) from result_srmuis where exp_key = 104;
-select count(*) from srmPeptides_mouse where isotope_nr = 0 and q1_charge = 2 and q1 between 400 and 1400;
-
-python prepare_rangetree.py 104 60000 9999 hroest.srmPeptides_mouse
-sh /tmp/tmp.sh
-
-
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
 """
 
-import MySQLdb
-import time
-import sys 
+"""
+This program will process all peptides of a given proteome and compare it to
+the background in that proteome. It will output the number of UIS and the
+number of total combinations for each order up to the specified limit for each
+precursor.
+"""
+
+import MySQLdb, time, sys 
 sys.path.append( '/home/hroest/lib/hlib/' )
 sys.path.append( '/home/hroest/projects' )
 sys.path.append( '/home/hroest/projects/hlib' )
@@ -21,16 +40,8 @@ sys.path.append( '/home/hroest/srm_clashes/code' )
 import collider
 import progress
 
-exp_key = -1234
-min_q1 = 1047
-max_q1 = 1205
-ssrcalcwin = 0.25
-
-#11234556 1047 1205 0.25 hroest.srmPeptides_yeast
-
 # count the number of interfering peptides
 count_avg_transitions = False
-
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
