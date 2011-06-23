@@ -99,7 +99,6 @@ else:
     db = MySQLdb.connect(read_default_file=options.mysql_config)
     cursor = db.cursor()
 
-
 print 'isotopes' , par.isotopes_up_to
 qadd = "and isotope_nr <= %s" % par.isotopes_up_to
 
@@ -248,6 +247,9 @@ if count_avg_transitions:
     print "found max of %s interferences" % max(allintertr)
     print "found average of %s interferences" % ( sum(allintertr) * 1.0 / len(allintertr) )
 
+# if any problems with the packet/buffer length occur, try this:
+## set global max_allowed_packet=1000000000;
+## set global net_buffer_length=1000000;
 cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 

@@ -1,4 +1,7 @@
 import unittest
+"""
+This file tests the functionality of the c_integrated module. 
+"""
 
 import sys
 sys.path.append( '..')
@@ -31,6 +34,8 @@ class Test_cintegrated(unittest.TestCase):
         self.MAX_UIS = 5
         self.q3_high = 1500
         self.q3_low = 300
+        self.par.bions      =  True
+        self.par.yions      =  True
         self.par.aions      =  False
         self.par.aMinusNH3  =  False
         self.par.bMinusH2O  =  False
@@ -85,7 +90,6 @@ class Test_cintegrated(unittest.TestCase):
             par.max_uis, par.q3_window, par.ppm)
         self.assertEqual(m, 4)
 
-
     def test_getMinNeededTransitions_2(self):
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
@@ -118,7 +122,6 @@ class Test_cintegrated(unittest.TestCase):
             par.max_uis, par.q3_window, par.ppm)
         self.assertEqual(m, 6)
 
-
-
 if __name__ == '__main__':
     unittest.main()
+

@@ -57,6 +57,8 @@ class SRM_parameters(object):
         self.print_query = False
         #self.select_floor = False
         self.quiet = False
+        self.bions      =  True
+        self.yions      =  True
         self.aions      =  False
         self.aMinusNH3  =  False
         self.bMinusH2O  =  False

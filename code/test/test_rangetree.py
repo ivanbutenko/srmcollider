@@ -1,5 +1,8 @@
 import random
 import unittest
+"""
+This file tests the functionality of the c_rangetree module. 
+"""
 
 import sys
 sys.path.extend(['.', '..', '../extra/', 'extra/'])
