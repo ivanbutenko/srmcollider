@@ -149,6 +149,177 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
     return --scounter;
 }
 
+int _calculate_clashes_other_series(const char* sequence, double* tmp, 
+        double* series, double ch, python::object parameters) {
+
+    int j, start, scounter;
+    double acc_mass, res_mass;
+    char c;
+    bool inside;
+    int frg_cnt = 0;
+
+    // this takes 20% of the total time, just to extact the values
+    bool aions      =  python::extract<bool>(parameters.attr("aions"));
+    bool aMinusNH3  =  python::extract<bool>(parameters.attr("aMinusNH3"));
+    bool bions      =  python::extract<bool>(parameters.attr("bions"));
+    bool bMinusH2O  =  python::extract<bool>(parameters.attr("bMinusH2O"));
+    bool bMinusNH3  =  python::extract<bool>(parameters.attr("bMinusNH3"));
+    bool bPlusH2O   =  python::extract<bool>(parameters.attr("bPlusH2O"));
+    bool cions      =  python::extract<bool>(parameters.attr("cions"));
+    bool xions      =  python::extract<bool>(parameters.attr("xions"));
+    bool yions      =  python::extract<bool>(parameters.attr("yions"));
+    bool yMinusH2O  =  python::extract<bool>(parameters.attr("yMinusH2O"));
+    bool yMinusNH3  =  python::extract<bool>(parameters.attr("yMinusNH3"));
+    bool zions      =  python::extract<bool>(parameters.attr("zions"));
+
+    acc_mass = 0.0;
+    res_mass = 0.0;
+    scounter = 0;
+
+    inside = false;
+    start = 0;
+    j = 0; 
+    //go through all characters in the sequence until 0 is hit
+    while((c = sequence[j++])) {
+        if(sequence[j] == '[') {
+            start = j-1;
+            inside = true;
+        }
+        else if(sequence[j-1] == ']') {
+            //We found a modification
+            switch(sequence[start]) {
+                case 'M': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '4' && 
+                         sequence[start+4] == '7' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for methionine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                        }
+                    res_mass = 147.03540462; break;
+                case 'C': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '6' && 
+                         sequence[start+4] == '0' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 160.030653721; break;
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown modification ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+            //'M[147]':  131.04049 + mass_O), # oxygen
+            //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+
+            acc_mass += res_mass;
+            tmp[scounter] = acc_mass;
+            scounter++;
+
+            inside = false;
+        }
+        else if(inside) { }
+        else {
+            //We found a regular AA
+            //TODO use hash map http://en.wikipedia.org/wiki/Hash_map_%28C%2B%2B%29
+            switch(c) {
+                case 'A': res_mass = 71.03711; break;
+                case 'C': res_mass = 103.00919; break;
+                case 'D': res_mass = 115.02694; break;
+                case 'E': res_mass = 129.04259; break;
+                case 'F': res_mass = 147.06841; break;
+                case 'G': res_mass = 57.02146; break;
+                case 'H': res_mass = 137.05891; break;
+                case 'I': res_mass = 113.08406; break;
+                case 'K': res_mass = 128.09496; break;
+                case 'L': res_mass = 113.08406; break;
+                case 'M': res_mass = 131.04049; break;
+                case 'N': res_mass = 114.04293; break;
+                case 'P': res_mass = 97.05276; break;
+                case 'Q': res_mass = 128.05858; break;
+                case 'R': res_mass = 156.10111; break;
+                case 'S': res_mass = 87.03203; break;
+                case 'T': res_mass = 101.04768; break;
+                case 'V': res_mass = 99.06841; break;
+                case 'W': res_mass = 186.07931; break;
+                case 'X': res_mass = 113.08406; break;
+                case 'Y': res_mass = 163.06333; break;
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown amino acid ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+
+            acc_mass += res_mass;
+            tmp[scounter] = acc_mass;
+            scounter++;
+        }
+    }
+
+    // see also http://www.matrixscience.com/help/fragmentation_help.html
+    // note that the b and y series only go up to y[n-1] and b[n-1] since
+    // the last ion of the series would be the parent ion (y) or the parent
+    // ion with a loss of water (b).
+    //
+    // One could add the last ion of the series (a,b,c = remove the -1)
+    //
+    if (yions) 
+        // series[frg_cnt++] = acc_mass + 2*MASS_H + MASS_OH;
+        for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + 2*MASS_H + MASS_OH;
+    if (bions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H ;
+
+    if (aions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_CO ;
+    if (cions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H + MASS_NH3 ;
+    if (xions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + MASS_CO + MASS_OH;
+
+    if (zions) 
+        // series[frg_cnt++] = acc_mass + 2*MASS_H + MASS_OH - MASS_NH3;
+        for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + 2*MASS_H + MASS_OH - MASS_NH3; 
+
+    if (aMinusNH3) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_CO - MASS_NH3; 
+    if (bMinusH2O) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_H2O;
+    if (bMinusNH3) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_NH3;
+    if (bPlusH2O)  for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H + MASS_H2O;
+
+    if (yMinusH2O) {
+        // series[frg_cnt++] = acc_mass + MASS_H;
+        for (int j=0; j<scounter-1; j++) 
+            series[frg_cnt++] = acc_mass - tmp[j] + MASS_H; }
+    if (yMinusNH3) {
+        //series[frg_cnt++] = acc_mass + 2*MASS_H + MASS_OH - MASS_NH3;
+        for (int j=0; j<scounter-1; j++) 
+            series[frg_cnt++] = acc_mass - tmp[j] + 2*MASS_H + MASS_OH - MASS_NH3;
+    }
+
+    /*
+    #these are all the more exotic ions
+    self.b_series = [b + R.mass_H for b in fragment_series[:-1]] 
+    self.y_series = [self.mass - y + 2*R.mass_H + R.mass_OH for y in fragment_series[:-1]]
+    if aions: self.a_series = [f - R.mass_CO for f in self.b_series]
+    if cions: self.c_series = [f + R.mass_NH3 for f in self.b_series]
+    if xions: self.x_series = [f + R.mass_CO - 2*R.mass_H for f in self.y_series]
+    if zions: self.z_series = [f - R.mass_NH3 for f in self.y_series]
+    if aMinusNH3: self.a_minus_NH3 = [f - R.mass_CO - R.mass_NH3 for f in self.b_series]
+    if bMinusH2O: self.b_minus_H2O = [b - R.mass_H2O for b in self.b_series]
+    if bMinusNH3: self.b_minus_NH3 = [b - R.mass_NH3 for b in self.b_series]
+    if bPlusH2O:  self.b_plus_H2O  = [b + R.mass_H2O for b in self.b_series]
+    if yMinusH2O: self.y_minus_H2O = [y - R.mass_H2O for y in self.y_series]
+    if yMinusNH3: self.y_minus_NH3 = [y - R.mass_NH3 for y in self.y_series]
+    */
+
+    // calculate the charged mass of the fragments
+    for (int j=0; j<frg_cnt-1; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
+    return frg_cnt;
+}
+
+
+
 /* 
  * Function to calculate all transitions of a list of precursor peptides and
  * allows to select the charge states of these precursors.

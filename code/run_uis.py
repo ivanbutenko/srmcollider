@@ -64,14 +64,29 @@ group.add_option("--insert",
                   help="Insert into mysql experiments table")
 parser.add_option_group(group)
 
-
 #Run the collider
 ###########################################################################
 #Parse options
+mycollider = collider.SRMcollider()
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
+par.parse_options(options)
+par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
+par.eval()
+print par.get_common_filename()
 
+if len(sys.argv) < 4: 
+    print "wrong number of arguments"
+    sys.exit()
+
+#local arguments
+exp_key = sys.argv[1]
+min_q1 = float(sys.argv[2])
+max_q1 = float(sys.argv[3])
+use_db = options.use_db
+swath_mode = options.swath_mode
+restable = options.restable
 sqlite_database = options.sqlite_database
 if sqlite_database != '': use_sqlite = True
 else: use_sqlite = False
@@ -84,44 +99,9 @@ else:
     db = MySQLdb.connect(read_default_file=options.mysql_config)
     cursor = db.cursor()
 
-#local arguments
-exp_key = sys.argv[1]
-min_q1 = float(sys.argv[2])
-max_q1 = float(sys.argv[3])
-use_db = options.use_db
-swath_mode = options.swath_mode
-restable = options.restable
-#ssrcalcwin = float(sys.argv[4])
-#peptide_table = sys.argv[5]
-par.__dict__.update( options.__dict__ )
-par.q3_range = [options.q3_low, options.q3_high]
-par.q1_window /= 2.0
-par.q3_window /= 2.0
-par.ssrcalc_window /= 2.0
-if par.ppm == 'True': par.ppm = True
-elif par.ppm == 'False': par.ppm = False
-elif par.ppm in [True, False]: pass
-else: 'wrong arg for ppm'; assert False
-par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
-#par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
-#par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
-#par.ssrcalc_window = ssrcalcwin / 2.0
-#par.ppm = False
-#par.considerIsotopes = True
-#par.max_uis = 5 #turn off uis if set to 0
-par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
-#par.q3_range = [400, 1400]
-par.eval()
-#print par.experiment_type
-#par.peptide_table = peptide_table
-print par.get_common_filename()
-mycollider = collider.SRMcollider()
 
-#print 'par', par.ppm, type(par.ppm)
-print 'isotopes' , par.considerIsotopes
-
-qadd = ''
-if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
+print 'isotopes' , par.isotopes_up_to
+qadd = "and isotope_nr <= %s" % par.isotopes_up_to
 
 if options.insert_mysql:
     common_filename = par.get_common_filename()
@@ -142,17 +122,17 @@ if options.insert_mysql:
     exp_key = db.insert_id()
     print "Inserted into mysql db with id ", exp_key
 
-
 start = time.time()
-cursor.execute( """
+q = """
 select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-%(qadd)s
+ %(qadd)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
               'qadd'   : qadd
-      } )
+      }
+cursor.execute( q )
 
 alltuples =  list(cursor.fetchall() )
 
@@ -171,6 +151,7 @@ mypepids = [
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
+
 if not use_db:
     import c_rangetree
     parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
@@ -242,7 +223,7 @@ for kk, pep in enumerate(self.pepids):
         precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                             #dont select myself 
                            if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
-    #
+
     collisions_per_peptide = collider.get_coll_per_peptide(mycollider, transitions, par, pep, cursor)
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 

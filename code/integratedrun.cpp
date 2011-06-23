@@ -53,6 +53,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 
 //return the number of non UIS present given the transitions and a query window
 //in Q1 and SSRCalc
+// using magic gives a speedup of around 2fold
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
         bool ppm );
@@ -289,6 +290,7 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
             precursor =  (*current).second;
             sequence = precursor.sequence;
             for (ch=1; ch<=2; ch++) {
+                //this takes about 30% of the time spent
                 fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
 
                 //for(std::vector<int>::size_type i = 0; i != transitions_length; i++) {
@@ -308,6 +310,7 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
                             }
                         }
                     } //loop over all transitions
+
                 }
 
             //Store current combination
@@ -320,9 +323,9 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
       current++;
     }
 
+    python::list result;
     //this takes about 50% or more of the time if we have many collisions_per_pep (10k)
     //and below 10% if we have few collision_per_pep (0.1k)
-    python::list result;
     for(i =1; i<= max_uis; i++) {
         result.append( 
                 get_non_uis_magic(newcollperpep, transitions_length, i).attr("__len__")() );
@@ -383,9 +386,9 @@ python::list wrap_all(python::tuple transitions, double a, double b, double c,
     Range_tree_2->window_query(win, std::back_inserter(OutputList));
     std::vector<Key>::iterator current=OutputList.begin();
 
-    // go through all (potential) collisions we just extracted from the rangetree
-    // and store the colliding SRM ids in a dictionary (they can be found at
-    // position 3 and 1 respectively)
+    // go through all (potential) collisions we just extracted from the
+    // rangetree and store the colliding SRM ids in a dictionary (they can be
+    // found at position 3 and 1 respectively)
     //
     // This assumes that we do not have peptide_keys mapped to different
     // colliding transitions. In fact we do not have this situation even though
@@ -418,12 +421,12 @@ python::list wrap_all(python::tuple transitions, double a, double b, double c,
                     } //loop over all transitions
                 }
 
-            //we keep one empty list around since we hope that most precursors dont 
-            //use it. If it gets used, we store it in the result and create a new 
-            //list to use from then on.
-            //Sorting it costs something and could be done more efficiently since 
-            //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
-            //is negligible.
+            // we keep one empty list around since we hope that most precursors
+            // dont use it. If it gets used, we store it in the result and
+            // create a new list to use from then on.
+            // Sorting it costs something and could be done more efficiently
+            // since in fact, we only have to merge 2 presorted arrays. TODO
+            // Still the cost is negligible.
             if (listmembers>0 ) {
                 peptide_key = precursor.peptide_key;
                 tmplist = tmpdict.keys();
