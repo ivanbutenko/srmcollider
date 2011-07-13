@@ -70,6 +70,9 @@ g++ -pthread -shared build/temp.linux-x86_64-2.7/combinations.o -lboost_python -
  
 from distutils.core import setup
 from distutils.extension import Extension
+
+# if your CGAL libraries are somewhere else, please tell us here
+CGAL_libraries = ''
  
 setup(name="srmcollider",
     url = "http://www.srmcollider.org", 
@@ -81,16 +84,19 @@ setup(name="srmcollider",
         Extension("c_combinations", ["combinations.cpp"],
             libraries = ["boost_python"]),
         Extension("c_getnonuis", ["getNonUis.cpp"], 
-                  include_dirs=["./"],
-                  library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/" ],
-                  runtime_library_dirs=["./", "../"],
+            include_dirs=["./"],
+            library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/" ],
+            runtime_library_dirs=["./", "../"],
             libraries = ["boost_python"]),
         Extension("c_rangetree", ["rangetree.cpp"],
-            libraries = ["boost_python", "CGAL"]),
+            libraries = ["boost_python", "CGAL"],
+            include_dirs=[CGAL_libraries + '/include/'],
+            library_dirs=[CGAL_libraries +'/lib/'],
+            ),
         Extension("c_integrated", ["integratedrun.cpp"], 
-                  include_dirs=["./"],
-                  library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/" ],
-                  runtime_library_dirs=["./", "../"],
+            include_dirs=[CGAL_libraries + '/include/'],
+            library_dirs=[CGAL_libraries +'/lib/'],
+            runtime_library_dirs=["./", "../"],
             libraries = ["boost_python", "CGAL"]),
     ],
      ) 
