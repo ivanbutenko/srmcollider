@@ -13,8 +13,6 @@ import hlib
 import copy
 import progress
 
-
-
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog [options]"
 parser = OptionParser(usage=usage)
@@ -35,6 +33,8 @@ if par.max_uis ==0:
     sys.exit()
 
 
+use_randomized_transitions = False
+use_above_precursor = False
 
 
 
@@ -81,14 +81,34 @@ start = time.time()
 progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 for i, pep in enumerate(self.pepids):
     p_id = pep['parent_id']
-    transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
+    q1 = pep['q1']
+    if not use_randomized_transitions and not use_above_precursor: 
+        transitions = self._get_all_transitions_toptransitions(par, pep, cursor)
+    elif use_above_precursor: 
+        import c_getnonuis
+        transitions = c_getnonuis.calculate_transitions_ch(
+            ((pep['q1'], pep['mod_sequence'], p_id),), [1], 0, 20000)
+        #get all singly charged y ions above the precursor
+        y_series = [(t[0], 0) for t in transitions[:len(transitions)/2] if t[0] > q1]
+        y_series.reverse()
+        y_series = y_series[:5]
+        transitions = y_series
+    elif use_randomized_transitions: 
+        import c_getnonuis
+        transitions = c_getnonuis.calculate_transitions_ch(
+            ((pep['q1'], pep['mod_sequence'], p_id),), [1], 0, 20000)
+        #get random fragment ions
+        from random import shuffle
+        shuffle(transitions)
+        transitions = [ (t[0], 0) for t in transitions[:10] ]
+
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
     try:
         import c_integrated
         if background: precursors = self._get_all_precursors(bgpar, pep, cursor, bysequence=True)
         else: precursors = self._get_all_precursors(bgpar, pep, cursor)
-        min_needed = c_integrated.getMinNeededTransitions(transitions, tuple(precursors), 
+        min_needed = c_integrated.getMinNeededTransitions(tuple(transitions), tuple(precursors), 
             par.max_uis, par.q3_window, par.ppm)
     except ImportError:
         if background: collisions = self._get_all_collisions(bgpar, pep, cursor, bysequence=True, transitions=transitions)
