@@ -1,0 +1,27 @@
+
+Programs to distribute:
+
+* runcollider.py
+-- replace option if not options.csv and not options.srmatlas_tsv: with the note
+  "please specify imput format: csv or tsv"; assert False
+-- remove all references to SPECTRAST
+
+then this will be the program to use, one can provide any number of peptides
+downloaded from peptide atlas.
+
+* run_uis.py
+-- this will run as is, even with SQLite (more or less)
+
+
+then also package the Residues.py, the progress.py and of course the collider.py
+
+for C++ take all .cpp and .h files
+
+also take the setup.py script as well as the README.
+package the trypsinize.py and the create_db.py and the create_tables.sql
+also package the cgi-scripts and the tests
+
+
+
+
+

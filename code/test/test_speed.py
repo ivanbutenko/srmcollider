@@ -30,6 +30,11 @@ except ImportError:
 Module c_integrated is not available. Please compile it if you want to use it.
 """, "=" * 75
 
+def mysort(x,y):
+    if cmp(x[3], y[3]) == 0:
+        return cmp(x[0], y[0])
+    else: return cmp(x[3], y[3])
+
 
 def runcpp(self, pep, transitions, precursors):
     #first we run the C++ version
@@ -44,7 +49,7 @@ def runpy(self, pep, transitions, precursors):
     #now we run the pure Python version
     st = time.time()
     collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-            collider.SRMcollider(), precursors, self.R, self.q3_low, self.q3_high))
+            collider.SRMcollider(), precursors, self.par, self.R, self.q3_low, self.q3_high))
     collisions_per_peptide = {}
     q3_window_used = self.par.q3_window
     for t in transitions:
@@ -89,6 +94,19 @@ class Test_speed(unittest.TestCase):
             self.q3_low = 300
             self.MAX_UIS = 5
 
+            self.par.bions      =  True
+            self.par.yions      =  True
+            self.par.aions      =  False
+            self.par.aMinusNH3  =  False
+            self.par.bMinusH2O  =  False
+            self.par.bMinusNH3  =  False
+            self.par.bPlusH2O   =  False
+            self.par.yMinusH2O  =  False
+            self.par.yMinusNH3  =  False
+            self.par.cions      =  False
+            self.par.xions      =  False
+            self.par.zions      =  False
+
         except ImportError:
             pass
 
@@ -96,17 +114,20 @@ class Test_speed(unittest.TestCase):
         print '\nTesting calculate_transitions 1'
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
-        precursors = test_shared.runprecursors1
+        precursors = test_shared.runprecursors1[240:300]
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
 
         st = time.time()
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, self.R, self.q3_low, self.q3_high))
+                collider.SRMcollider(), precursors, self.par, self.R, self.q3_low, self.q3_high))
 
         oldtime = time.time() - st
         st = time.time()
         tr_new = c_getnonuis.calculate_transitions(tuple(precursors), self.q3_low, self.q3_high)
         ctime = time.time() - st
+
+        tr_new.sort(mysort)
+        collisions.sort(mysort)
 
         self.assertEqual(len(tr_new), len(collisions))
         for o,n in zip(collisions, tr_new):
@@ -125,12 +146,15 @@ class Test_speed(unittest.TestCase):
 
         st = time.time()
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, self.R, self.q3_low, self.q3_high))
+                collider.SRMcollider(), precursors, self.par, self.R, self.q3_low, self.q3_high))
 
         oldtime = time.time() - st
         st = time.time()
         tr_new = c_getnonuis.calculate_transitions(tuple(precursors), self.q3_low, self.q3_high)
         ctime = time.time() - st
+
+        tr_new.sort(mysort)
+        collisions.sort(mysort)
 
         self.assertEqual(len(tr_new), len(collisions))
         for o,n in zip(collisions, tr_new):
@@ -248,8 +272,11 @@ class Test_speed(unittest.TestCase):
         coll = collider.SRMcollider()
         for i in range(100000):
             tr_old = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                        coll, myprecursors, self.R, self.q3_low, self.q3_high))
+                        coll, myprecursors, self.par, self.R, self.q3_low, self.q3_high))
         oldtime = time.time() - st
+
+        tr_new.sort(mysort)
+        tr_old.sort(mysort)
 
         self.assertEqual(tr_new, tr_old)
         print ctime, oldtime
@@ -268,7 +295,7 @@ class Test_speed(unittest.TestCase):
         par.max_uis = 15
 
         collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, R, q3_low, q3_high))
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         st = time.time()
         m = collider.SRMcollider()._getMinNeededTransitions(par, transitions, collisions)
         oldtime = time.time() - st
@@ -298,7 +325,7 @@ class Test_speed_integrated(unittest.TestCase):
             sys.path.append( '/home/hroest/projects/' )
             sys.path.append( '/home/hroest/projects/srm_clashes/code' )
             #db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
-            db = MySQLdb.connect(read_default_file="~/.my.cnf")
+            db = MySQLdb.connect(read_default_file="~/.my.cnf.orl")
             cursor = db.cursor()
             #cursor_l = db_l.cursor()
             #cursor = cursor_l
@@ -318,6 +345,7 @@ class Test_speed_integrated(unittest.TestCase):
             par.ssrcalc_window = 9999 / 2.0 #for paola do 9999 and 4
             par.ppm = False
             par.considerIsotopes = True
+            par.isotopes_up_to = 3
             par.do_1vs = False
             par.dontdo2p2f = False #important for precursor to work
             par.transition_table = 'hroest.srmTransitions_human'
@@ -352,6 +380,7 @@ class Test_speed_integrated(unittest.TestCase):
     def test_integrated_range(self):
 
         try:
+            print "Trying test integrated range"
             par = self.par
             cursor = self.cursor
 
@@ -362,7 +391,7 @@ class Test_speed_integrated(unittest.TestCase):
 
             mypepids = [
                         {
-                            'sequence'  :  r[0],
+                            'mod_sequence'  :  r[0],
                             'peptide_key' :r[1],
                             'parent_id' :  r[2],
                             'q1_charge' :  r[3],
@@ -390,7 +419,6 @@ class Test_speed_integrated(unittest.TestCase):
             #print "finished build tree : ", time.time() - start
             #print "tree time ", time.time() - mystart
 
-
             self.mycollider.pepids = mypepids
             MAX_UIS = 5
             newtime = 0; oldtime = 0; ctime = 0
@@ -416,7 +444,7 @@ class Test_speed_integrated(unittest.TestCase):
                 #new way to calculate the precursors
                 mystart = time.time()
                 transitions = c_getnonuis.calculate_transitions(
-                    ((q1, pep['sequence'], p_id),), q3_low, q3_high)
+                    ((q1, pep['mod_sequence'], p_id),), q3_low, q3_high)
                 #fake some srm_id for the transitions
                 transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
                 q1_low = q1 - par.q1_window 
@@ -468,14 +496,25 @@ class Test_speed_integrated(unittest.TestCase):
                 ctime += time.time() - mystart
                 non_uis_list_len_old = [len(kk) for kk in non_uis_list]
 
-                #print len(precursors), len(precursor_new) 
+                print len(precursors), len(precursor_new) 
                 self.assertEqual( len(precursors), len(precursor_new) )
                 self.assertEqual( non_uis_list_len_old , non_uis_list_len) 
 
+                # 1. row is sequence
+                # 2. row is the total time for the rangetree query 
+                # 3. row is the time of the rangetree query which actually
+                #    queries the rangetree and the rest of the time we spend
+                #    filtering out the peptide_key of the current peptide
+                # 4. row is the time to calculate the collisions per peptide
+                #    from the precursors
+                # 5. is row 2 and 4 combined
+                # >>>
+                # 6. is the time to get the precursors by querying the db plus
+                #    the time to get collisions per peptide from the C++ code
                 mys =  "%s\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t>>\t%0.2fms\t%0.2f" % \
                 (ii, alllocaltime *1000/ ii, \
                         localprecursor*1000/ii, c_fromprecursortime*1000/ii, 
-                 #in the last speedtest, the new version is  ctime+newsql
+                 #in the last speedtest, the new version is ctime+newsql
                  #this should correspond to the OLD version here
                  #allnew
                  (alllocaltime + c_fromprecursortime)*1000/ii, 
@@ -507,6 +546,7 @@ class Test_speed_integrated(unittest.TestCase):
     def test_integrated_integrated(self):
 
         try:
+            print "Trying test integrated"
             par = self.par
             cursor = self.cursor
 
@@ -517,7 +557,7 @@ class Test_speed_integrated(unittest.TestCase):
 
             mypepids = [
                         {
-                            'sequence'  :  r[0],
+                            'mod_sequence'  :  r[0],
                             'peptide_key' :r[1],
                             'parent_id' :  r[2],
                             'q1_charge' :  r[3],
@@ -568,7 +608,7 @@ class Test_speed_integrated(unittest.TestCase):
                 #new way to calculate the precursors
                 mystart = time.time()
                 transitions = c_getnonuis.calculate_transitions(
-                    ((q1, pep['sequence'], p_id),), q3_low, q3_high)
+                    ((q1, pep['mod_sequence'], p_id),), q3_low, q3_high)
                 nr_transitions = len( transitions )
                 #fake some srm_id for the transitions
                 transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
@@ -643,6 +683,7 @@ class Test_speed_integrated(unittest.TestCase):
 
     def test_integreated_mysql(self):
 
+            print "Trying test mysql"
             par = self.par
             cursor = self.cursor
 

@@ -1,4 +1,31 @@
 #!/usr/bin/python
+# -*- coding: utf-8  -*-
+
+"""
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+"""
+
 import sys, os, time
 sys.path.append( '/home/hroest/projects/msa/code/tppGhost' )
 sys.path.append( '/home/hroest/projects/hlib/' )
@@ -8,29 +35,7 @@ sys.path.append( '/IMSB/users/hroest/projects/tppGhost' )
 import numpy
 import progress
 import gnuplot
-
 import DDB
-
-#with this method, I can do 
-##method 2
-# 22.2 per second (1Da), thus do 500k in 6 hours ==> using per peptide methods
-# 5 per second (25Da), thus do 500k in 24 hours ==> using per peptide methods
-#
-#10ppm, 1Da => 200 / s
-#10ppm, 9Da => 20 / s
-#10ppm, 25Da => 7 / s
-#10ppm, 50Da => 4 / s
-##method 1
-# 0.5 per second, thus do 500k in 240 hours ==> using per transition methods
-
-#for the first 20 peptides of human, it takes
-#with regular: 73 seconds (71% collisions)
-#with optimized SQL query (pass transitions along): 29 seconds (95% collisions)
-#with silver 300 seconds (50% collisions)
-#with my own fragmentation 80 seconds (50% collisions)
-#with my own fragmentation and list from generator 45s (47% collision) 
-#with my own fragmentation and generator 40s 
-
 
 class SRM_parameters(object):
 
@@ -38,7 +43,7 @@ class SRM_parameters(object):
         self.do_1vs = True #check only one charge state?
         self.do_vs1 = False #background only one charge state?
         self.dontdo2p2f = True #do not look at 2+ parent / 2+ fragment ions
-        self.considerIsotopes = False #do not consider the C13 isotopes
+        #self.considerIsotopes = False #do not consider the C13 isotopes
         self.isotopes_up_to = 0
         self.ppm = True #measure q3 in ppm
         self.transition_table = 'hroest.srmTransitions_yeast'
@@ -52,6 +57,8 @@ class SRM_parameters(object):
         self.print_query = False
         #self.select_floor = False
         self.quiet = False
+        self.bions      =  True
+        self.yions      =  True
         self.aions      =  False
         self.aMinusNH3  =  False
         self.bMinusH2O  =  False
@@ -62,12 +69,13 @@ class SRM_parameters(object):
         self.cions      =  False
         self.xions      =  False
         self.zions      =  False
-
-    def parse_cmdl_args(self, parser):
+ 
+    def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup
         group = OptionGroup(parser, "General Options",
                             "These are the general options for the SRM  Collider")
-        #group.add_option( dest="q1_window", default=1, help="Q1 window (e.g. use 1 for +- 0.5 Da). Defaults to 1", metavar="Q1WIN")
+        group.add_option("-c", "--config", dest="config_file", default='',
+                          help="Configuration file (it overrides cmdline options!)" )
         group.add_option("--q1_window", dest="q1_window", default=1, type="float",
                           help="Q1 window (e.g. use 1 for +- 0.5 Da). " + 
                           "Defaults to 1", metavar="Q1WIN")
@@ -79,9 +87,9 @@ class SRM_parameters(object):
                           " Defaults to 9999 (infinite.)", metavar="RTWIN")
         group.add_option("--ppm", dest="ppm", default=False, 
                           help="Interpret Q3 window as PPM (default False)")
-        group.add_option("-i", "--considerIsotopes", dest="considerIsotopes", default=True,
-                          help="Consider isotopes of the precursors, up to 3amu " +
-                          "(default True)")
+        group.add_option("-i", "--isotopes_up_to", dest="isotopes_up_to", 
+            default=3, type='int', help="Consider isotopes of the precursors,"+\
+            " (default up to 3amu) ")
         group.add_option("--q3_low", dest="q3_low", default=400, type="float",
                           help="Start of transition range to analyse (default 400)", metavar="Q3LOW")
         group.add_option("--q3_high", dest="q3_high", default=1400, type="float",
@@ -93,17 +101,29 @@ class SRM_parameters(object):
                           help="MySQL table containing the peptides" )
         group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_yeast',
                           help="MySQL table containing the transitions" )
+        group.add_option("--mysql_config", dest="mysql_config", default=default_mysql,
+                          help="Location of mysql config file, defaults to %s" % default_mysql )
         group.add_option("-q", "--quiet", dest="quiet", default=False,
                           help="don't print status messages to stdout")
         parser.add_option_group(group)
 
     def parse_options(self, options):
+        if options.config_file != '':
+            self.read_parameter_file(options.config_file)
+        else: self.__dict__.update( options.__dict__ )
+
         self.q3_range = [options.q3_low, options.q3_high]
         self.q1_window /= 2.0
         self.q3_window /= 2.0
         self.ssrcalc_window /= 2.0
-        if self.ppm == 'True': par.ppm = True
-        elif self.ppm == 'False': par.ppm = False
+        if self.ppm == 'True': self.ppm = True
+        elif self.ppm == 'False': self.ppm = False
+        elif self.ppm in [True, False]: pass
+        else: 'wrong arg for ppm'; assert False
+
+    def read_parameter_file(self, thefile):
+        parameter = self
+        execfile(thefile)
 
     def eval(self):
         #query will get all parent ions to consider
@@ -120,18 +140,18 @@ class SRM_parameters(object):
             self.query2_add += self.do_1_only
         elif self.dontdo2p2f:
             self.query2_add += "and not (q1_charge = 2 and q3_charge = 2) "
-        if not self.considerIsotopes: self.query2_add += "and isotope_nr = 0"
+        self.query2_add += " and isotope_nr <= %s " % self.isotopes_up_to
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
         thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s
         Da for the q3 transitions.  Ignore 2+ parent / 2+ fragment ions %s, 
         selecting from %s and %s.
-        Consider Isotopes: %s""" % ( 
+        Consider Isotopes up to: %s""" % ( 
             not self.do_1vs, not self.do_vs1,
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
           self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
-          self.peptide_table, self.transition_table, self.considerIsotopes)
+          self.peptide_table, self.transition_table, self.isotopes_up_to)
         self.thresh = \
         "thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s" % (
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
@@ -174,6 +194,23 @@ class SRM_parameters(object):
             common_filename += "_range%sto%s" % (self.q3_range[0], abs( self.q3_range[1]) )
         return common_filename
 
+    def do_b_y_only(self):
+
+        return (
+        self.aions      ==  False and
+        self.aMinusNH3  ==  False and
+        self.bions      ==  True  and
+        self.bMinusH2O  ==  False and
+        self.bMinusNH3  ==  False and
+        self.bPlusH2O   ==  False and
+        self.cions      ==  False and
+        self.xions      ==  False and
+        self.yions      ==  True  and
+        self.yMinusH2O  ==  False and
+        self.yMinusNH3  ==  False and
+        self.zions      ==  False 
+        )
+
     @property
     def transition_db(self): return self.transition_table.split('.')[0]
 
@@ -203,7 +240,8 @@ def testcase():
     par.peptide_table = 'hroest.srmPeptides_test'
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
-    par.considerIsotopes = False #do not consider the C13 isotopes
+    #par.considerIsotopes = False #do not consider the C13 isotopes
+    par.isotopes_up_to = 0
     par.do_1vs = True #check only one charge state?
     par.do_vs1 = False #background only one charge state?
     par.q3_range = [400, 1200]
@@ -297,6 +335,7 @@ class SRMcollider(object):
         if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
         else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
         vdict['selectby'] = selectby
+        # TODO duplication
         vdict['query_add'] += vdict['query_add'] + ' and isotope_nr <= %s ' % par.isotopes_up_to
         query2 = """
         select %(values)s
@@ -311,6 +350,15 @@ class SRMcollider(object):
         cursor.execute( query2 )
         return cursor.fetchall()
 
+    def _get_all_collisions_calculate_new(self, par, pep, cursor, 
+      values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):
+        import Residues
+        R = Residues.Residues('mono')
+        q3_low, q3_high = par.get_q3range_collisions()
+        return self._get_all_collisions_calculate_sub(
+            self._get_all_precursors(par, pep, cursor, values=values), 
+            par, R, q3_low, q3_high)
+
     def _get_all_collisions_calculate(self, par, pep, cursor, 
       values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):
         """
@@ -321,9 +369,9 @@ class SRMcollider(object):
         then create a DDB.Peptide object for each precursor, and get the
         fragmentation patterns from those.
         """
-        import silver
+        import Residues
         import DDB 
-        R = silver.Residues.Residues('mono')
+        R = Residues.Residues('mono')
         q3_low, q3_high = par.get_q3range_collisions()
         for c in self._get_all_precursors(par, pep, cursor, values=values):
             q1 = c[0]
@@ -354,19 +402,16 @@ class SRMcollider(object):
             peptide.create_fragmentation_pattern( R, 
                 aions      =  par.aions    ,
                 aMinusNH3  =  par.aMinusNH3,
+                bions      =  par.bions    ,
                 bMinusH2O  =  par.bMinusH2O,
                 bMinusNH3  =  par.bMinusNH3,
                 bPlusH2O   =  par.bPlusH2O ,
+                yions      =  par.yions    ,
                 yMinusH2O  =  par.yMinusH2O,
                 yMinusNH3  =  par.yMinusNH3,
                 cions      =  par.cions    ,
                 xions      =  par.xions    ,
                 zions      =  par.zions )
-            b_series = peptide.b_series
-            y_series = peptide.y_series
-            #TODO fix it
-            peptide.allseries = b_series
-            peptide.allseries.extend( y_series )
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
@@ -1163,6 +1208,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
 
+
 def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
 
     try:
@@ -1182,6 +1228,7 @@ def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
         precursors = tuple([self.parentid_lookup[myid[0]] for myid in precursor_ids
                             #dont select myself 
                            if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+        assert par.do_b_y_only() #doesnt for ion series other than b/y 
         return c_getnonuis.calculate_collisions_per_peptide( 
             transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
     except AttributeError, ImportError:
@@ -1189,8 +1236,13 @@ def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
         #fastest = 100 
         import c_getnonuis
         precursors = self._get_all_precursors(par, pep, cursor)
-        return c_getnonuis.calculate_collisions_per_peptide( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+        if par.do_b_y_only():
+            # we gain around 60 % performance when using the optimized function
+            return c_getnonuis.calculate_collisions_per_peptide( 
+                transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+        else: 
+            return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
 
 def get_coll_per_peptide(self, transitions, par, pep, cursor,
         do_not_calculate=False, forceNonCpp=False):
@@ -1200,6 +1252,7 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
         # e.g. if the precomputed transitions are somehow special
         # (from experimental data)
         #
+        assert par.do_b_y_only() #doesnt for ion series other than b/y 
         collisions = self._get_all_collisions(par, pep, cursor, transitions = transitions)
     else:
         try: 
@@ -1210,7 +1263,8 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
         except ImportError:
             #second-fastest = 522 
             #if we dont have any C++ code compiled
-            collisions = list(self._get_all_collisions_calculate(par, pep, cursor))
+            collisions = list(self._get_all_collisions_calculate_new(
+                par, pep, cursor))
     collisions_per_peptide = {}
     q3_window_used = par.q3_window
     for t in transitions:
@@ -1223,7 +1277,6 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
                         collisions_per_peptide[c[3]].append( t[1] )
                 else: collisions_per_peptide[c[3]] = [ t[1] ] 
     return collisions_per_peptide 
-
 
 
 def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
@@ -1486,6 +1539,54 @@ def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic,
     #    else: pairs_dic[ S.peptide ] = [ S2.peptide ]
     clash_distr[ share ] += 1
     return share
+
+
+
+def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
+    import Residues
+    import DDB 
+    R = Residues.Residues('mono')
+    for p in peptides:
+        q1 = p[0]
+        peptide_key = p[2]
+        peptide = DDB.Peptide()
+        peptide.set_sequence(p[1])
+        peptide.charge = 2 #dummy, wont need it later
+        peptide.create_fragmentation_pattern(R)
+        b_series = peptide.b_series
+        y_series = peptide.y_series
+        for ch in charges:
+            for pred in y_series:
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                if q3 < q3_low or q3 > q3_high: continue
+                yield (q3, q1, 0, peptide_key)
+            for pred in b_series:
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                if q3 < q3_low or q3 > q3_high: continue
+                yield (q3, q1, 0, peptide_key)
+
+def calculate_transitions_ch(peptides, charges, q3_low, q3_high):
+    try: 
+        import c_getnonuis
+        return c_getnonuis.calculate_transitions_ch(
+            peptides, charges, q3_low, q3_high)
+    except ImportError:
+        return list(_calculate_transitions_ch(
+            peptides, charges, q3_low, q3_high))
+
+
+def get_nonuis_list(collisions_per_peptide, MAX_UIS):
+    non_uis_list = [set() for i in range(MAX_UIS+1)]
+    try:
+        import c_getnonuis
+        for order in range(1,MAX_UIS+1):
+                non_uis_list[order] = c_getnonuis.get_non_uis(
+                    collisions_per_peptide, order)
+    except ImportError:
+        for pepc in collisions_per_peptide.values():
+            for i in range(1,MAX_UIS+1):
+                get_non_uis(pepc, non_uis_list[i], i)
+    return non_uis_list 
 
 ###UIS Code
 def get_non_uis(pepc, non_uis, order):

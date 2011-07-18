@@ -1,5 +1,8 @@
 import random
 import unittest
+"""
+This file tests the interoperability with the MySQL / SQLite databases.
+"""
 
 import sys
 sys.path.append( '..')
@@ -23,7 +26,7 @@ class Test_collider_mysql(unittest.TestCase):
                 sudo apt-get install python-mysqldb
             """
 
-        self.db = MySQLdb.connect(read_default_file="~/.my.cnf")
+        self.db = MySQLdb.connect(read_default_file="~/.my.cnf.orl")
 
         class Minimal: 
             def get_q3_window_transitions(self, q3):
@@ -44,7 +47,23 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.transition_table = 'hroest.srmTransitions_human'
         self.par.print_query = False
         self.par.select_floor = False
+        self.par.isotopes_up_to = 3
 
+        self.par.bions      =  True
+        self.par.yions      =  True
+        self.par.aions      =  False
+        self.par.aMinusNH3  =  False
+        self.par.bMinusH2O  =  False
+        self.par.bMinusNH3  =  False
+        self.par.bPlusH2O   =  False
+        self.par.yMinusH2O  =  False
+        self.par.yMinusNH3  =  False
+        self.par.cions      =  False
+        self.par.xions      =  False
+        self.par.zions      =  False
+
+        def returntrue(): return True
+        self.par.do_b_y_only = returntrue
 
         def returnrange(): return self.q3_low, self.q3_high
         self.par.get_q3range_collisions = returnrange
@@ -310,7 +329,7 @@ class Test_collider_mysql(unittest.TestCase):
         #now test with isotopes enabled
         par  = collider.testcase()
         par.quiet = True
-        par.considerIsotopes = True
+        par.isotopes_up_to = 3
         par.eval()
         mycollider = collider.SRMcollider()
         #mycollider.find_clashes_small(db, par) 

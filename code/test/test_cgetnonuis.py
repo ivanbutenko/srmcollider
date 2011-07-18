@@ -1,5 +1,8 @@
 import unittest
 import test_shared 
+"""
+This file tests the functionality of the c_getnonuis module. 
+"""
 
 import sys
 sys.path.append( '..')

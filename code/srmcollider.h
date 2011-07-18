@@ -8,6 +8,9 @@ using namespace std;
 
 #define MASS_H 1.007825032
 #define MASS_OH 17.002739651999999
+#define MASS_NH3 17.026549101000001
+#define MASS_H2O 18.010564683999998
+#define MASS_CO 27.994914619999999
 
 //assume that there are never more than 32 transitions in an assay :-)
 //please change when an error occurs

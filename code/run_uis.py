@@ -1,40 +1,47 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
-# vim:set fdm=marker:
 """
-select count(distinct parent_key) from result_srmuis where exp_key = 104;
-select count(*) from srmPeptides_mouse where isotope_nr = 0 and q1_charge = 2 and q1 between 400 and 1400;
-
-python prepare_rangetree.py 104 60000 9999 hroest.srmPeptides_mouse
-sh /tmp/tmp.sh
-
-
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
 """
 
-import MySQLdb
-import time
-import sys 
-import c_rangetree, c_getnonuis
+"""
+This program will process all peptides of a given proteome and compare it to
+the background in that proteome. It will output the number of UIS and the
+number of total combinations for each order up to the specified limit for each
+precursor.
+"""
+
+import MySQLdb, time, sys 
 sys.path.append( '/home/hroest/lib/hlib/' )
 sys.path.append( '/home/hroest/projects' )
 sys.path.append( '/home/hroest/projects/hlib' )
 sys.path.append( '/home/hroest/srm_clashes/code' )
-#db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
-db = MySQLdb.connect(read_default_file="~/.my.cnf")
-cursor = db.cursor()
-#cursor_l = db_l.cursor()
-#cursor = cursor_l
 import collider
 import progress
 
-exp_key = -1234
-min_q1 = 1047
-max_q1 = 1205
-ssrcalcwin = 0.25
-
-#11234556 1047 1205 0.25 hroest.srmPeptides_yeast
-
-
+# count the number of interfering peptides
+count_avg_transitions = False
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
@@ -45,20 +52,33 @@ group.add_option("--swath_mode", action='store_true', dest="swath_mode", default
                   help="SWATH mode enabled (use fixed window)")
 group.add_option("--use_db", action='store_true', dest="use_db", default=False,
                   help="Use db instead of rangetree")
+group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
+                  help="Only a dry run, do not start processing (but create experiment)")
 group.add_option("--restable", dest="restable", default='hroest.result_srmuis', type="str",
                   help="MySQL result table" + 
                   "Defaults to result_srmuis") 
+group.add_option("--sqlite_database", dest="sqlite_database", default='',
+                  help="Use specified sqlite database instead of MySQL database" )
+group.add_option("--insert",
+                  action="store_true", dest="insert_mysql", default=False,
+                  help="Insert into mysql experiments table")
 parser.add_option_group(group)
-
 
 #Run the collider
 ###########################################################################
 #Parse options
-db = MySQLdb.connect(read_default_file="~/.my.cnf")
-cursor = db.cursor()
+mycollider = collider.SRMcollider()
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
+par.parse_options(options)
+par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
+par.eval()
+print par.get_common_filename()
+
+if len(sys.argv) < 4: 
+    print "wrong number of arguments"
+    sys.exit()
 
 #local arguments
 exp_key = sys.argv[1]
@@ -67,57 +87,57 @@ max_q1 = float(sys.argv[3])
 use_db = options.use_db
 swath_mode = options.swath_mode
 restable = options.restable
-#ssrcalcwin = float(sys.argv[4])
-#peptide_table = sys.argv[5]
-par.__dict__.update( options.__dict__ )
-par.q3_range = [options.q3_low, options.q3_high]
-par.q1_window /= 2.0
-par.q3_window /= 2.0
-par.ssrcalc_window /= 2.0
-if par.ppm == 'True': par.ppm = True
-elif par.ppm == 'False': par.ppm = False
-else: 'wrong arg for ppm'; assert False
-par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
-#par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
-#par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
-#par.ssrcalc_window = ssrcalcwin / 2.0
-#par.ppm = False
-#par.considerIsotopes = True
-#par.max_uis = 5 #turn off uis if set to 0
-par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
-#par.q3_range = [400, 1400]
-par.eval()
-#print par.experiment_type
-#par.peptide_table = peptide_table
-print par.get_common_filename()
-mycollider = collider.SRMcollider()
+sqlite_database = options.sqlite_database
+if sqlite_database != '': use_sqlite = True
+else: use_sqlite = False
 
-#print 'par', par.ppm, type(par.ppm)
-print 'isotopes' , par.considerIsotopes
+if use_sqlite:
+    import sqlite
+    db = sqlite.connect(sqlite_database)
+    cursor = db.cursor()
+else:
+    db = MySQLdb.connect(read_default_file=options.mysql_config)
+    cursor = db.cursor()
 
-qadd = ''
-if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
+print 'isotopes' , par.isotopes_up_to
+qadd = "and isotope_nr <= %s" % par.isotopes_up_to
+
+if options.insert_mysql:
+    common_filename = par.get_common_filename()
+    superkey = 31
+    if common_filename.split('_')[0] == 'human': superkey = 34
+    query = """
+    insert into hroest.experiment  (name, short_description,
+    description, comment1, comment2,comment3,  super_experiment_key, ddb_experiment_key)
+    VALUES (
+        'ludovic_swath', '%s', '%s', '%s', '%s','%s', %s, 0
+    )
+    """ %( common_filename + '_' + par.peptide_table.split('.')[1], 
+          par.experiment_type, par.peptide_table, par.transition_table,
+          #comment3
+          'q1: %s; q3 %s ; isotopes 0,1' % (par.q1_window, par.q3_window),
+          superkey)
+    cursor.execute(query)
+    exp_key = db.insert_id()
+    print "Inserted into mysql db with id ", exp_key
 
 start = time.time()
-cursor.execute( """
+q = """
 select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-%(qadd)s
+ %(qadd)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
               'qadd'   : qadd
-      } )
+      }
+cursor.execute( q )
 
-#print "finished query execution: ", time.time() - start
 alltuples =  list(cursor.fetchall() )
-#from random import shuffle
-#shuffle(alltuples)
 
-#print "finished query fetch: ", time.time() - start
 mypepids = [
             {
-                'sequence'  :  r[0],
+                'mod_sequence'  :  r[0],
                 'peptide_key' :r[1],
                 'parent_id' :  r[2],
                 'q1_charge' :  r[3],
@@ -130,14 +150,36 @@ mypepids = [
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
+
 if not use_db:
+    import c_rangetree
     parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
             for r in alltuples ]
     parentid_lookup  = dict(parentid_lookup)
     print "building tree with %s Nodes" % len(alltuples)
+    if use_sqlite: alltuples = [tuple(t) for t in alltuples]
     c_rangetree.create_tree(tuple(alltuples))
 
+# in SWATH mode, select all precursors that are relevant for the background at
+# once
+if swath_mode: 
+    values="q1, modified_sequence, peptide_key, q1_charge, ssrcalc"
+    q1_low = min_q1; q1_high = max_q1
+    query2 = """
+    select %(values)s
+    from %(pep)s
+    where q1 >= %(q1_low)s and q1 <= %(q1_high)s
+    %(query_add)s
+    """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
+           'query_add' : par.query2_add,
+           'pep' : par.peptide_table,
+           'values' : values}
+    print 'swath ' , query2
+    cursor.execute( query2 )
+    allprecursors =  cursor.fetchall()
 
+
+allintertr = []
 self = mycollider
 self.mysqlnewtime = 0
 self.pepids = mypepids
@@ -150,9 +192,8 @@ for kk, pep in enumerate(self.pepids):
     ssrcalc = pep['ssrcalc']
     q3_low, q3_high = par.get_q3range_transitions()
     #
-    #new way to calculate the precursors
-    transitions = c_getnonuis.calculate_transitions_ch(
-        ((q1, pep['sequence'], p_id),), [1], q3_low, q3_high)
+    transitions = collider.calculate_transitions_ch(
+        ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
     #fake some srm_id for the transitions
     transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
     nr_transitions = len(transitions)
@@ -164,26 +205,15 @@ for kk, pep in enumerate(self.pepids):
     if use_db and not swath_mode:
         precursors = self._get_all_precursors(par, pep, cursor)
     elif use_db and swath_mode:
-        values="q1, modified_sequence, peptide_key, q1_charge"
-        #we compare the parent ion against 4 different parent ions
-        #thus we need to take the PEPTIDE key here
-        query2 = """
-        select %(values)s
-        from %(pep)s
-        where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
-            and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-        and q1 > %(q1_low)s and q1 < %(q1_high)s
-        and %(pep)s.peptide_key != %(peptide_key)d
-        %(query_add)s
-        """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
-               'ssrcalc' : pep['ssrcalc'], 
-                'peptide_key' : pep['peptide_key'],
-               'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-               'pep' : par.peptide_table,
-               'values' : values}
-        cursor.execute( query2 )
-        precursors=  cursor.fetchall()
+        if par.ssrcalc_window > 1000:
+            precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] ]
+        else:
+            ssrcalc_low = ssrcalc - par.ssrcalc_window 
+            ssrcalc_high = ssrcalc + par.ssrcalc_window 
+            precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] 
+                         and p[4] > ssrcalc_low and p[4] < ssrcalc_high ]
     elif not use_db:
+        # Use the rangetree
         #correct rounding errors, s.t. we get the same results as before!
         ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
         ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
@@ -192,14 +222,18 @@ for kk, pep in enumerate(self.pepids):
         precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                             #dont select myself 
                            if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
-    #
-    #now calculate coll per peptide the new way
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-        transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-    non_uis_list = [{} for i in range(MAX_UIS+1)]
-    for order in range(1,MAX_UIS+1):
-        non_uis_list[order] = c_getnonuis.get_non_uis(
-            collisions_per_peptide, order)
+
+    collisions_per_peptide = collider.get_coll_per_peptide(mycollider, transitions, par, pep, cursor)
+    non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
+    ## 
+    ## Lets count the number of peptides that interfere
+    if count_avg_transitions:
+        tr_arr = [0 for i in range(nr_transitions)]
+        for v in collisions_per_peptide.values():
+            for vv in v:
+                tr_arr[vv] += 1
+        allintertr.extend( tr_arr )
+    ##
     #
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
@@ -207,6 +241,15 @@ for kk, pep in enumerate(self.pepids):
     progressm.update(1)
 
 
+if count_avg_transitions:
+    print "\n"
+    print "found %s transitions" % len(allintertr)#
+    print "found max of %s interferences" % max(allintertr)
+    print "found average of %s interferences" % ( sum(allintertr) * 1.0 / len(allintertr) )
+
+# if any problems with the packet/buffer length occur, try this:
+## set global max_allowed_packet=1000000000;
+## set global net_buffer_length=1000000;
 cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 

@@ -98,8 +98,6 @@ print 'isotopes' , par.considerIsotopes
 qadd = ''
 if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
 
-
-
 qadd += ' and isotope_nr in (0,1) '
 par.query_add += ' and isotope_nr in (0,1) '
 par.query2_add += ' and isotope_nr in (0,1) '

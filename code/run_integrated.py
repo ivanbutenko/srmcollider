@@ -1,37 +1,44 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
-# vim:set fdm=marker:
 """
-select count(distinct parent_key) from result_srmuis where exp_key = 104;
-select count(*) from srmPeptides_mouse where isotope_nr = 0 and q1_charge = 2 and q1 between 400 and 1400;
-
-python prepare_rangetree.py 104 60000 9999 hroest.srmPeptides_mouse
-sh /tmp/tmp.sh
-
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+"""
 
 """
-import MySQLdb
-import time
-import sys 
-import c_integrated
-import c_rangetree, c_getnonuis
+This program will process all peptides of a given proteome and compare it to
+the background in that proteome. It will output the number of UIS and the
+number of total combinations for each order up to the specified limit for each
+precursor.
+"""
+
+import MySQLdb, sys 
+import c_integrated, c_rangetree, c_getnonuis
 sys.path.append( '/home/hroest/lib/hlib/' )
 sys.path.append( '/home/hroest/projects' )
 sys.path.append( '/home/hroest/projects/hlib' )
-db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
-#db = MySQLdb.connect(read_default_file="~/.my.cnf")
-#cursor = db.cursor()
-cursor_l = db_l.cursor()
-cursor = cursor_l
 import collider
 import progress
-
-exp_key = -1234
-min_q1 = 1047
-max_q1 = 1205
-ssrcalcwin = 0.25
-
-#11234556 1047 1205 0.25 hroest.srmPeptides_yeast
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
@@ -40,53 +47,42 @@ group = OptionGroup(parser, "Run uis Options",
                     "None yet")
 parser.add_option_group(group)
 
-
-
 #Run the collider
 ###########################################################################
 #Parse options
+mycollider = collider.SRMcollider()
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
+par.parse_options(options)
+par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
+par.eval()
+print par.get_common_filename()
+
+if len(sys.argv) < 4: 
+    print "wrong number of arguments"
+    sys.exit()
 
 #local arguments
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
 max_q1 = float(sys.argv[3])
-#ssrcalcwin = float(sys.argv[4])
-#peptide_table = sys.argv[5]
-par.__dict__.update( options.__dict__ )
-par.q3_range = [options.q3_low, options.q3_high]
-par.q1_window /= 2.0
-par.q3_window /= 2.0
-par.ssrcalc_window /= 2.0
-if par.ppm == 'True': par.ppm = True
-elif par.ppm == 'False': par.ppm = False
+
+if use_sqlite:
+    import sqlite
+    db = sqlite.connect(sqlite_database)
+    cursor = db.cursor()
+else:
+    db = MySQLdb.connect(read_default_file=options.mysql_config)
+    cursor = db.cursor()
 
 if par.max_uis ==0: 
     print "Please change --max_uis option, 0 does not make sense here"
     sys.exit()
-#par.q1_window = 1.2 / 2.0 #UIS paper = 1.2
-#par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
-#par.ssrcalc_window = ssrcalcwin / 2.0
-#par.ppm = False
-#par.considerIsotopes = True
-#par.max_uis = 5 #turn off uis if set to 0
-#par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
-#par.q3_range = [400, 1400]
-par.eval()
-#print par.experiment_type
-#par.peptide_table = peptide_table
-print par.get_common_filename()
-mycollider = collider.SRMcollider()
 
-print par.ppm
-print par.considerIsotopes
+print 'isotopes' , par.isotopes_up_to
+qadd = "and isotope_nr <= %s" % par.isotopes_up_to
 
-qadd = ''
-if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
-
-start = time.time()
 cursor.execute( """
 select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
@@ -97,12 +93,7 @@ from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
               'qadd'   : qadd
       } )
 
-#print "finished query execution: ", time.time() - start
 alltuples =  list(cursor.fetchall() )
-#from random import shuffle
-#shuffle(alltuples)
-
-#print "finished query fetch: ", time.time() - start
 mypepids = [
             {
                 'sequence'  :  r[0],
@@ -123,11 +114,9 @@ parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ]
     #if r[3] == 2 and r[6] == 0
 ]
 parentid_lookup  = dict(parentid_lookup)
-#print "finished python lookups: ", time.time() - start
 
 print "building tree with %s Nodes" % len(alltuples)
 c_integrated.create_tree(tuple(alltuples))
-#print "finished build tree : ", time.time() - start
 
 self = mycollider
 self.mysqlnewtime = 0
@@ -135,39 +124,31 @@ self.pepids = mypepids
 MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 prepare  = []
-import time
-for kk, pep in enumerate(self.pepids):
+for pep in self.pepids:
     p_id = pep['parent_id']
     q1 = pep['q1']
     ssrcalc = pep['ssrcalc']
     q3_low, q3_high = par.get_q3range_transitions()
     #
-    #new way to calculate the precursors
     transitions = c_getnonuis.calculate_transitions_ch(
         ((q1, pep['sequence'], p_id),), [1], q3_low, q3_high)
-    #fake some srm_id for the transitions
     transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
     nr_transitions = len(transitions)
-    q1_low = q1 - par.q1_window 
-    q1_high = q1 + par.q1_window
     #correct rounding errors, s.t. we get the same results as before!
     ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
     ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-
-    st = time.time()
-    result = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low, q1_high,  ssrcalc_high, 
-                         pep['peptide_key'],  min(MAX_UIS,nr_transitions) , 
-                                   par.q3_window, #q3_low, q3_high,
-                                   par.ppm )
+    try:
+        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, pep['peptide_key'],  
+            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm )
+    except ValueError: print "Too many transitions for", pep['sequence']; continue
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
-        prepare.append( (result[order], collider.choose(nr_transitions, 
+        prepare.append( (result[order-1], collider.choose(nr_transitions, 
             order), p_id , order, exp_key)  )
     progressm.update(1)
 
-print len(prepare)
-cursor.executemany('insert into hroest.result_completegraph (non_useable_UIS, total_UIS, \
-                  parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
-
+cursor.executemany('insert into hroest.result_srmuis (non_useable_UIS, \
+    total_UIS, parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)', prepare)
 
 """
 create table hroest.result_completegraph (

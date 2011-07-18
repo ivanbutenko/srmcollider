@@ -1,20 +1,49 @@
 #!/usr/bin/python
+# -*- coding: utf-8  -*-
 
+"""
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+"""
+
+import MySQLdb, time, sys 
+import csv, re
 import cgitb; cgitb.enable()
-import sharedhtml as shared
+import cgi
 
-import MySQLdb, time
-import sys 
 sys.path.append( '/home/hroest/projects/msa/code' )
 sys.path.append( '/home/hroest/projects/srm_clashes/code' )
-from utils_h import utils
-#db = MySQLdb.connect(read_default_file=".my.cnf")
-#db = MySQLdb.connect("orl.ethz.ch", "hroest", "", db="hroest")
-db = MySQLdb.connect("orl.ethz.ch", "srmcollider", "srmcollider", db="hroest")
-c = db.cursor()
-c2 = db.cursor()
+import DDB; from Residues import Residues
 import collider
 import c_getnonuis
+import sharedhtml as shared
+
+# some options that can be changed locally for your convenience
+default_mysql = "/IMSB/users/hroest/.srm.cnf"
+db_used = 'hroest'
+default_org_prefix = '.srmPeptides_'
+genomes_that_require_N15_data = ['yeastN15']
+default_ssrcalc = 'hroest.ssrcalc_pr_copy'
 
 #myCSVFile = '/nas/www/html/hroest/srmcollider.csv'
 myCSVFile = '/var/www/documents/srmcollider.csv'
@@ -22,28 +51,52 @@ myUIS_CSVFile = '/var/www/documents/uis_srmcollider.csv'
 myUIS_CSVFile_rel = '/../documents/uis_srmcollider.csv'
 myCSVFile_rel = '/../documents/srmcollider.csv'
 
+# If you want to add additional genomes, edit the genome_select HTML and the
+# map_db_tables function
+genome_select = """
+    <option value="yeast">Yeast (tryptic)</option>
+    <option value="yeastN15">Yeast N15 (tryptic)</option>
+    <option value="mouse">Mouse (tryptic)</option>
+    <option value="human">Human (tryptic)</option>
+"""
 
-def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis):
+def map_db_tables(genome):
+    # figure out which db to use 
+    # you will have to change that if you have a different setup
+    if genome == 'yeast':
+        table_used =  'yeast'
+    elif genome == 'yeastN15':
+        table_used =  'yeastN15'
+    elif genome == 'mouse':
+        table_used =  'mouse'
+    elif genome == 'human':
+        table_used =  'human'
+    else: 
+        print "Genome not recognized";
+        exit()
 
-    import csv, re
+
+###########################################################################
+# No changes after here
+
+db = MySQLdb.connect(read_default_file=default_mysql)
+c = db.cursor()
+
+def unique(seq): 
+    # order preserving
+    checked = []
+    for e in seq:
+        if e not in checked:
+            checked.append(e)
+    return checked
+
+def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis):
+
     q3_low = low
     q3_high = high
     cursor = db.cursor()
 
-    import silver
-    import DDB 
-    R = silver.Residues.Residues('mono')
-    if genome in ['yeastN15']: R.recalculate_monisotopic_data_for_N15()
-
-    #prepare a csv
-    f = open( myCSVFile, 'w')
-    w = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    w.writerow( ['sequence', 'q1', 'q3', 'type', 'charge'] )
-    fuis = open( myUIS_CSVFile, 'w')
-    wuis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    MAX_UIS = uis
-
-    #sanitize input
+    # sanitize input: all input is already sanitized except myinput and genome
     seqs = "'"
     input_sequences = []
     for inp in myinput.split():
@@ -54,17 +107,21 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
         input_sequences.append(sanitized)
     seqs = seqs[:-2]
 
-    #figure out which db to use 
-    db_used = 'hroest'
-    if genome == 'yeast':
-        table_used =  'yeast'
-    elif genome == 'yeastN15':
-        table_used =  'yeastN15'
-    elif genome == 'mouse':
-        table_used =  'mouse'
-    elif genome == 'human':
-        table_used =  'human'
-    else: print "Genome not recognized"; exit()
+    table_used = map_db_tables(genome)
+
+    #Now all input should be sane
+
+    R = Residues('mono')
+    if genome in genomes_that_require_N15_data: 
+        R.recalculate_monisotopic_data_for_N15()
+
+    #prepare a csv
+    f = open( myCSVFile, 'w')
+    w = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    w.writerow( ['sequence', 'q1', 'q3', 'type', 'charge'] )
+    fuis = open( myUIS_CSVFile, 'w')
+    wuis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    MAX_UIS = uis
 
     #create the parameter object
     par = collider.SRM_parameters()
@@ -76,22 +133,21 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     par.considerIsotopes = True
     par.isotopes_up_to = isotope
     par.q3_range = [low, high]
-    par.peptide_table = db_used + '.srmPeptides_' + table_used
+    par.peptide_table = db_used + default_org_prefix + table_used
     par.transition_table = db_used + '.srmTransitions_' + table_used
     par.eval()
-    extra_table = 'ddb.peptide'
     mycollider = collider.SRMcollider()
 
     if uis > 0:
         if uis > 5:
             print "I will only calculate UIS up to order 5 \
-                    (otherwise your Excel might break)." #and we dont want that
+                    (otherwise your Excel might break)." #and we dont want that.
             exit()
         print "<a href ='%s'>Download csv file with UIS</a>" % myUIS_CSVFile_rel
         print "<br/>"
 
     # Print headers, link to csv file and table of content
-    unique = utils.unique(myinput.split() )
+    unique = unique(myinput.split() )
     print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
     print "<br/>"
     print "input: %s peptides" % (len( myinput.split() )) 
@@ -114,9 +170,9 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
 
     ssr_query = """
     select sequence, ssrcalc
-    from hroest.ssrcalc_pr_copy
+    from %(ssrcalc_table)s
     where sequence in (%(seqs)s)
-    """ % { 'seqs' : seqs, }
+    """ % { 'seqs' : seqs, 'ssrcalc_table' : default_ssrcalc}
     cursor.execute( ssr_query )
     pepmap = dict( cursor.fetchall() )
     class Peak():
@@ -291,7 +347,6 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
             print "</td></tr>"
         print "</table>"
 
-
         print """
         <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
             <h3>Unuseable transitions (Collisions)</h3>
@@ -318,68 +373,6 @@ def main(myinput, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, ui
     fuis.close()
     f.close()
 
-myinput = """
-DDGSGVDIIDRPSMCLEYTTSK   
-DLEILPAGDLTEIGEK         
-AVGIGFIAVGIIGYAIK        
-DQTSNLR                  
-DQLIENCSK                
-NFMPLEAK                 
-DLTETCR                  
-CNATPETFLQDIDK           
-SLGQELIR                 
-DGISQEGTIENAPANPSK       
-SFLVILPAGLK              
-TQMSHTLCVTTQLPR          
-DIFTTLVSPELLSTCK         
-GILQYVWFKPFYCFGTLICSAWK  
-ENGFSMFK                 
-HLQGPSDLVK               
-QTHPVIIPSFASWFDISK       
-IEDDLLFR                 
-SGLVPAQFIEPVR            
-AISSKPLSVR               
-"""
-q1_w = 1
-q3_w = 1
-ssr_w = 4
-exp_key = 3120 #yeast
-high = 1500
-low = 300
-
-warm_welcome = """
-###########################################################################
-###########################################################################
-#                              SRM Collider                               #
-###########################################################################
-#                                  alpha                                  #
-###########################################################################
-"""
-warm_welcome = """
-###########################################################################<br/>
-###########################################################################<br/>
-#
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;
-                              SRM Collider
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-#<br/>
-###########################################################################<br/>
-###########################################################################<br/>
-"""
-
-# 2+, 3+ precursor
-# 1+, 2+ fragmente
-# interessante faelle raussuchen => in dp liste
 sample_peptides = """
 AFGIPVNTFSSEVVTLWYR
 AIPAPHEILTSNVVTR
@@ -396,20 +389,15 @@ sample_peptides_html = ''
 for s in sample_peptides.split():
     sample_peptides_html += s + '<br/>'
 
-
-
-
 ###########################################################################
 ###########################################################################
 # START OF HTML
-
 
 print 'Content-type: text/html\n\n'
 print shared.header
 print shared.warm_welcome
 print "<div class='main'>"
 
-import cgi
 form = cgi.FieldStorage()   # FieldStorage object to
 if form.has_key('peptides'):
     peptides = form.getvalue('peptides')
@@ -422,7 +410,7 @@ if form.has_key('peptides'):
     isotope = int(form.getvalue('isotope') )
     uis = int(form.getvalue('uis') )
     start = time.time()
-    main( peptides, q1_w, q3_w, ssr_w, exp_key, db, high, low, genome, isotope, uis)
+    main( peptides, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
   print """
@@ -460,10 +448,7 @@ else:
     <p class='input_field'>
         <label class="mylabel" for="genome">Genome</label>
         <select name="genome" class="number_input">
-          <option value="yeast">Yeast (tryptic)</option>
-          <option value="yeastN15">Yeast N15 (tryptic)</option>
-          <option value="mouse">Mouse (tryptic)</option>
-          <option value="human">Human (tryptic)</option>
+            %(genome_select)s
         </select>
     </p>
 
@@ -502,10 +487,10 @@ peptides are fully tryptic only <br/>
 -->
 <!-- >
 To try this tool, you could use the following sample peptides:
-<br/>%s    
+<br/>%(sample_peptides_html)s    
 </!-->
-""" % sample_peptides_html
-
+""" % {'sample_peptides_html' : sample_peptides_html, 'genome_select':
+       genome_select} 
 
 print "</div>"
 print """

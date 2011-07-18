@@ -1,4 +1,7 @@
 import unittest
+"""
+This file tests the functionality of the collider.py module. 
+"""
 
 import sys
 sys.path.extend(['.', '..', '../extra/', 'extra/'])
@@ -92,6 +95,8 @@ class Test_collider_function(unittest.TestCase):
         self.q3_high = 1500
         self.q3_low = 300
 
+        self.par.bions      = True
+        self.par.yions      = True
         self.par.aions      = False
         self.par.aMinusNH3  = False
         self.par.bMinusH2O  = False
