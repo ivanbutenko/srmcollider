@@ -74,6 +74,7 @@ def map_db_tables(genome):
     else: 
         print "Genome not recognized";
         exit()
+    return table_used
 
 
 ###########################################################################
@@ -82,7 +83,7 @@ def map_db_tables(genome):
 db = MySQLdb.connect(read_default_file=default_mysql)
 c = db.cursor()
 
-def unique(seq): 
+def unique_values(seq): 
     # order preserving
     checked = []
     for e in seq:
@@ -147,7 +148,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis):
         print "<br/>"
 
     # Print headers, link to csv file and table of content
-    unique = unique(myinput.split() )
+    unique = unique_values(myinput.split() )
     print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
     print "<br/>"
     print "input: %s peptides" % (len( myinput.split() )) 
