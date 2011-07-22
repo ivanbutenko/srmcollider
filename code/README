@@ -18,8 +18,15 @@ sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
 
 Then you can try to build the extensions and copy them 
 
-python setup.py build; cp build/lib.*/* .
+python setup.py build
+sudo python setup.py install
 
+For local installs, you can just copy the build .so files into the local
+directory:
+cp build/lib.*/* .
+
+After that, you should run the tests:
+cd test; python test_independent.py
 
 
 
