@@ -37,15 +37,8 @@
 """
 
 import sys
+sys.path.append('external/')
 import MySQLdb
-import sys 
-sys.path.append( '/home/hroest/lib/' )
-sys.path.append( '/home/hroest/srm_clashes/code' ) #Collider
-sys.path.append( '/home/hroest/msa/code/tppGhost' ) #DDB
-sys.path.append( '/home/hroest/lib/hlib' ) #utils
-sys.path.append( '/home/hroest/projects/hlib' ) #utils
-sys.path.append( '/home/hroest/projects' ) #utils
-from hlib import utils
 import Residues
 import DDB 
 import progress
@@ -140,27 +133,19 @@ and length( peptide.sequence ) > 1
 insert_db = True
 modify_cysteins = False
 
-# how to get the peptides (from DB or from file)
-if use_tsv:
-    import csv
-    rows = []
-    #f = open('ssrcalc.out')
-    f = open(tsv_file)
-    reader = csv.reader(f, delimiter='\t')
-    for id, line in enumerate(reader):
-        if len(line[0]) < 2: continue
-        peptide = DDB.Peptide()
-        peptide.set_sequence( line[0] )
-        peptide.ssr_calc = line[2] 
-        peptide.id = id
-        rows.append(peptide)
-
-else:
-    c.execute( 'use ddb;' )
-    t = utils.db_table( c2 )
-    t.read( all_peptide_query )
-    rows = t.c.fetchall()
-
+# how to get the peptides 
+import csv
+rows = []
+#f = open('ssrcalc.out')
+f = open(tsv_file)
+reader = csv.reader(f, delimiter='\t')
+for id, line in enumerate(reader):
+    if len(line[0]) < 2: continue
+    peptide = DDB.Peptide()
+    peptide.set_sequence( line[0] )
+    peptide.ssr_calc = line[2] 
+    peptide.id = id
+    rows.append(peptide)
 
 
 

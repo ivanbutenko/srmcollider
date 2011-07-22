@@ -6,8 +6,9 @@ This file tests the interoperability with the MySQL / SQLite databases.
 
 import sys
 sys.path.append( '..')
-sys.path.append( '../extra')
+sys.path.append( '../external')
 import collider
+from Residues import Residues
 
 from test_shared import *
 import test_shared 
@@ -43,8 +44,8 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.q1_window = 1.2 / 2.0
         self.par.ssrcalc_window = 9999
         self.par.query2_add = ''
-        self.par.peptide_table = 'hroest.srmPeptides_human'
-        self.par.transition_table = 'hroest.srmTransitions_human'
+        self.par.peptide_table = 'srmcollider.srmPeptides_human'
+        self.par.transition_table = 'srmcollider.srmTransitions_human'
         self.par.print_query = False
         self.par.select_floor = False
         self.par.isotopes_up_to = 3
@@ -71,10 +72,7 @@ class Test_collider_mysql(unittest.TestCase):
         #self.par.get_q3_window_transitions = collider.SRM_parameters.get_q3_window_transitions
 
         import sys
-        sys.path.append( '/home/hroest/projects/' )
-        sys.path.append( '/home/hroest/lib/' )
-        import silver
-        self.R = silver.Residues.Residues('mono')
+        self.R = Residues('mono')
 
         self.acollider = collider.SRMcollider()
         self.aparamset = collider.testcase()
@@ -243,7 +241,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.q1_window = 0.1 / 2.0
         self.par.ssrcalc_window = 2.0 / 2.0 
         self.par.query2_add = ''
-        self.par.peptide_table = 'hroest.srmPeptides_human'
+        self.par.peptide_table = 'srmcollider.srmPeptides_human'
         self.par.print_query = False
 
         # Our q1 from peptide 'ELNQLEDK' is 494.751462374, the q1 of the

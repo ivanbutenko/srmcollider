@@ -4,10 +4,10 @@ import test_shared
 
 import sys
 sys.path.append( '..')
-sys.path.append( '/home/hroest/projects/' )
+sys.path.append( '../external/')
 import collider
-import silver
 import DDB 
+from Residues import Residues
 
 try:
     import c_getnonuis
@@ -84,7 +84,7 @@ class Test_speed(unittest.TestCase):
             tuples.append(self.pep2)
             self.tuples = tuple( tuples)
 
-            self.R = silver.Residues.Residues('mono')
+            self.R = Residues('mono')
 
             class Minimal: pass
             self.par = Minimal()

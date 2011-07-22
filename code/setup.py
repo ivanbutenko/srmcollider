@@ -40,16 +40,10 @@ sudo apt-get install libboost-python-dev
 #or all at the same time
 sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
 
-
 On Ubuntu, it might fail with 
  /usr/bin/ld: cannot find -lboost_python
 then try to do this
 sudo ln -s /usr/lib/libboost_python-mt.so /usr/lib/libboost_python.so
-
-
-gcc -pthread -fno-strict-aliasing -g -O2 -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -I/usr/local/include/python2.7 -c combinations.cpp -o build/temp.linux-x86_64-2.7/combinations.o
-g++ -pthread -shared build/temp.linux-x86_64-2.7/combinations.o -lboost_python -o build/lib.linux-x86_64-2.7/c_combinations.so
-
 
 """
 
@@ -76,7 +70,7 @@ CGAL_libraries = ''
  
 setup(name="srmcollider",
     url = "http://www.srmcollider.org", 
-    version = "0.7",
+    version = "1.0",
     author = "Hannes Roest",
     requires=["MySQLdb", "sqlite"],
 
