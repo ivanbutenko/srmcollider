@@ -16,17 +16,17 @@ import copy
 #Run the collider
 ###########################################################################
 par = collider.SRM_parameters()
+par.q1_window = 1600 / 2.0 #UIS paper = 1.2 => we do 0.7 and 1.0
+par.q3_window = 10.0 / 2.0 #UIS paper = 2.0
 par.q1_window = 1.2 / 2.0 #UIS paper = 1.2 => we do 0.7 and 1.0
 par.q3_window = 2.0 / 2.0 #UIS paper = 2.0
-#par.q1_window = 1.0 / 2.0 #UIS paper = 1.2 => we do 0.7 and 1.0
-#par.q3_window = 1.0 / 2.0 #UIS paper = 2.0
 ##12 = 90%TPR, 8 = 80%TPR 
-#par.ssrcalc_window = 2 / 2.0 #for pedro
 par.ssrcalc_window = 4 / 2.0 #for paola do 9999 and 4
-par.ssrcalc_window = 9999 / 2.0 #for paola do 9999 and 4
+#par.ssrcalc_window = 9999 / 2.0 #for paola do 9999 and 4
+#par.ssrcalc_window = 2 / 2.0 #for pedro
 par.ppm = False
 par.considerIsotopes = True
-par.do_1vs = True
+par.do_1vs = False
 par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
 par.transition_table = 'hroest.srmTransitions_yeast_top3'
 par.peptide_table = 'hroest.srmPeptides_yeast_top3'
@@ -42,12 +42,12 @@ par.peptide_table = 'hroest.srmPeptides_yeast'
 #par.transition_table = 'hroest.srmTransitions_yeast_pepatlas_union'
 #par.peptide_table = 'hroest.srmPeptides_yeast_pepatlas_union'
 ##
-par.transition_table = 'hroest.srmTransitions_human'
-par.peptide_table = 'hroest.srmPeptides_human'
-par.transition_table = 'hroest.srmTransitions_mouse'
-par.peptide_table = 'hroest.srmPeptides_mouse'
-par.max_uis = 5 #turn off uis if set to 0
-par.q3_range = [400, 1400]
+#par.transition_table = 'hroest.srmTransitions_human'
+#par.peptide_table = 'hroest.srmPeptides_human'
+#par.transition_table = 'hroest.srmTransitions_mouse'
+#par.peptide_table = 'hroest.srmPeptides_mouse'
+par.max_uis = 10 #turn off uis if set to 0
+par.q3_range = [400, 1200]
 par.eval()
 print par.experiment_type
 print par.get_common_filename()
@@ -67,7 +67,8 @@ par.query1_add += ' order by Intensity DESC' #only for the toptrans workflow
 
 reload( collider )
 mycollider = collider.SRMcollider()
-mycollider.find_clashes_toptrans_paola(db, par) #, bgpar=parbg)
+
+mycollider.find_clashes_toptrans_paola(db, par)#, bgpar=parbg)
 
 
 #calculate for precursor, peptide and protein the min nr transitions necessary
@@ -81,7 +82,7 @@ description, comment1, comment2, comment3, super_experiment_key, ddb_experiment_
 VALUES (
     'paola 1Da/1Da', '%s', '%s', '%s', '%s', '%s', 3, 0
 )
-""" %( common_filename + '_' + par.peptide_table.split('.')[1], 
+""" %( common_filename + '_' + par.peptide_table.split('.')[1], #parbg.peptide_table.split('.')[1], 
       par.experiment_type, par.peptide_table, par.transition_table, 
      'using new MRMAtlas_qtrap_final_no_pyroGlu')
 cursor.execute(query)
@@ -101,15 +102,70 @@ cursor.executemany(
 
 {{{ Print plot / result
 
+{{{ sherman result 1
+select @total ;
+
+
+select @total := count(distinct gene_key) 
+from  ddb.peptide p 
+inner join ddb.peptideOrganism o on p.id = o.peptide_key
+inner join ddb.protPepLink l on l.peptide_key = p.id
+inner join ddb.protein  on l.protein_key = protein.id
+#inner join ddb.geneProtLink ll on ll.protein_key = l.protein_key
+where p.experiment_key = 3130
+and genome_occurence = 1;
+
+
+
+select count(distinct gene_key)   / @total 
+from result_srmuis 
+inner join srmPeptides_human pep on pep.parent_id = parent_key
+inner join ddb.peptide p on p.id = pep.peptide_key
+inner join ddb.peptideOrganism o on p.id = o.peptide_key
+inner join ddb.protPepLink l on p.id = l.peptide_key
+inner join ddb.geneProtLink ll on ll.protein_key = l.protein_key
+where exp_key = 35
+and uisorder = 2
+and genome_occurence = 1
+and experiment_key = 3130
+and total_UIS - non_useable_UIS  > 1
+and q1 between 400 and 2000
+;
+
+
+
+}}}
     #{{{Sherman fig 1
+
     cursor.execute(' drop table hroest.srmuis_tmp32 ')
     cursor.execute(
     """
-    create table hroest.srmuis_tmp32 as 
-    select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key
+    create temporary table hroest.srmuis_tmp32 as 
+    #select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key
+    select @c := count(*) from hroest.result_srmuis     where exp_key = 35 and uisorder =1;
+
+    select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key,
+    sum(non_useable_UIS) / sum(total_UIS) sum_total ,
+    count(*),
+    sum(non_useable_UIS / total_UIS) / count(*) as sumperpep
     from hroest.result_srmuis 
+    where exp_key = 132
     group by uisorder, exp_key
     ;
+
+    select exp_key
+    sum(non_useable_UIS) / sum(total_UIS) sum_total ,
+    count(*),
+    sum(non_useable_UIS / total_UIS) / count(*) as sumperpep
+    from hroest.result_srmuis 
+
+
+
+
+    where exp_key = 132
+    group by uisorder, exp_key
+    ;
+
     """)
 
     cursor.execute( """
@@ -119,8 +175,64 @@ cursor.executemany(
     """ )
     result = cursor.fetchall()
 
+
+select sequence, molecular_weight, pi from ddb.peptide p
+inner join ddb.peptideOrganism o on o.peptide_key = p.id
+#our strain H73Rv
+where experiment_key = 3474
+and genome_occurence = 1
+#not in human
+and sequence not in
+(select sequence from ddb.peptide where experiment_key = 3130)
+#but in the other strain
+and sequence in
+(select sequence from ddb.peptide where experiment_key = 3475)
+
+select count(*)
+from ddb.peptide p
+inner join ddb.peptideOrganism o on o.peptide_key = p.id
+#our strain H73Rv
+where experiment_key = 3474
+and length(sequence) > 5 
+and length(sequence) < 21 
+and genome_occurence = 1
+#not in human
+and sequence not in
+(select sequence from ddb.peptide where experiment_key = 3130)
+#but in the other strain
+and sequence in
+(select sequence from ddb.peptide where experiment_key = 3475)
+
+
+    """
+    select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key,
+    sum(non_useable_UIS) / sum(total_UIS) sum_total ,
+    count(*),
+    sum(non_useable_UIS / total_UIS) / count(*) as sumperpep
+    from hroest.result_srmuis 
+    where exp_key = 132
+    and uisorder = 1
+    group by uisorder, exp_key
+    ;
+    """
+
+    #this is correct for Figure 1!!
+    q = """
+    select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key,
+    sum(non_useable_UIS) / sum(total_UIS) sum_total ,
+    count(*),
+    sum(non_useable_UIS / total_UIS) / count(*) as sumperpep
+    from hroest.result_srmuis 
+    where exp_key = 132
+    group by uisorder, exp_key
+    ;
+    """
+    cursor.execute(q)
+
+    result = cursor.fetchall()
+
     data = []
-    h = [float(r[0])*100 for r in result if r[2] == 32]
+    e = [float(r[0])*100 for r in result if r[2] == 32]
     n = [r[1] for r in result if r[2] == 32]
     data.append( [h,n])
     h = [float(r[0])*100 for r in result if r[2] == 35]
@@ -173,7 +285,181 @@ cursor.executemany(
                                                       addls = False)
     #}}}
 
+
+#{{{ Roest paper figure 2 (sherman fig 1)
+
+    # there are two ways to calculate it:
+    # 1. sum up all the nonuseable and total and then make the average
+    # 2. create the average per peptide and then sum up the averages
+    #
+    # Here we chose the second way
+    cursor.execute(' drop table hroest.srmuis_tmp32 ')
+    cursor.execute(
+    """
+    create temporary table hroest.srmuis_tmp32 as 
+    #select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key
+    select sum(non_useable_UIS/total_UIS) / count(*)  sum_non, uisorder, exp_key
+    from hroest.result_srmuis 
+    where exp_key in (32, 132, 110)
+    group by uisorder, exp_key;
+    """)
+    cursor.execute( """
+    #select sum_non / sum_total as pcnt_non, uisorder, exp_key 
+    select sum_non as pcnt_non, uisorder, exp_key 
+    from hroest.srmuis_tmp32 
+    order by exp_key, uisorder
+    """ )
+    result = cursor.fetchall()
+    # 35 was the first human attempt but has no limit of 400-1400 init
+    # 132 has that limit for human
+    ## for yeast we dont have that data
+
+    data = []
+    ## h = [float(r[0])*100 for r in result if r[2] == 32]
+    ## n = [r[1] for r in result if r[2] == 32]
+    h = [float(r[0])*100 for r in result if r[2] == 132]
+    n = [r[1] for r in result if r[2] == 132]
+    data.append( [h,n])
+    h = [ 0.99999598 , 0.90668559 , 0.36609717 , 0.10413078 , 0.03534957 ]
+    h = [hh*100 for hh in h]
+    n = [1,2,3,4,5]
+    data.append( [h,n])
+    # h = [float(r[0])*100 for r in result if r[2] == 110]
+    # n = [r[1] for r in result if r[2] == 110]
+    # data.append( [h,n])
+
+    import gnuplot
+    titles = [
+        'Human', 
+        'Yeast',
+        #'Mouse'
+]
+    output = '/tmp/fig1.eps'
+    xlabel = 'Number of transitions'
+    ylabel = 'Probability of non-unique transition set / %'
+    title = ''
+    cmd = 'with lines lw 6'
+    ba = """
+        set yrange[0:100]
+        set xtics 1
+        set mxtics 1
+        set key top right
+        """
+    gnu = gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            output, xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=True, 
+                                                      addls = False)
+    #}}}
+
+#{{{ Roest paper figure 3 (rt influence)
+
+    # there are two ways to calculate it:
+    # 1. sum up all the nonuseable and total and then make the average
+    # 2. create the average per peptide and then sum up the averages
+    #
+    # Here we chose the second way
+    cursor.execute(' drop table hroest.srmuis_tmp32 ')
+    cursor.execute(
+    """
+    create temporary table hroest.srmuis_tmp32 as 
+    #select sum(non_useable_UIS) sum_non, sum(total_UIS) sum_total , uisorder, exp_key
+    select sum(non_useable_UIS/total_UIS) / count(*)  sum_non, uisorder, exp_key
+    from hroest.result_srmuis 
+    where exp_key between 132 and 137
+    group by uisorder, exp_key;
+    """)
+    cursor.execute( """
+    #select sum_non / sum_total as pcnt_non, uisorder, exp_key 
+    select sum_non as pcnt_non, uisorder, exp_key 
+    from hroest.srmuis_tmp32 
+    order by exp_key, uisorder
+    """ )
+    result = cursor.fetchall()
+
+    data = []
+    for ekey in range(132,137):
+        h = [float(r[0])*100 for r in result if r[2] == ekey]
+        n = [r[1] for r in result if r[2] == ekey]
+        data.append( [h,n])
+
+    import gnuplot
+    titles = [
+        'Human (no RT)',
+        'Human (16 units)',
+        'Human (12 units)',
+        'Human (8 units)',
+        'Human (4 units)']
+    output = 'out.eps'
+    xlabel = 'Number of transitions'
+    ylabel = 'Probability of non-unique transition set / %'
+    #title = 'Probability to select a redundant SRM assay (transitions between 400 and 1400)'
+    title = ''
+    cmd = 'with lines lw 6'
+    ba = """
+        set yrange[0:100]
+        set xtics 1
+        set mxtics 1
+        set key top right
+        """
+    gnu = gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
+            '/tmp/fig1.eps', xlabel, ylabel, '/tmp/htmp', title, 
+            keep_data = True, datatitles=titles, body_add = ba, nocolor=True, 
+                                                      addls = False)
+
+
+
+
+
+    #}}}
+
+
     {{{hroest style figure (cumulative plot )
+
+
+#regular 
+select count(*) / 121009
+, exp_key from hroest.result_srmuis
+where exp_key between 238 and 261
+and exp_key in (238, 239, 241, 245, 249, 250, 251, 252, 253, 254)
+and total_UIS - non_useable_UIS >= 5
+group by exp_key
+order by exp_key;
+
+
+#peptide atlas
+select count(*) / 53002
+, exp_key from hroest.result_srmuis
+where exp_key between 238 and 261
+and exp_key not in (238, 239, 240, 241, 245, 249, 250, 251, 252, 253, 254)
+and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+
+
+    cursor.execute(
+    """
+    select total_UIS - non_useable_UIS, exp_key 
+    from hroest.result_srmuis
+    where exp_key between 238 and 261
+    """ )
+    result = cursor.fetchall()
+
+    s  = ''
+    for i in range(25): s += '%s,' % i
+
+    s  += '\n'
+    for i in range(238,262):
+        h, n = numpy.histogram( [r[0] for r in result if r[1] == i], 25, (0,25) )
+        for aa in h: s += '%s,' % aa
+        cursor.execute(" select short_description, comment3 from hroest.experiment where id = %s" % i)
+        try: s += '%s, %s\n'  % cursor.fetchall()[0]
+        except IndexError: s += '\n'
+
+
+===========================================================================
+
+
+
 
     cursor.execute(
     """
@@ -223,7 +509,7 @@ cursor.executemany(
 
     import gnuplot
     titles = ['29 Da, 50 ppm', '0.7 Da, 0.7 Da']
-    output = 'test.eps'
+    output = '/tmp/test.eps'
     xlabel = 'Unique transitions per peptide / %'
     ylabel = 'Cummulative Occurence / %'
     title = 'Comparison at 2 SSRCalc unit with yeast N^{14} + N^{15} background'
@@ -238,39 +524,69 @@ cursor.executemany(
 
 }}}
 
-    {{{hroest style figure (from result_srmuis )
+    {{{hroest style figure (from result_srmuis ) Figure 4 Hroest 
 
     cursor.execute(
     """
     select total_UIS - non_useable_UIS as useable, 1 as dummy, exp_key from 
     hroest.result_srmuis
-        where exp_key between 122 and 130
+        where (exp_key between 122 and 130 or exp_key between 238 and 271 
+        or exp_key between 580 and 600 )
         and uisorder = 1
     """ )
     result = cursor.fetchall()
+
     data = []
-    for ek in range(123,130):
+    # for ek in range(124,130):
+    #     h, n = numpy.histogram( [r[0] for r in result if r[2] == ek], 30, (0,30) )
+    #     cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
+    #     data.append( [cumh,n])
+    #     print ek, len(n)
+
+
+    titles = [ 
+        '800 Da, 10ppm, 2SSRCalc',
+        '800 Da, 10ppm',
+        '800 Da, 1ppm',
+        '800 Da, 0.1ppm',
+        '1.2 Da, 2.0 Da',
+        '1.0 Da, 1.0 Da',
+        '25 Da 10ppm', 
+        '0.7 Da, 0.7 Da',
+        'test', 
+        ]
+    data_ranges = [239,262,263,264, 249, 250, 245]
+
+    titles = [ 
+        '800 Da, 10ppm 2SSR',
+        '800 Da, 1ppm 2SSR',
+        '800 Da, 0.1ppm 2SSR',
+  #      '800 Da, 10ppm ',
+        '1.2 Da, 2.0 Da',
+        '1.0 Da, 1.0 Da',
+        '25 Da 10ppm', 
+        '0.7 Da, 0.7 Da',
+        'test', 
+        ]
+    data_ranges = [ 239,240,241, 249,250 ]
+
+    data = []
+    #for ek in [ 245 , 250 , 252 , 268 , 269 , 583 , 586 , 587 , 589 ]:
+    #for ek in [ 268, 269, 250 , 245, 252 ]:
+    for ek in data_ranges:
         h, n = numpy.histogram( [r[0] for r in result if r[2] == ek], 30, (0,30) )
         cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
         data.append( [cumh,n])
 
-
-
     import gnuplot
-    titles = [ 
-        '25 Da 20ppm', 
-        '25 Da 10ppm', 
-        '15 Da 20ppm', 
-        '15 Da 10ppm', 
-               '0.7 Da, 1.0 Da',  '0.7 Da, 0.7 Da','0.1 Da, 0.1 ppm']
-    output = '/tmp/test.eps'
+    output = '/tmp/fig1.eps'
     xlabel = 'Unique transitions per peptide'
     ylabel = 'Cummulative Occurence / %'
     title = 'Comparison at 2 SSRCalc unit with yeast background'
-    cmd = 'with lines '
+    cmd = 'with lines lw 1'
     ba = """
         #set xrange[0:20]
-        set key top left
+        set key bottom right 
         """
     gnu = hlib.gnuplot.Gnuplot.draw_from_multiple_data(data, cmd,
             output, xlabel, ylabel, '/tmp/htmp', title, 
@@ -341,7 +657,61 @@ cursor.executemany(
     160 : (150 , 0.1),
     161 : (150 , 0.5),
     162 : (150 , 1),
-    163 : (150 , 0.001) 
+    163 : (150 , 0.001),
+ 190 : (1.0 , 0.5     ),
+ 191 : (1.0 , 0.55    ),
+ 192 : (1.0 , 0.6     ),
+ 193 : (1.0 , 0.65    ),
+ 194 : (1.0 , 0.7     ),
+ 195 : (1.0 , 0.75    ),
+ 196 : (1.0 , 0.8     ),
+ 197 : (1.0 , 0.85    ),
+ 198 : (1.0 , 0.9     ),
+ 199 : (1.0 , 0.95    ),
+ 200 : (10.0 , 0.125  ),
+ 201 : (10.0 , 0.15   ),
+ 202 : (10.0 , 0.175  ),
+ 203 : (10.0 , 0.2    ),
+ 204 : (10.0 , 0.25   ),
+ 205 : (10.0 , 0.4    ),
+ 206 : (20.0 , 0.05   ), 
+ 207 : (20.0 , 0.055  ), 
+ 208 : (20.0 , 0.06   ), 
+ 209 : (20.0 , 0.065  ), 
+ 210 : (20.0 , 0.07   ), 
+ 211 : (20.0 , 0.075  ), 
+ 212 : (20.0 , 0.08   ), 
+ 213 : (20.0 , 0.085  ), 
+ 214 : (20.0 , 0.09   ), 
+ 215 : (20.0 , 0.095  ), 
+ 216 : (50.0 , 0.005  ), 
+ 217 : (50.0 , 0.01   ), 
+ 218 : (50.0 , 0.02   ), 
+ 219 : (50.0 , 0.03   ), 
+ 220 : (50.0 , 0.04   ), 
+ 221 : (50.0 , 0.045  ), 
+ 222 : (50.0 , 0.055  ), 
+ 223 : (50.0 , 0.06   ), 
+ 224 : (150.0 , 0.02  ), 
+ 225 : (150.0 , 0.03  ), 
+ 226 : (150.0 , 0.04  ), 
+ 227 : (150.0 , 0.045 ), 
+ 228 : (150.0 , 0.055 ), 
+ 229 : (150.0 , 0.06  ), 
+ 230 : (250.0 , 0.02  ), 
+ 231 : (250.0 , 0.03  ), 
+ 232 : (250.0 , 0.04  ), 
+ 233 : (250.0 , 0.045 ), 
+ 234 : (250.0 , 0.055 ), 
+ 235 : (250.0 , 0.06  ), 
+ 591 : (500.0 , 0.01  ), 
+ 592 : (500.0 , 0.02  ), 
+ 593 : (500.0 , 0.03  ), 
+ 594 : (500.0 , 0.04  ), 
+ 595 : (500.0 , 0.045 ), 
+ 596 : (500.0 , 0.055 ), 
+ 597 : (500.0 , 0.06  ), 
+ 598 : (500.0 , 0.1   ), 
     }
 
 
@@ -364,31 +734,102 @@ and total_UIS - non_useable_UIS >= 2
 group by exp_key;
 
 
+create table hroest.result_completegraph_analysis 
+select avg( (total_UIS - non_useable_UIS) / total_UIS) as useable_pcnt,
+ uisorder, exp_key, comment3 
+from hroest.result_completegraph      
+inner join hroest.experiment on experiment.id = exp_key  
+group by exp_key, uisorder;
+
+
+
+
+
+update hroest.experiment set comment3 = 'q1: 1.0; q3: 0.01' where id = 138;
+update hroest.experiment set comment3 = 'q1: 1.0; q3: 0.05' where id = 139;
+update hroest.experiment set comment3 = 'q1: 1.0; q3: 0.10' where id = 140;
+update hroest.experiment set comment3 = 'q1: 1.0; q3: 0.50' where id = 141;
+update hroest.experiment set comment3 = 'q1: 1.0; q3: 1.00' where id = 142;
+update hroest.experiment set comment3 = 'q1: 10.0; q3: 0.01' where id = 143;
+update hroest.experiment set comment3 = 'q1: 10.0; q3: 0.05' where id = 144;
+update hroest.experiment set comment3 = 'q1: 10.0; q3: 0.10' where id = 145;
+update hroest.experiment set comment3 = 'q1: 10.0; q3: 0.50' where id = 146;
+update hroest.experiment set comment3 = 'q1: 10.0; q3: 1.00' where id = 147;
+update hroest.experiment set comment3 = 'q1: 20.0; q3: 0.01' where id = 148;
+update hroest.experiment set comment3 = 'q1: 20.0; q3: 0.05' where id = 149;
+update hroest.experiment set comment3 = 'q1: 20.0; q3: 0.10' where id = 150;
+update hroest.experiment set comment3 = 'q1: 20.0; q3: 0.50' where id = 151;
+update hroest.experiment set comment3 = 'q1: 20.0; q3: 1.00' where id = 152;
+update hroest.experiment set comment3 = 'q1: 50.0; q3: 0.01' where id = 153;
+update hroest.experiment set comment3 = 'q1: 50.0; q3: 0.05' where id = 154;
+update hroest.experiment set comment3 = 'q1: 50.0; q3: 0.10' where id = 155;
+update hroest.experiment set comment3 = 'q1: 50.0; q3: 0.50' where id = 156;
+update hroest.experiment set comment3 = 'q1: 50.0; q3: 1.00' where id = 157;
+update hroest.experiment set comment3 = 'q1: 150.0; q3: 0.01' where id = 158;
+update hroest.experiment set comment3 = 'q1: 150.0; q3: 0.05' where id = 159;
+update hroest.experiment set comment3 = 'q1: 150.0; q3: 0.10' where id = 160;
+update hroest.experiment set comment3 = 'q1: 150.0; q3: 0.50' where id = 161;
+update hroest.experiment set comment3 = 'q1: 150.0; q3: 1.00' where id = 162;
+
+
+
+
+
+
+
+select useable_pcnt, uisorder, exp_key, experiment.comment3 
+from hroest.result_completegraph_analysis 
+inner join  hroest.experiment on experiment.id = exp_key
+where exp_key in (142, 149, 150, 154, 159) order by uisorder, exp_key
+
+
+
+
+
+
+
+
+
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
     cursor.execute(
     """
     select (total_UIS - non_useable_UIS) / total_UIS as useable_pcnt, uisorder, exp_key from 
     hroest.result_completegraph
-    where uisorder = 1
-    and exp_key between  138 and 163
+    where uisorder = 2
+    #and exp_key between  138 and 163
     """ )
     result = cursor.fetchall()
+
 
     data1 = {}
     data2 = {}
     data3 = {}
     for ek in pointmap.keys():
-        currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 1]
-        data1[ek] = numpy.average(currdata)
-
+        #currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 1]
+        #data1[ek] = numpy.average(currdata)
         currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 2]
         data2[ek] = numpy.average(currdata)
-
-        currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 3]
-        data3[ek] = numpy.average(currdata)
+        #currdata = [float(r[0]) for r in result if r[2] == ek and r[1] == 3]
+        #data3[ek] = numpy.average(currdata)
 
         h, n = numpy.histogram( , 30, (0,30) )
         cumh = collider.get_cum_dist( [hq*100.0/numpy.sum(h) for hq in h] )
         data.append( [cumh,n])
+
+
+
+for k in data2:
+    print pointmap[k][0], pointmap[k][1],data2[k] 
 
 
 for k in data1:
@@ -579,7 +1020,8 @@ for k,v in pointrowhash.iteritems():
 
 #
 #this is how do the readout
-select id, name, short_description from experiment;
+select id, name, short_description from experiment
+where name like 'paola%';
 
 #{{{ Paola readout
 create temporary table allowed_sequences as
@@ -594,17 +1036,82 @@ alter table allowed_sequences add index(modified_sequence);
 #43 - 45/46
 
 #new paola : 66 - 73
-select @exp_key := 73; 
+select @exp_key := 72; 
+
+select @exp_key := 177; 
+select @exp_key := 178; 
+select @exp_key := 182; 
+
+select @exp_key := 619; 
 select exp_key, min_transitions, count(*) from hroest.result_srmpaola r 
-inner join hroest.srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
+#inner join hroest.srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
 #inner join allowed_sequences seqs on seqs.modified_sequence = srm.modified_sequence
-#where exp_key = @exp_key 
+where exp_key = @exp_key 
 #where exp_key > 74 and exp_key < 91
-where exp_key > 90 and exp_key < 102
+#where exp_key > 90 and exp_key < 102
 #and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
 #comment out to see total
 group by min_transitions
 ; 
+
+drop table tmp34 ;
+create temporary table tmp34 as 
+select exp_key, min_transitions, count(*) as occurence from hroest.result_randomtransitions r 
+where exp_key > 0
+group by min_transitions, exp_key;
+
+
+select * from tmp34;
+select min_transitions, std(occurence), AVG(occurence), occurence from tmp34
+group by min_transitions;
+
+select std(occurence) from tmp34
+group by min_transitions;
+
+# SRM Atlas selection
++---------+-----------------+----------+
+| exp_key | min_transitions | count(*) |
++---------+-----------------+----------+
+|     599 |               1 |        4 |
+|     599 |               2 |     7425 |
+|     599 |               3 |    22030 |
+|     599 |               4 |     9395 |
+|     599 |               5 |     2252 |
+|     599 |               6 |      529 |
+|     599 |               7 |      141 |
+|     599 |               8 |       49 |
+|     599 |               9 |       19 |
+|     599 |              10 |        9 |
+|     599 |              11 |       37 |
+
+
+# y ions above precursor 
++---------+-----------------+----------+
+|     601 |               2 |     4243 | 
+|     601 |               3 |    23871 | 
+|     601 |               4 |    11327 | 
+|     601 |               5 |     2038 | 
+|     601 |               6 |      411 | 
++---------+-----------------+----------+
+
+
+#random selection
++---------+-----------------+----------+
+| exp_key | min_transitions | count(*) |
++---------+-----------------+----------+
+|     603 |               1 |       72 | 
+|     603 |               2 |     9040 | 
+|     603 |               3 |    18692 | 
+|     603 |               4 |     9495 | 
+|     603 |               5 |     2981 | 
+|     603 |               6 |      902 | 
+|     603 |               7 |      289 | 
+|     603 |               8 |      132 | 
+|     603 |               9 |       59 | 
+|     603 |              10 |       25 | 
+|     603 |              11 |      203 | 
++---------+-----------------+----------+
+
 
 
 {{{ Python code (automated code execution)
@@ -619,7 +1126,10 @@ cursor.execute('alter table allowed_sequences add index(modified_sequence);')
 
 s = ''
 #new paola : 66 - 73
-for key in [72,73,71,70,68,69]:
+#pepatlas are  burned up to and including 184
+#compare 187 to 186
+#for key in [186, 185, 179, 180, 236, 237]:
+for key in [599, 601, 603]:
     cursor.execute( 'select @exp_key := %s' % key)
     cursor.execute(
     """
@@ -627,7 +1137,7 @@ for key in [72,73,71,70,68,69]:
     inner join hroest.srmPeptides_yeast srm on srm.parent_id = r.parent_key 
     #inner join allowed_sequences seqs on seqs.modified_sequence = srm.modified_sequence
     where exp_key = @exp_key 
-    #and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
+    #and srm.modified_sequence in (select modified_sequence from hroest.allowed_sequences )
     #comment out to see total
     group by min_transitions
     ; 
@@ -638,7 +1148,7 @@ for key in [72,73,71,70,68,69]:
     s += '\n'
 
 #new paola : 66 - 73
-for key in [67,66]:
+for key in [236, 237]:
     cursor.execute( 'select @exp_key := %s' % key)
     cursor.execute(
     """
@@ -646,7 +1156,7 @@ for key in [67,66]:
     inner join hroest.srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
     #inner join allowed_sequences seqs on seqs.modified_sequence = srm.modified_sequence
     where exp_key = @exp_key 
-    and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
+    and srm.modified_sequence in (select modified_sequence from hroest.allowed_sequences )
     #comment out to see total
     group by min_transitions
     ; 
@@ -713,7 +1223,7 @@ group by mt ;
 select mt, count(*) from
 (
 select min(min_transitions) as mt, peptide_key from hroest.result_srmpaola r 
-inner join srmPeptides_yeast_pepatlas_union srm on srm.parent_id = r.parent_key 
+inner join srmPeptides_yeast srm on srm.parent_id = r.parent_key 
 where exp_key = @exp_key 
 and srm.modified_sequence in (select modified_sequence from  allowed_sequences )
 group by peptide_key
@@ -769,18 +1279,19 @@ mycollider.print_q3min_ppm(par)
 mycollider.print_stats()
 mycollider.print_cumm_unique_all(par, db.cursor() )
 
-#
-#
-#
-reload( collider )
-mycollider = collider.SRMcollider()
+
+
 #pepids = mycollider._get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
 pepids = mycollider._get_unique_pepids_toptransitions(par, cursor)
 
 mycollider.find_clashes(db, par, pepids=pepids, toptrans=True, use_per_transition=False )
 mycollider.find_clashes_small(db, par, pepids=pepids, UIS_only=False)
-mycollider.find_clashes_toptrans_3strike(db, par, pepids=pepids, 
-                                         use_per_transition=False )
+
+reload( collider )
+mycollider = collider.SRMcollider()
+mycollider.find_clashes_toptrans_3strike(db, par) #, pepids=pepids, 
+                                         #use_per_transition=False )
+
 #mycollider.store_in_file(par)
 
 {{{ SWATH workflow
@@ -875,6 +1386,50 @@ group by exp_key;
 
 
 
+
+
+select id, short_description, name, comment3 from experiment where name like 'ludo%' order by id;
+
+select count(*)
+, exp_key from hroest.result_srmuis
+where exp_key between 238 and 261
+#and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+
+#regular 
+select count(*) / 121009
+, exp_key from hroest.result_srmuis
+where exp_key between 238 and 261
+and exp_key in (238, 239, 241, 245, 249, 250, 251, 252, 253, 254)
+and total_UIS - non_useable_UIS >= 5
+group by exp_key
+order by exp_key;
+
+
+#peptide atlas
+select count(*) / 53002
+, exp_key from hroest.result_srmuis
+where exp_key between 238 and 261
+and exp_key not in (238, 239, 240, 241, 245, 249, 250, 251, 252, 253, 254)
+and total_UIS - non_useable_UIS >= 3
+group by exp_key;
+
+
+order by exp_key
+
+
+
+# regular
+ ### new data with smaller RT, e.g. 0.33 instead of 2
+select count(*) as occurence #/ 121009 * 100 as prcnt
+, exp_key , total_UIS - non_useable_UIS as useable_transitions from hroest.result_srmuis
+where exp_key between 262 and 267
+#and total_UIS - non_useable_UIS >= 3
+group by total_UIS - non_useable_UIS, exp_key
+order by exp_key, total_UIS - non_useable_UIS;
+
+
 s = ''
 cursor.execute(
 """
@@ -889,18 +1444,105 @@ for r in cursor.fetchall(): s += '%s;' % r[0]
 s = ''
 cursor.execute(
 """
-select count(*)
+#peptide atlas
+select count(*) / 53002
 , exp_key from hroest.result_srmuis
-where exp_key between 166 and 173
+where exp_key between 238 and 261
+and exp_key not in (238, 239, 240, 241, 245, 249, 250, 251, 252, 253, 254)
 and total_UIS - non_useable_UIS >= 5
 group by exp_key;
-order by exp_key
 """
 )
 for r in cursor.fetchall(): s += '%s;' % r[0]
 
 print s
 
+
+{{{ #use only peptides between 400 and 1200 
+
+
+
+s = ''
+cursor.execute(
+"""
+#
+select count(*) / 53002
+, exp_key from hroest.result_srmuis
+where exp_key between 238 and 261
+and exp_key not in (238, 239, 240, 241, 245, 249, 250, 251, 252, 253, 254)
+and total_UIS - non_useable_UIS >= 5
+group by exp_key;
+"""
+)
+for r in cursor.fetchall(): s += '%s;' % r[0]
+
+
+#for key in [246, 256, 258, 270, 271]:
+#for key in [245, 250, 252, 268, 269]:
+for key in [589]:
+    s = ''
+    tmp = cursor.execute(
+    """
+    select count(*) /  111880 
+    , total_UIS - non_useable_UIS , exp_key
+    from hroest.result_srmuis
+    inner join hroest.srmPeptides_yeast
+    pep on  pep.parent_id = parent_key
+    where exp_key in (%s)
+    and isotope_nr = 0 and q1 between 400.0 and 1200.0
+    group by exp_key, total_UIS - non_useable_UIS 
+    """ % key
+    )
+    all = cursor.fetchall()
+    for i,r in enumerate(all): s += '%s;' % sum([ rr[0] for rr in all[:i]] )
+    print key, s
+
+
+
+#for key in [246, 256, 258, 270, 271]:
+#for key in [245, 250, 252, 268, 269]:
+for key in [590]:
+    s = ''
+    tmp = cursor.execute(
+    """
+    #peptide atlas
+    select count(*) /  48087 #111880 #
+    , total_UIS - non_useable_UIS , exp_key
+    from hroest.result_srmuis
+    inner join hroest.srmPeptides_yeast_pepatlas
+    pep on  pep.parent_id = parent_key
+    where exp_key in (%s)
+    and isotope_nr = 0 and q1 between 400.0 and 1200.0
+    group by exp_key, total_UIS - non_useable_UIS 
+    """ % key
+    )
+    all = cursor.fetchall()
+    for i,r in enumerate(all): s += '%s;' % sum([ rr[0] for rr in all[:i]] )
+    print key, s
+
+
+
+
+select count(*), exp_key from hroest.result_srmuis 
+inner join hroest.srmPeptides_yeast_pepatlas pep on  pep.parent_id = parent_key
+where exp_key = 258 
+and isotope_nr = 0 and q1 between 400.0 and 1200.0
+group by exp_key;
+
+select count(*), exp_key from hroest.result_srmuis 
+inner join hroest.srmPeptides_yeast_pepatlas pep on  pep.parent_id = parent_key
+where exp_key = 258 
+and isotope_nr = 0 and q1 between 400.0 and 1200.0
+group by exp_key;
+
+
+|   |     268 |
+|   111880 |     269 |
+|    48087 |     270 |
+
+
+    
+}}}
 
 }}}
 
