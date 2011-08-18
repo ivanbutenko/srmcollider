@@ -26,9 +26,7 @@ topdiv = """
     SRM Collider
     </div>
     <div class="version">
-    version 0.1
-    </br>
-    alpha
+    version 1.0
     </br>
     Hannes Roest 2010
     </div>

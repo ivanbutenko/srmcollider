@@ -4,12 +4,13 @@ This file tests the functionality of the collider.py module.
 """
 
 import sys
-sys.path.extend(['.', '..', '../extra/', 'extra/'])
+sys.path.extend(['.', '..', '../external/', 'external/'])
 import collider
 
 from test_shared import *
 import test_shared 
 import time
+from Residues import Residues
 
 #
 # inc     means it is included in another test
@@ -113,10 +114,7 @@ class Test_collider_function(unittest.TestCase):
         self.par.get_q3range_collisions = returnrange
 
         import sys
-        sys.path.append( '/home/hroest/projects/' )
-        sys.path.append( '/home/hroest/lib/' )
-        import silver
-        self.R = silver.Residues.Residues('mono')
+        self.R = Residues('mono')
 
         self.acollider = collider.SRMcollider()
         self.aparamset = collider.testcase()

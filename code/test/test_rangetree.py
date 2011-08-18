@@ -5,7 +5,7 @@ This file tests the functionality of the c_rangetree module.
 """
 
 import sys
-sys.path.extend(['.', '..', '../extra/', 'extra/'])
+sys.path.extend(['.', '..', '../external/', 'external/'])
 
 from test_shared import ignoreImportError_rangetree
 

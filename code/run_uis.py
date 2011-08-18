@@ -33,10 +33,6 @@ precursor.
 """
 
 import MySQLdb, time, sys 
-sys.path.append( '/home/hroest/lib/hlib/' )
-sys.path.append( '/home/hroest/projects' )
-sys.path.append( '/home/hroest/projects/hlib' )
-sys.path.append( '/home/hroest/srm_clashes/code' )
 import collider
 import progress
 
@@ -54,7 +50,7 @@ group.add_option("--use_db", action='store_true', dest="use_db", default=False,
                   help="Use db instead of rangetree")
 group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
                   help="Only a dry run, do not start processing (but create experiment)")
-group.add_option("--restable", dest="restable", default='hroest.result_srmuis', type="str",
+group.add_option("--restable", dest="restable", default='srmcollider.result_srmuis', type="str",
                   help="MySQL result table" + 
                   "Defaults to result_srmuis") 
 group.add_option("--sqlite_database", dest="sqlite_database", default='',
@@ -107,7 +103,7 @@ if options.insert_mysql:
     superkey = 31
     if common_filename.split('_')[0] == 'human': superkey = 34
     query = """
-    insert into hroest.experiment  (name, short_description,
+    insert into srmcollider.experiment  (name, short_description,
     description, comment1, comment2,comment3,  super_experiment_key, ddb_experiment_key)
     VALUES (
         'ludovic_swath', '%s', '%s', '%s', '%s','%s', %s, 0

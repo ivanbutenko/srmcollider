@@ -27,11 +27,6 @@
 """
 
 import sys, os, time
-sys.path.append( '/home/hroest/projects/msa/code/tppGhost' )
-sys.path.append( '/home/hroest/projects/hlib/' )
-sys.path.append( '/IMSB/users/hroest/projects/hlib/' )
-sys.path.append( '/IMSB/users/hroest/projects/msa/code/tppGhost' )
-sys.path.append( '/IMSB/users/hroest/projects/tppGhost' )
 import numpy
 import progress
 import gnuplot
@@ -46,8 +41,8 @@ class SRM_parameters(object):
         #self.considerIsotopes = False #do not consider the C13 isotopes
         self.isotopes_up_to = 0
         self.ppm = True #measure q3 in ppm
-        self.transition_table = 'hroest.srmTransitions_yeast'
-        self.peptide_table = 'hroest.srmPeptides_yeast'
+        self.transition_table = 'srmcollider.srmTransitions_yeast'
+        self.peptide_table = 'srmcollider.srmPeptides_yeast'
         self.q3_range = [400, 1200]
         self.ssrcalc_window = 2.0 / 2
         self.q1_window = 25.0 / 2.0
@@ -97,9 +92,9 @@ class SRM_parameters(object):
         group.add_option("--max_uis", dest="max_uis", default=0, type='int',
                           help="maximal order of UIS to calculate " +
                           "(defaults to 0 == no UIS)" )
-        group.add_option("--peptide_table", dest="peptide_table", default='hroest.srmPeptides_yeast',
+        group.add_option("--peptide_table", dest="peptide_table", default='srmcollider.srmPeptides_yeast',
                           help="MySQL table containing the peptides" )
-        group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_yeast',
+        group.add_option("--transition_table", dest="transition_table", default='srmcollider.srmTransitions_yeast',
                           help="MySQL table containing the transitions" )
         group.add_option("--mysql_config", dest="mysql_config", default=default_mysql,
                           help="Location of mysql config file, defaults to %s" % default_mysql )
@@ -236,8 +231,8 @@ def testcase():
     par.q1_window = 0.7 / 2
     par.q3_window = 1.0 / 2
     par.ppm = False
-    par.transition_table = 'hroest.srmTransitions_test'
-    par.peptide_table = 'hroest.srmPeptides_test'
+    par.transition_table = 'srmcollider.srmTransitions_test'
+    par.peptide_table = 'srmcollider.srmPeptides_test'
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
     #par.considerIsotopes = False #do not consider the C13 isotopes
