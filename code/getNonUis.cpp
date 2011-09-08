@@ -63,6 +63,13 @@ python::dict _find_clashes_core_non_unique(python::tuple transitions,
 python::dict _find_clashes_forall(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
     bool ppm);
+// Function to calculate the exact interfering transitions for each peptide for
+// series other than b/y.
+python::dict _find_clashes_forall_other_series(python::tuple transitions,
+    python::tuple precursors, double q3_low, double q3_high, double q3window,
+    bool ppm, python::object par) {
+void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
+    const char* sequence, string& curr_ion, python::object par);
 
 // calculate eUIS
 bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
@@ -565,12 +572,9 @@ python::dict _find_clashes_forall(python::tuple transitions,
  * It will return a Transitions are tuples of the form (q3, srm_id), precursors
  * are tuples of the form (q1, sequence, peptide_key).
  */
-
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
     bool ppm, python::object par) {
-
-//#define SHOW_CORRECT_IONSERIES
 
     python::dict result, tmpdict;
     python::tuple clist;
@@ -589,8 +593,73 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     double* series = new double[10*256];
     double* tmp_series = new double[256];
 
-#ifdef SHOW_CORRECT_IONSERIES
-    // this takes 20% of the total time, just to extact the values
+    string curr_ion = "?";
+
+    // go through all (potential) collisions
+    // and store the colliding SRM ids in a dictionary (they can be found at
+    // position 3 and 1 respectively)
+    for (j=0; j<precursor_length; j++) {
+        clist = python::extract< python::tuple >(precursors[j]);
+        q1 = python::extract<double>(clist[0]);
+        sequence = python::extract<char *>(clist[1]);
+        peptide_key = python::extract<long>(clist[2]);
+
+        ssrcalc = python::extract<double>(clist[3]);
+        isotope_nr = python::extract<int>(clist[4]);
+
+        for (ch=1; ch<=2; ch++) {
+            fragcount = _calculate_clashes_other_series(sequence, tmp_series,
+                    series, ch, par);
+
+            for (i=0; i<transitions_length; i++) {
+                tlist = python::extract< python::tuple >(transitions[i]);
+                //ppm is 10^-6
+                t0 = python::extract< double >(tlist[0]);
+                if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+
+                // go through all fragments of this precursor
+                for (k=0; k<fragcount; k++) {
+                    if(fabs(t0-series[k]) < q3used ) {
+                        t1 = python::extract<long>(tlist[1]);
+                        if( result.has_key(t1) ) {
+                            int snumber = k; //ion number within series
+                            // We need to map back the ion number to a specific
+                            // ion series (this is for cosmetics only)
+                            _find_clashes_forall_other_series_sub(snumber, ch,
+                                    k, sequence, curr_ion, par);
+
+                            tmplist = python::extract<python::list>(result[t1]);
+                            tmplist.append( python::make_tuple(series[k],
+                            q1, 0, peptide_key, curr_ion, l, clist[1], ssrcalc, isotope_nr, ch));
+                        }
+                        else{
+                            python::list newlist;
+                            tmplist = newlist;
+                            int snumber = k; //ion number within series
+                            // We need to map back the ion number to a specific
+                            // ion series (this is for cosmetics only)
+                            _find_clashes_forall_other_series_sub(snumber, ch,
+                                    k, sequence, curr_ion, par);
+
+                            tmplist.append( python::make_tuple(series[k],
+                            q1, 0, peptide_key, curr_ion, l, clist[1], ssrcalc, isotope_nr, ch));
+                            result[t1] = tmplist;
+                        }
+                    }
+                }
+            } //loop over all transitions
+        }
+
+    } //end of loop over all precursors
+
+    delete [] series;
+    delete [] tmp_series;
+    return result;
+}
+
+void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
+    const char* sequence, string& curr_ion, python::object par) {
+
     bool aions      =  python::extract<bool>(par.attr("aions"));
     bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
     bool bions      =  python::extract<bool>(par.attr("bions"));
@@ -607,113 +676,31 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     double* b_series = new double[256];
     double* y_series = new double[256];
     bool done = false;
-#endif
-    string curr_ion = "?";
 
-    // go through all (potential) collisions
-    // and store the colliding SRM ids in a dictionary (they can be found at
-    // position 3 and 1 respectively)
-    for (j=0; j<precursor_length; j++) {
-        clist = python::extract< python::tuple >(precursors[j]);
-        q1 = python::extract<double>(clist[0]);
-        sequence = python::extract<char *>(clist[1]);
-        peptide_key = python::extract<long>(clist[2]);
+    // get the number of amino acids in the sequence
+    scounter = _calculate_clashes(sequence, b_series, y_series, ch);
+    scounter++;
+    done = false;
+    icounter = -1;
+    curr_ion = "?";
 
-        ssrcalc = python::extract<double>(clist[3]);
-        isotope_nr = python::extract<int>(clist[4]);
+    if (yions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "y"; done = true; break;}; icounter++;}
+    if (bions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "b"; done = true; break;}; icounter++;}
+    if (aions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "a"; done = true; break;}; icounter++;}
+    if (cions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "c"; done = true; break;}; icounter++;}
+    if (xions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "x"; done = true; break;}; icounter++;}
+    if (zions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "z"; done = true; break;}; icounter++;}
 
-        for (ch=1; ch<=2; ch++) {
-            //fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-            fragcount = _calculate_clashes_other_series(sequence, tmp_series, series, ch, par);
+    if (aMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "aMinusNH3"; done = true; break;}; icounter++;}
+    if (bMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusH2O"; done = true; break;}; icounter++;}
+    if (bMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusNH3"; done = true; break;}; icounter++;}
+    if (bPlusH2O && !done)  for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bPlusH2O"; done = true; break;}; icounter++;}
 
-            for (i=0; i<transitions_length; i++) {
-                tlist = python::extract< python::tuple >(transitions[i]);
-                //ppm is 10^-6
-                t0 = python::extract< double >(tlist[0]);
-                if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+    if (yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
+    if (yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
 
-                // go through all fragments of this precursor
-                for (k=0; k<fragcount; k++) {
-                    if(fabs(t0-series[k]) < q3used ) {
-                        t1 = python::extract<long>(tlist[1]);
-                        if( result.has_key(t1) ) {
-                            int l = k;
-
-#ifdef SHOW_CORRECT_IONSERIES
-scounter = _calculate_clashes(sequence, b_series, y_series, ch);
-scounter++;
-done = false;
-icounter = -1;
-curr_ion = "?";
-
-if (yions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "y"; done = true; break;}; icounter++;}
-if (bions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "b"; done = true; break;}; icounter++;}
-if (aions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "a"; done = true; break;}; icounter++;}
-if (cions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "c"; done = true; break;}; icounter++;}
-if (xions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "x"; done = true; break;}; icounter++;}
-if (zions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "z"; done = true; break;}; icounter++;}
-
-if (aMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "aMinusNH3"; done = true; break;}; icounter++;}
-if (bMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusH2O"; done = true; break;}; icounter++;}
-if (bMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusNH3"; done = true; break;}; icounter++;}
-if (bPlusH2O && !done)  for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bPlusH2O"; done = true; break;}; icounter++;}
-
-if (yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
-if (yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
-#endif
-                            tmplist = python::extract<python::list>(result[t1]);
-                            tmplist.append( python::make_tuple(series[k],
-                            q1, 0, peptide_key, curr_ion, l, clist[1], ssrcalc, isotope_nr, ch));
-                        }
-                        else{
-                            python::list newlist;
-                            tmplist = newlist;
-                            int l = k;
-
-#ifdef SHOW_CORRECT_IONSERIES
-scounter = _calculate_clashes(sequence, b_series, y_series, ch);
-scounter++;
-done = false;
-icounter = -1;
-curr_ion = "?";
-
-
-if (yions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "y"; done = true; break;}; icounter++;}
-if (bions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "b"; done = true; break;}; icounter++;}
-if (aions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "a"; done = true; break;}; icounter++;}
-if (cions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "c"; done = true; break;}; icounter++;}
-if (xions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "x"; done = true; break;}; icounter++;}
-if (zions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "z"; done = true; break;}; icounter++;}
-
-if (aMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "aMinusNH3"; done = true; break;}; icounter++;}
-if (bMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusH2O"; done = true; break;}; icounter++;}
-if (bMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusNH3"; done = true; break;}; icounter++;}
-if (bPlusH2O && !done)  for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bPlusH2O"; done = true; break;}; icounter++;}
-
-if (yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
-if (yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
-
-#endif
-
-                            tmplist.append( python::make_tuple(series[k],
-                            q1, 0, peptide_key, curr_ion, l, clist[1], ssrcalc, isotope_nr, ch));
-                            result[t1] = tmplist;
-                        }
-                    }
-                }
-                //
-            } //loop over all transitions
-        }
-
-    } //end of loop over all precursors
-
-#ifdef SHOW_CORRECT_IONSERIES
     delete [] b_series;
     delete [] y_series;
-#endif
-    delete [] series;
-    delete [] tmp_series;
-    return result;
 }
 
 /*
