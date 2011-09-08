@@ -91,7 +91,7 @@ def unique_values(seq):
             checked.append(e)
     return checked
 
-def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis):
+def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
 
     q3_low = low
     q3_high = high
@@ -136,6 +136,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis):
     par.q3_range = [low, high]
     par.peptide_table = db_used + default_org_prefix + table_used
     par.transition_table = db_used + '.srmTransitions_' + table_used
+    par.__dict__.update( ions )
     par.eval()
     mycollider = collider.SRMcollider()
 
@@ -240,10 +241,27 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis):
         precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
         precdic = dict( [ (p[2], p) for p in precursors] )
 
-        # 4. Find interferences per precursor
-        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
-            tuple(transitions), tuple(precursors),
+        # print par.do_b_y_only()
+        if par.do_b_y_only():
+            # 4. Find interferences per precursor
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
+                tuple(transitions), tuple(precursors),
             q3_low, q3_high, par.q3_window, par.ppm)
+            # 5. Find interferences per transition
+            nonunique = c_getnonuis._find_clashes_forall(
+                tuple(transitions), tuple(precursors),
+                q3_low, q3_high, par.q3_window, par.ppm)
+        else:
+            print "other ion series"
+            # 4. Find interferences per precursor
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
+            tuple(transitions), tuple(precursors),
+            q3_low, q3_high, par.q3_window, par.ppm, par)
+            ## TODO doesnt quite work yet
+            # 5. Find interferences per transition
+            nonunique = c_getnonuis._find_clashes_forall_other_series(
+                tuple(transitions), tuple(precursors),
+                q3_low, q3_high, par.q3_window, par.ppm, par)
 
         # 5. Find interferences per transition
         nonunique = c_getnonuis._find_clashes_forall(
@@ -410,12 +428,45 @@ if form.has_key('peptides'):
     genome = form.getvalue('genome') 
     isotope = int(form.getvalue('isotope') )
     uis = int(form.getvalue('uis') )
+    ions = {'aions'    : bool(form.getvalue('aions'      )),
+            'aMinusNH3': bool(form.getvalue('aMinusNH3'  )),
+            'bions'    : bool(form.getvalue('bions'      )),
+            'bMinusH2O': bool(form.getvalue('bMinusH2O'  )),
+            'bMinusNH3': bool(form.getvalue('bMinusNH3'  )),
+            'bPlusH2O' : bool(form.getvalue('bPlusH2O'   )),
+            'cions'    : bool(form.getvalue('cions'      )),
+            'xions'    : bool(form.getvalue('xions'      )),
+            'yions'    : bool(form.getvalue('yions'      )),
+            'yMinusH2O': bool(form.getvalue('yMinusH2O'  )),
+            'yMinusNH3': bool(form.getvalue('yMinusNH3'  )),
+            'zions'    : bool(form.getvalue('zions'      ))}
     start = time.time()
-    main( peptides, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis)
+    main( peptides, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
+  ions = ['aions'      ,
+         'aMinusNH3'  ,
+         'bions'      ,
+         'bMinusH2O'  ,
+         'bMinusNH3'  ,
+         'bPlusH2O'   ,
+         'cions'      ,
+         'xions'      ,
+         'yions'      ,
+         'yMinusH2O'  ,
+         'yMinusNH3'  ,
+         'zions'      ]
+  html_ions = ''
+  for ion in ions:
+      #<label class="mylabel" for="%s">%s</label>
+      check = ''
+      if ion in ['bions', 'yions']: check = 'checked="yes" '
+      html_ions += """
+      <input %(check)s type="checkbox" name="%(ion)s" value="s(ion)s"> %(ion)s<br>
+      """ %  {'ion' : ion, 'check' : check}
+  print shared.toggleDisplay # Javascript function to toggle a div
   print """
-<form action="/cgi-bin/srmcollider.py" method="post">
+<form action="/srmcollider/srmcollider.py" method="post">
     <p class='input_field'>
         <label for="peptides">Please enter the peptide sequences here:</label><br />
         <textarea id="pep_input" name="peptides" rows="20"></textarea>
@@ -467,6 +518,19 @@ else:
         <input class="number_input" type="text" name="uis" value="0"> 
     </p>
 
+        
+    <p>
+    <a title="Show Tables" href="javascript:toggleDisplay('bg_ion')">
+        Background Ion Series
+    </a>
+
+    <p id="bg_ion" style="display:none;">
+      %(ion_series)s
+
+    </p>
+
+    </p>
+
     <INPUT type="submit" value="Send"> 
 
  </form>
@@ -491,7 +555,7 @@ To try this tool, you could use the following sample peptides:
 <br/>%(sample_peptides_html)s    
 </!-->
 """ % {'sample_peptides_html' : sample_peptides_html, 'genome_select':
-       genome_select} 
+       genome_select, 'ion_series' : html_ions} 
 
 print "</div>"
 print """
