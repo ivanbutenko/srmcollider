@@ -91,6 +91,65 @@ def unique_values(seq):
             checked.append(e)
     return checked
 
+def print_collding_peptides(collisions_per_peptide, precdic, ii, peaks):
+    coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
+
+    print """
+    <a title="Show Tables" href="javascript:toggleDisplay('col_peptides_%s')">
+        <h3>Colliding peptides</h3>
+    </a>""" % ii
+
+    #helper functions
+    def sortpep_by_ssr(x,y):
+        if len(x[1]) != len(y[1]): return -cmp( len(x[1]), len(y[1]) )
+        #by SSRCalc
+        return cmp( precdic[x[0]][3], precdic[y[0]][3]) 
+    def sortpep_by_q1(x,y):
+        #by difference in q1
+        return cmp( abs(precdic[x[0]][0] - pep['q1']), abs(precdic[y[0]][0] - pep['q1'])) 
+
+    coll.sort( sortpep_by_ssr )
+    print "<table class='col_table' id='col_peptides_%i'>" % ii
+    print "<tr> <td>Q1</td> <td>RT</td> <td>Sequence</td>  <td>Transitions</td> </tr>"
+    for c in coll:
+        print "<tr><td>"
+        print round(precdic[c[0]][0], 2)
+        print "</td><td>"
+        print precdic[c[0]][3]
+        print "</td><td>"
+        print precdic[c[0]][1]
+        print "</td><td>"
+        for t in c[1]:
+            print peaks[t].annotation
+        print ' <br />'
+        print "</td></tr>"
+    print "</table>"
+
+def print_unuseable(unuseable, nonunique, ii):
+
+    print """
+    <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
+        <h3>Unuseable transitions (Collisions)</h3>
+    </a>""" % ii
+    print "<table class='col_table' id='col_transitions_%s'>" % ii
+    print "<tr> <td>Type / Q3</td> <td>Colliding (Q1, Q3) / SSRCalc / Type / Sequence / Isotope </td> </tr>"
+    unuseable.sort( lambda x,y: cmp(len(nonunique[x.transition[1]]), len(nonunique[y.transition[1]])))
+    for peak in unuseable: 
+        print "<tr><td>"
+        print peak.annotation
+        print peak.pQ3
+        print "</td><td>"
+        for c in nonunique[ peak.transition[1] ]:
+            print '(%s,%s)' % (round(c[1], 2), round(c[0], 2))
+            print c[7]
+            print c[4] + str(c[5])
+            if c[8] != 0:
+                print c[6], 'isotope', c[8], ' </br>'
+            else: print c[6], ' </br>'
+
+        print "</td></tr>"
+    print "</table>"
+
 def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
 
     q3_low = low
@@ -198,6 +257,9 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
         y_series = peptide.y_series
         peaks = []
 
+        #
+        # Step 2 : calculate b/y ion series of the target
+        #
         pcount = 0
         for ch in [1]:
             scount = 0
@@ -228,6 +290,9 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
         nr_transitions = len( transitions )
         if nr_transitions == 0: continue #no transitions in this window
 
+        #
+        # Step 3 : find all potentially interfering precursors
+        #
         pep = {
             'mod_sequence' : s,
             'parent_id' :  -1,
@@ -241,32 +306,26 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
         precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
         precdic = dict( [ (p[2], p) for p in precursors] )
 
-        # print par.do_b_y_only()
+        # 
+        # Step 4 and 5
+        #
+        # 
+        # Find interferences per precursor, then find interferences per
+        # transition (see the two readouts in the html)
         if par.do_b_y_only():
-            # 4. Find interferences per precursor
-            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide(
-                tuple(transitions), tuple(precursors),
-            q3_low, q3_high, par.q3_window, par.ppm)
-            # 5. Find interferences per transition
-            nonunique = c_getnonuis._find_clashes_forall(
-                tuple(transitions), tuple(precursors),
-                q3_low, q3_high, par.q3_window, par.ppm)
+            collisions_per_peptide = \
+            c_getnonuis.calculate_collisions_per_peptide( tuple(transitions),
+                tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
+            nonunique = c_getnonuis._find_clashes_forall( tuple(transitions),
+                tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
         else:
-            print "other ion series"
-            # 4. Find interferences per precursor
-            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
-            tuple(transitions), tuple(precursors),
-            q3_low, q3_high, par.q3_window, par.ppm, par)
-            ## TODO doesnt quite work yet
-            # 5. Find interferences per transition
-            nonunique = c_getnonuis._find_clashes_forall_other_series(
-                tuple(transitions), tuple(precursors),
-                q3_low, q3_high, par.q3_window, par.ppm, par)
-
-        # 5. Find interferences per transition
-        nonunique = c_getnonuis._find_clashes_forall(
-            tuple(transitions), tuple(precursors),
-            q3_low, q3_high, par.q3_window, par.ppm)
+            collisions_per_peptide = \
+            c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
+                tuple(transitions), tuple(precursors), q3_low, q3_high,
+                par.q3_window, par.ppm, par) 
+            nonunique = c_getnonuis._find_clashes_forall_other_series( 
+                tuple(transitions), tuple(precursors), q3_low, q3_high, 
+                par.q3_window, par.ppm, par)
 
         non_uis = []
         if uis > 0:
@@ -297,7 +356,6 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
                         for tt in tmp:
                             myrow.extend( [ tt.transition[0], tt.annotation ])
                         wuis.writerow(myrow)
-
 
         useable = []
         unuseable = []
@@ -333,61 +391,8 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
             print "<p>No useable transitions for this peptide!</p>"
             w.writerow( ['"Sorry: no useable transitions for this peptide. Try to calculate UIS."' ] )
 
-        coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
-
-        print """
-        <a title="Show Tables" href="javascript:toggleDisplay('col_peptides_%s')">
-            <h3>Colliding peptides</h3>
-        </a>""" % ii
-
-        #helper functions
-        def sortpep_by_ssr(x,y):
-            if len(x[1]) != len(y[1]): return -cmp( len(x[1]), len(y[1]) )
-            #by SSRCalc
-            return cmp( precdic[x[0]][3], precdic[y[0]][3]) 
-        def sortpep_by_q1(x,y):
-            #by difference in q1
-            return cmp( abs(precdic[x[0]][0] - pep['q1']), abs(precdic[y[0]][0] - pep['q1'])) 
-
-        coll.sort( sortpep_by_ssr )
-        print "<table class='col_table' id='col_peptides_%i'>" % ii
-        print "<tr> <td>Q1</td> <td>RT</td> <td>Sequence</td>  <td>Transitions</td> </tr>"
-        for c in coll:
-            print "<tr><td>"
-            print round(precdic[c[0]][0], 2)
-            print "</td><td>"
-            print precdic[c[0]][3]
-            print "</td><td>"
-            print precdic[c[0]][1]
-            print "</td><td>"
-            for t in c[1]:
-                print peaks[t].annotation
-            print ' <br />'
-            print "</td></tr>"
-        print "</table>"
-
-        print """
-        <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
-            <h3>Unuseable transitions (Collisions)</h3>
-        </a>""" % ii
-        print "<table class='col_table' id='col_transitions_%s'>" % ii
-        print "<tr> <td>Type / Q3</td> <td>Colliding (Q1, Q3) / SSRCalc / Type / Sequence / Isotope </td> </tr>"
-        unuseable.sort( lambda x,y: cmp(len(nonunique[x.transition[1]]), len(nonunique[y.transition[1]])))
-        for peak in unuseable: 
-            print "<tr><td>"
-            print peak.annotation
-            print peak.pQ3
-            print "</td><td>"
-            for c in nonunique[ peak.transition[1] ]:
-                print '(%s,%s)' % (round(c[1], 2), round(c[0], 2))
-                print c[7]
-                print c[4] + str(c[5])
-                if c[8] != 0:
-                    print c[6], 'isotope', c[8], ' </br>'
-                else: print c[6], ' </br>'
-
-            print "</td></tr>"
-        print "</table>"
+        print_collding_peptides(collisions_per_peptide, precdic, ii, peaks)
+        print_unuseable(unuseable, nonunique, ii)
 
     fuis.close()
     f.close()
