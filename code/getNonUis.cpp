@@ -67,7 +67,7 @@ python::dict _find_clashes_forall(python::tuple transitions,
 // series other than b/y.
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm, python::object par) {
+    bool ppm, python::object par) ;
 void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
     const char* sequence, string& curr_ion, python::object par);
 
@@ -630,7 +630,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
 
                             tmplist = python::extract<python::list>(result[t1]);
                             tmplist.append( python::make_tuple(series[k],
-                            q1, 0, peptide_key, curr_ion, l, clist[1], ssrcalc, isotope_nr, ch));
+                            q1, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
                         }
                         else{
                             python::list newlist;
@@ -642,7 +642,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                                     k, sequence, curr_ion, par);
 
                             tmplist.append( python::make_tuple(series[k],
-                            q1, 0, peptide_key, curr_ion, l, clist[1], ssrcalc, isotope_nr, ch));
+                            q1, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
                             result[t1] = tmplist;
                         }
                     }
@@ -681,7 +681,7 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
     scounter = _calculate_clashes(sequence, b_series, y_series, ch);
     scounter++;
     done = false;
-    icounter = -1;
+    icounter = 0;
     curr_ion = "?";
 
     if (yions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "y"; done = true; break;}; icounter++;}
@@ -698,6 +698,8 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
 
     if (yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
     if (yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
+
+    l++; // ion series starts at 1, thus add one
 
     delete [] b_series;
     delete [] y_series;

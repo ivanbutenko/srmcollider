@@ -83,6 +83,7 @@ def map_db_tables(genome):
 
 db = MySQLdb.connect(read_default_file=default_mysql)
 c = db.cursor()
+cursor = c
 
 class Peak():
     def __init__(self, t=None): 
