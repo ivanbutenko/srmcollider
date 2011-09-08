@@ -44,6 +44,7 @@ db_used = 'hroest'
 default_org_prefix = '.srmPeptides_'
 genomes_that_require_N15_data = ['yeastN15']
 default_ssrcalc = 'hroest.ssrcalc_pr_copy'
+ssrcalc_path = '/tmp/' 
 
 #myCSVFile = '/nas/www/html/hroest/srmcollider.csv'
 myCSVFile = '/var/www/documents/srmcollider.csv'
@@ -82,6 +83,54 @@ def map_db_tables(genome):
 
 db = MySQLdb.connect(read_default_file=default_mysql)
 c = db.cursor()
+
+class Peak():
+    def __init__(self, t=None): 
+        if not t is None: 
+            self.transition = t
+    @property
+    def pQ3(self):
+        return round(self.transition[0], 2)
+
+
+def get_ssrcalc_values(seqs, input_sequences, default_ssrcalc):
+    import os, csv
+    ssr_query = """
+    select sequence, ssrcalc
+    from %(ssrcalc_table)s
+    where sequence in (%(seqs)s)
+    """ % { 'seqs' : seqs, 'ssrcalc_table' : default_ssrcalc}
+    cursor.execute( ssr_query )
+    pepmap = dict( cursor.fetchall() )
+    #pepmap = {}
+
+    # TODO: the used version in the TPP is 3.0 which is old and cannot be used
+    # any more!? Is there a new pl script?
+
+    not_found = []
+    for ii,s in enumerate(input_sequences):
+        try: ssrcalc = pepmap[filter(str.isalpha,s)]
+        except KeyError: not_found.append(s)
+
+    # SSRCalc finds the parameter file with ENV
+    shellfile = '/tmp/ssrfile%s.sh' % os.getpid()
+    outfile = '/tmp/ssrout%s.out' % os.getpid()
+    env = {'SSRCalc' : ssrcalc_path } 
+    cmd = """/SSRCalc3.pl --alg 3.0 --seq %s --output tsv --B 1 --A 0 > """ % " / ".join(not_found)
+    cmd = ssrcalc_path + cmd + outfile
+
+    f = open(shellfile, 'w')
+    f.write(cmd)
+    f.close()
+
+    os.spawnlpe(os.P_WAIT, "/bin/bash", "bash", shellfile, env)
+    r = csv.reader( open(outfile), delimiter='\t')
+    for line in r:
+        pepmap[line[0]] = float(line[2])
+
+    os.system("rm %s" % shellfile)
+    os.system("rm %s" % outfile)
+    return pepmap
 
 def unique_values(seq): 
     # order preserving
@@ -229,22 +278,8 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
     # 5. For each transition, find the precursors that interfere 
     ###########################################################################
 
-    ssr_query = """
-    select sequence, ssrcalc
-    from %(ssrcalc_table)s
-    where sequence in (%(seqs)s)
-    """ % { 'seqs' : seqs, 'ssrcalc_table' : default_ssrcalc}
-    cursor.execute( ssr_query )
-    pepmap = dict( cursor.fetchall() )
-    class Peak():
-        def __init__(self, t=None): 
-            if not t is None: 
-                self.transition = t
-
-        @property
-        def pQ3(self):
-            return round(self.transition[0], 2)
-
+    pepmap = get_ssrcalc_values(seqs, input_sequences, default_ssrcalc)
+ 
     for ii,s in enumerate(input_sequences):
         try: ssrcalc = pepmap[filter(str.isalpha,s)]
         except KeyError: ssrcalc = 25
