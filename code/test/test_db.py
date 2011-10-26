@@ -13,6 +13,8 @@ from Residues import Residues
 from test_shared import *
 import test_shared 
 
+test_database = 'srmcollider'
+
 class Test_collider_mysql(unittest.TestCase):
 
     def setUp(self):
@@ -27,7 +29,7 @@ class Test_collider_mysql(unittest.TestCase):
                 sudo apt-get install python-mysqldb
             """
 
-        self.db = MySQLdb.connect(read_default_file="~/.my.cnf.orl")
+        self.db = MySQLdb.connect(read_default_file="~/.my.cnf.srmcollider")
 
         class Minimal: 
             def get_q3_window_transitions(self, q3):
@@ -44,8 +46,8 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.q1_window = 1.2 / 2.0
         self.par.ssrcalc_window = 9999
         self.par.query2_add = ''
-        self.par.peptide_table = 'srmcollider.srmPeptides_human'
-        self.par.transition_table = 'srmcollider.srmTransitions_human'
+        self.par.peptide_table = test_database + '.srmPeptides_human'
+        self.par.transition_table = test_database + '.srmTransitions_human'
         self.par.print_query = False
         self.par.select_floor = False
         self.par.isotopes_up_to = 3
@@ -75,7 +77,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.R = Residues('mono')
 
         self.acollider = collider.SRMcollider()
-        self.aparamset = collider.testcase()
+        self.aparamset = collider.testcase(testdatabase=test_database)
 
     def _reducecollisionstoperpep(self, transitions, collisions, par):
         collisions_per_peptide = {}
@@ -241,7 +243,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.q1_window = 0.1 / 2.0
         self.par.ssrcalc_window = 2.0 / 2.0 
         self.par.query2_add = ''
-        self.par.peptide_table = 'srmcollider.srmPeptides_human'
+        self.par.peptide_table = test_database + '.srmPeptides_human'
         self.par.print_query = False
 
         # Our q1 from peptide 'ELNQLEDK' is 494.751462374, the q1 of the
@@ -278,7 +280,7 @@ class Test_collider_mysql(unittest.TestCase):
     #TODO also test uis option of clashes_small
     def test_1(self):
 
-        par  = collider.testcase()
+        par  = collider.testcase(testdatabase=test_database)
         par.quiet = True
         mycollider = collider.SRMcollider()
         mycollider.find_clashes_small(self.db, par) 
@@ -311,7 +313,7 @@ class Test_collider_mysql(unittest.TestCase):
 
     def test_2(self):
         #verify that with toptrans=False we get the same results
-        par  = collider.testcase()
+        par  = collider.testcase(testdatabase=test_database)
         par.quiet = True
         mycollider = collider.SRMcollider()
         mycollider.find_clashes(self.db, par, toptrans=False) 
@@ -325,7 +327,7 @@ class Test_collider_mysql(unittest.TestCase):
 
     def test_3(self):
         #now test with isotopes enabled
-        par  = collider.testcase()
+        par  = collider.testcase(testdatabase=test_database)
         par.quiet = True
         par.isotopes_up_to = 3
         par.eval()
@@ -376,7 +378,7 @@ class Test_collider_sqlite(unittest.TestCase):
     def test_1(self):
 
         if not self.database_available: return
-        par = collider.testcase()
+        par = collider.testcase(testdatabase=test_database)
         par.quiet = True
         par.transition_table = 'srmTransitions_test'
         par.peptide_table = 'srmPeptides_test'

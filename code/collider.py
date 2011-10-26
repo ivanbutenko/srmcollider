@@ -226,13 +226,13 @@ class SRM_parameters(object):
     @property
     def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
 
-def testcase():
+def testcase(testdatabase='srmcollider'):
     par = SRM_parameters()
     par.q1_window = 0.7 / 2
     par.q3_window = 1.0 / 2
     par.ppm = False
-    par.transition_table = 'srmcollider.srmTransitions_test'
-    par.peptide_table = 'srmcollider.srmPeptides_test'
+    par.transition_table = testdatabase + '.srmTransitions_test'
+    par.peptide_table = testdatabase + '.srmPeptides_test'
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
     #par.considerIsotopes = False #do not consider the C13 isotopes
