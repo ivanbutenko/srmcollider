@@ -50,6 +50,8 @@ class SRM_parameters(object):
         self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
         self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
         self.print_query = False
+        # 
+        self.parent_charges = [2,3] # parent ion charge states
         #self.select_floor = False
         self.quiet = False
         self.bions      =  True
@@ -135,7 +137,9 @@ class SRM_parameters(object):
             self.query2_add += self.do_1_only
         elif self.dontdo2p2f:
             self.query2_add += "and not (q1_charge = 2 and q3_charge = 2) "
-        self.query2_add += " and isotope_nr <= %s " % self.isotopes_up_to
+        #
+        # is default since isotopes are not in the database any more
+        self.query2_add += " and isotope_nr = 0 " 
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
@@ -330,20 +334,37 @@ class SRMcollider(object):
         if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
         else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
         vdict['selectby'] = selectby
-        # TODO duplication
-        vdict['query_add'] += vdict['query_add'] + ' and isotope_nr <= %s ' % par.isotopes_up_to
+        #
+        # calculate how much lower we need to select to get all potential isotopes: lower_winow - nr_isotopes/2
+        import Residues
+        R = Residues.Residues('mono')
+        vdict['isotope_correction'] = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
         query2 = """
         select %(values)s
         from %(pep)s
         where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
             and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-        and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+        and q1 > %(q1)s - %(q1_window)s - %(isotope_correction)s and q1 < %(q1)s + %(q1_window)s
         %(selectby)s
         %(query_add)s
         """ % vdict
         if par.print_query: print query2
         cursor.execute( query2 )
-        return cursor.fetchall()
+        # now filter out all the precursors that do not have an isotope that falls in here
+        # -- need to assure that r[0] is the q1 and r[3] the q1_charge
+        # if the mass of the peptide or that of any of its isotopes is within
+        # the window, we will use it.
+        result = cursor.fetchall()
+        assert(values[:45] == "q1, modified_sequence, peptide_key, q1_charge")
+        new_result = []
+        for r in result:
+          append = False
+          ch = r[3]
+          for iso in range(par.isotopes_up_to+1):
+            if (r[0] + (R.mass_diffC13 * iso)/ch > pep['q1'] - par.q1_window and 
+                r[0] + (R.mass_diffC13 * iso)/ch < pep['q1'] + par.q1_window): append=True
+          if(append): new_result.append(r)
+        return tuple(new_result)
 
     def _get_all_collisions_calculate_new(self, par, pep, cursor, 
       values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):

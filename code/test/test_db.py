@@ -15,6 +15,10 @@ import test_shared
 
 test_database = 'srmcollider'
 
+def psort(x,y):
+    if(x[1] != y[1]): return -cmp(x[1], y[1]) 
+    else: return cmp( x[0], y[0] )
+
 class Test_collider_mysql(unittest.TestCase):
 
     def setUp(self):
@@ -45,12 +49,14 @@ class Test_collider_mysql(unittest.TestCase):
 
         self.par.q1_window = 1.2 / 2.0
         self.par.ssrcalc_window = 9999
-        self.par.query2_add = ''
+        self.par.query2_add = ' and isotope_nr = 0 '
         self.par.peptide_table = test_database + '.srmPeptides_human'
         self.par.transition_table = test_database + '.srmTransitions_human'
         self.par.print_query = False
         self.par.select_floor = False
         self.par.isotopes_up_to = 3
+
+        self.par.parent_charges      =  [2,3]
 
         self.par.bions      =  True
         self.par.yions      =  True
@@ -104,10 +110,20 @@ class Test_collider_mysql(unittest.TestCase):
         cursor = self.db.cursor()
         myprec = collider.SRMcollider()._get_all_precursors(par, pep, cursor)
         myprec = list(myprec)
-        precursors.sort( lambda x,y: -cmp(x[1], y[1]) )
-        myprec.sort( lambda x,y: -cmp(x[1], y[1]) )
+        precursors.sort(psort)
+        myprec.sort(psort)
 
-        self.assertEqual( myprec, precursors)
+        pprec = []
+        for p in precursors:
+          if(p[1] not in [pp[1] for pp in pprec]): pprec.append(p)
+        precursors = pprec
+
+        for i in range(len(myprec)):
+            self.assertEqual( myprec[i][1], precursors[i][1])
+            self.assertEqual( myprec[i][2], precursors[i][2])
+            self.assertEqual( myprec[i][3], precursors[i][3])
+        self.assertEqual( len(myprec), len(precursors))
+        #self.assertEqual( myprec, precursors)
 
     def test_get_all_precursors2(self): 
         pep = test_shared.runpep2
@@ -119,10 +135,21 @@ class Test_collider_mysql(unittest.TestCase):
         cursor = self.db.cursor()
         myprec = collider.SRMcollider()._get_all_precursors(par, pep, cursor)
         myprec = list(myprec)
-        precursors.sort( lambda x,y: -cmp(x[1], y[1]) )
-        myprec.sort( lambda x,y: -cmp(x[1], y[1]) )
+        precursors.sort(psort)
+        myprec.sort(psort)
 
-        self.assertEqual( myprec, precursors)
+        pprec = []
+        for p in precursors:
+          if(p[1] not in [pp[1] for pp in pprec]): pprec.append(p)
+
+        precursors = pprec
+
+        for i in range(len(myprec)):
+            self.assertEqual( myprec[i][1], precursors[i][1])
+            self.assertEqual( myprec[i][2], precursors[i][2])
+            self.assertEqual( myprec[i][3], precursors[i][3])
+        self.assertEqual( len(myprec), len(precursors))
+        #self.assertEqual( myprec, precursors)
 
     def test_get_all_collisions_calculate1(self):
         pep = test_shared.runpep1

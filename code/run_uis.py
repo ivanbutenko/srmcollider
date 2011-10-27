@@ -76,6 +76,8 @@ if len(sys.argv) < 4:
     print "wrong number of arguments"
     sys.exit()
 
+old_tables_with_isotopes = False
+
 #local arguments
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
@@ -96,7 +98,6 @@ else:
     cursor = db.cursor()
 
 print 'isotopes' , par.isotopes_up_to
-qadd = "and isotope_nr <= %s" % par.isotopes_up_to
 
 if options.insert_mysql:
     common_filename = par.get_common_filename()
@@ -119,16 +120,27 @@ if options.insert_mysql:
 
 start = time.time()
 q = """
-select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
+select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
- %(qadd)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
-              'qadd'   : qadd
       }
+if old_tables_with_isotopes: 
+    # only of the old tables are used
+    q = """
+    select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
+    from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
+    and isotope_nr <= %(nr_isotopes)s
+    """ % {'peptide_table' : par.peptide_table, 
+                  'lowq1'  : min_q1 - par.q1_window, 
+                  'highq1' : max_q1 + par.q1_window,
+                  'highq1' : max_q1 + par.q1_window,
+                  'highq1' : max_q1 + par.q1_window,
+                   'nr_isotopes' :  par.isotopes_up_to
+          }
+print q
 cursor.execute( q )
-
 alltuples =  list(cursor.fetchall() )
 
 mypepids = [
@@ -147,9 +159,42 @@ mypepids = [
     and r[4] < max_q1
 ]
 
+print "analyzing %s peptides" % len(mypepids)
+
+# use the rangetree?
 if not use_db:
+    if not old_tables_with_isotopes: 
+        if swath_mode: this_min = min_q1; this_max = max_q1
+        else: this_min = min_q1 - par.q1_window; this_max = max_q1 + par.q1_window
+        import Residues
+        R = Residues.Residues('mono')
+        isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+        q = """
+        select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
+        from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
+        """ % {'peptide_table' : par.peptide_table, 
+                      'lowq1'  : this_min,
+                      'highq1' : this_max,
+                      'isotope_correction' : isotope_correction
+              }
+        print q
+        cursor.execute( q )
+        if not swath_mode:
+            alltuples = tuple(cursor.fetchall() )
+        else:
+            # filter out wrong isotopes
+            result = cursor.fetchall() 
+            new_result = []
+            for r in result:
+              append = False
+              ch = r[3]
+              for iso in range(par.isotopes_up_to+1):
+                if (r[4] + (R.mass_diffC13 * iso)/ch > min_q1 and 
+                    r[4] + (R.mass_diffC13 * iso)/ch < max_q1): append=True
+              if(append): new_result.append(r)
+            alltuples = tuple(new_result)
     import c_rangetree
-    parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
+    parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3]) ] 
             for r in alltuples ]
     parentid_lookup  = dict(parentid_lookup)
     print "building tree with %s Nodes" % len(alltuples)
@@ -158,22 +203,34 @@ if not use_db:
 
 # in SWATH mode, select all precursors that are relevant for the background at
 # once
-if swath_mode: 
+par.query2_add = ''
+if use_db and swath_mode: 
+    import Residues
+    R = Residues.Residues('mono')
+    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
     values="q1, modified_sequence, peptide_key, q1_charge, ssrcalc"
     q1_low = min_q1; q1_high = max_q1
     query2 = """
     select %(values)s
     from %(pep)s
-    where q1 >= %(q1_low)s and q1 <= %(q1_high)s
-    %(query_add)s
+    where q1 >= %(q1_low)s - %(correction)s and q1 <= %(q1_high)s
     """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
-           'query_add' : par.query2_add,
+           'correction' : isotope_correction,
            'pep' : par.peptide_table,
            'values' : values}
     print 'swath ' , query2
     cursor.execute( query2 )
-    allprecursors =  cursor.fetchall()
-
+    result = cursor.fetchall() 
+    # filter out wrong isotopes
+    new_result = []
+    for r in result:
+      append = False
+      ch = r[3]
+      for iso in range(par.isotopes_up_to+1):
+        if (r[0] + (R.mass_diffC13 * iso)/ch > min_q1 and 
+            r[0] + (R.mass_diffC13 * iso)/ch < max_q1): append=True
+      if(append): new_result.append(r)
+    allprecursors = new_result
 
 allintertr = []
 self = mycollider
@@ -194,9 +251,13 @@ for kk, pep in enumerate(self.pepids):
     transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
     nr_transitions = len(transitions)
     #
-    #in SWATH mode, we have a fixed window independent of q1
-    if swath_mode: q1_low = min_q1; q1_high = max_q1
-    else: q1_low = q1 - par.q1_window ; q1_high = q1 + par.q1_window
+    # in SWATH mode, we have a fixed window independent of q1
+    # in regular mode, we have to account for the isotope correction
+    import Residues
+    R = Residues.Residues('mono')
+    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+    if swath_mode: q1_low = min_q1; q1_high = max_q1; q1_low -= isotope_correction
+    else: q1_low = q1 - par.q1_window -isotope_correction ; q1_high = q1 + par.q1_window
     #
     if use_db and not swath_mode:
         precursors = self._get_all_precursors(par, pep, cursor)
@@ -209,17 +270,32 @@ for kk, pep in enumerate(self.pepids):
             precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] 
                          and p[4] > ssrcalc_low and p[4] < ssrcalc_high ]
     elif not use_db:
-        # Use the rangetree
+        # Use the rangetree, whether it is swath or not
         #correct rounding errors, s.t. we get the same results as before!
         ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
         ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
         precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
                                                      q1_high,  ssrcalc_high )  )
-        precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                            #dont select myself 
-                           if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+        if swath_mode:
+            precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                                #dont select myself 
+                               if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+        else:
+            precursors = []
+            # filter out wrong isotopes
+            for myid in precursor_ids:
+              append = False
+              r = parentid_lookup[myid[0]]
+              ch = r[3]
+              for iso in range(par.isotopes_up_to+1):
+                if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
+                    r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
+              if(append and r[2]  != pep['peptide_key']): precursors.append(r)
 
-    collisions_per_peptide = collider.get_coll_per_peptide(mycollider, transitions, par, pep, cursor)
+    import c_getnonuis
+    precursors = tuple(precursors)
+    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 
     ## Lets count the number of peptides that interfere
@@ -235,7 +311,6 @@ for kk, pep in enumerate(self.pepids):
         prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
             order), p_id , order, exp_key) )
     progressm.update(1)
-
 
 if count_avg_transitions:
     print "\n"
