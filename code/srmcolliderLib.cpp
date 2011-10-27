@@ -24,6 +24,8 @@
  */
 
 //include our own libraries
+#ifndef SRMCOLLIDERLIB_H
+#define SRMCOLLIDERLIB_H
 #include "srmcollider.h"
 
 /* 
@@ -314,7 +316,7 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     */
 
     // calculate the charged mass of the fragments
-    for (int j=0; j<frg_cnt-1; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
+    for (int j=0; j<frg_cnt; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
     return frg_cnt;
 }
 
@@ -795,3 +797,4 @@ python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int
     return result;
 }
 
+#endif
