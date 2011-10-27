@@ -20,6 +20,24 @@ Module c_getnonuis is not available. Please compile it if you want to use it.
 
 
 
+def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
+                                forceset=False):
+    """ Get all combinations that are not UIS 
+    
+    Note that the new version returns a dictionary. To convert it to a set, one 
+    needs to force the function to return a set.
+    """
+    import c_getnonuis
+    non_uis_list = [{} for i in range(MAX_UIS+1)]
+    collisions_per_peptide = c_getnonuis.getnonuis(
+        transitions, collisions, par.q3_window, par.ppm)
+    for order in range(1,MAX_UIS+1):
+        non_uis_list[order] = c_getnonuis.get_non_uis(
+            collisions_per_peptide, order)
+
+    return non_uis_list
+
+
 
 class Test_cgetnonuis(unittest.TestCase):
     def setUp(self):
@@ -269,7 +287,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions1(self): 
             self.transitions = test_shared.transitions_def1
             self.collisions  = test_shared.collisions_def1
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis1)
@@ -278,7 +296,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions2(self): 
             self.transitions = test_shared.transitions_def2
             self.collisions  = test_shared.collisions_def2
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
@@ -289,7 +307,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             #it should still work
             self.transitions = test_shared.transitions_def2_unsorted
             self.collisions  = test_shared.collisions_def2
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
@@ -298,7 +316,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions3(self): 
             self.transitions = test_shared.transitions_def3
             self.collisions  = test_shared.collisions_def3
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis3)
@@ -307,7 +325,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions4(self): 
             self.transitions = test_shared.transitions_def4
             self.collisions  = test_shared.collisions_def4
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)

@@ -100,6 +100,37 @@ else:
     c2 = db.cursor()
 
 
+
+## fxn
+def get_peptide_from_table(t, row):
+    peptide = DDB.Peptide()
+    peptide.set_sequence( t.row(row, 'sequence')  )
+    peptide.genome_occurence = t.row( row, 'genome_occurence' )
+    peptide.ssr_calc         = t.row( row, 'ssrcalc' )
+    #peptide.gene_id          = t.row( row, 'gene_id' )
+    peptide.mw               = t.row( row, 'molecular_weight' )
+    peptide.id               = t.row( row, 'peptide_key' )
+    peptide.pairs            = []
+    peptide.non_unique = {}
+    return peptide
+
+def insert_peptide_in_db(self, db, peptide_table, transition_group):
+    c = db.cursor()
+    #insert peptide into db
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
+        peptide_table,
+        vals, 
+        self.id, self.charge, 
+        self.charged_mass, self.ssr_calc, 
+        self.get_modified_sequence(),
+        0, #we only have the 0th isotope (0 C13 atoms)
+        transition_group
+    )
+    c.execute(q)
+    self.parent_id = db.insert_id()
+
+
 ##exp_key = 3061  #human (800 - 5000 Da)
 ##exp_key = 3130  #human (all)
 ###exp_key = 3120  #yeast
@@ -201,47 +232,17 @@ transition_group = 0
 for row in rows:
     progressm.update(1)
     transition_group += 1 
-    #if transition_group >= 1001: break #####FOR TESTING ONLY
     for mycharge in [2,3]:  #precursor charge 2 and 3
-        if not use_tsv: peptide = collider.get_peptide_from_table(t, row)
+        if not use_tsv: peptide = get_peptide_from_table(t, row)
         else: peptide = row
         peptide.charge = mycharge
         if modify_cysteins: peptide.modify_cysteins()
         peptide.create_fragmentation_pattern(residues)
         if insert_db:
             #insert peptide into db
-            collider.insert_peptide_in_db(peptide, db, peptide_table,
+            insert_peptide_in_db(peptide, db, peptide_table,
                                           transition_group=transition_group)
-    #we want to insert the fragments only once per peptide
-    if insert_db and dotransitions:
-        #insert fragment charge 1 and 2 into database
-        peptide.mass_H = residues.mass_H
-        collider.fast_insert_in_db(peptide, db, 1, transition_table,
-                                   transition_group=transition_group)
-        collider.fast_insert_in_db(peptide, db, 2, transition_table,
-                                   transition_group=transition_group)
 
-
-#A2 create the additional parent ions for the isotope patterns
-cursor = c
-vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
-query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
-cursor.execute( query )
-allpeptides =  cursor.fetchall()
-prepared = []
-for p in allpeptides:
-    q1_charge = p[2]
-    for i in range(1,1+PATTERNS_UP_TO):
-        prepared.append( [p[1], p[2], p[3] + (residues.mass_diffC13 * i* 1.0) / q1_charge,
-                              p[4], p[5], i, p[7]] )
-
-q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
-     " VALUES (" + "%s," *6 + "%s)"
-c.executemany( q, prepared)
-
-# if any problems with the packet/buffer length occur, try this:
-## set global max_allowed_packet=1000000000;
-## set global net_buffer_length=1000000;
 
 if use_sqlite: db.commit()
 
