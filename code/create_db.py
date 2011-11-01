@@ -65,6 +65,8 @@ group.add_option("--sqlite_database", dest="sqlite_database", default='',
                   help="Use specified sqlite database instead of MySQL database" )
 group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
                   help="Location of mysql config (.my.cnf) file" )
+group.add_option("--mass_cutoff", dest="mass_cutoff", default='1500',
+                  help="M/Z cutoff above which precursors will not be included in the databse" )
 parser.add_option_group(group)
 
 options, args = parser.parse_args(sys.argv[1:])
@@ -73,6 +75,7 @@ transition_table = options.transition_table
 dotransitions = options.dotransitions
 tsv_file = options.tsv_file
 sqlite_database = options.sqlite_database
+mass_cutoff = int(options.mass_cutoff)
 if tsv_file != '': use_tsv = True
 else: use_tsv = False
 if sqlite_database != '': use_sqlite = True
@@ -119,6 +122,20 @@ def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c.execute(q)
     self.parent_id = db.insert_id()
 
+def get_all_modifications(this_sequence, to_modify, replace_with):
+    import re
+    positions = [m.start() for m in re.finditer(to_modify, this_sequence)]
+    for i in range(1,1+len(positions)):
+        to_replace = list(collider.combinations( positions, i))
+        for new_peptide in to_replace:
+            it = 0
+            curr_seq = ''
+            for pos in new_peptide:
+                curr_seq += this_sequence[it:pos] + replace_with
+                it = pos+1
+            curr_seq += this_sequence[it:]
+            yield curr_seq
+
 residues = Residues.Residues('mono')
 
 #human go from parent_id = 1 to parent_id = 1177958
@@ -128,8 +145,8 @@ residues = Residues.Residues('mono')
 # A) store the transitions
 ###################################
 
-insert_db = True
-modify_cysteins = False
+modify_cysteins = True
+oxidize_methionines = True 
 
 # how to get the peptides 
 import csv
@@ -196,19 +213,44 @@ rt_bins = [ []  for i in range(-100, 500) ]
 tmp_c  = db.cursor()
 progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 transition_group = 0
+# which modifications:
+## methionine oxidation
+## de-amidation
+## phospho? no
+## N-terminal acetylation ?
+## methylation
 for row in rows:
     progressm.update(1)
     transition_group += 1 
+    if not use_tsv: peptide = get_peptide_from_table(t, row)
+    else: peptide = row
+    if modify_cysteins: peptide.modify_cysteins()
     for mycharge in [2,3]:  #precursor charge 2 and 3
-        if not use_tsv: peptide = get_peptide_from_table(t, row)
-        else: peptide = row
         peptide.charge = mycharge
-        if modify_cysteins: peptide.modify_cysteins()
+        # calculate charged mass and insert peptide into db
         peptide.create_fragmentation_pattern(residues)
-        if insert_db:
-            #insert peptide into db
-            insert_peptide_in_db(peptide, db, peptide_table,
-                                          transition_group=transition_group)
+        if peptide.charged_mass > mass_cutoff: continue
+        insert_peptide_in_db(peptide, db, peptide_table,
+                                      transition_group=transition_group)
+        if oxidize_methionines: 
+            oxidized = list(get_all_modifications(peptide.sequence, 'M', 'M[147]'))
+            if len(oxidized) > 1000: 
+                print "Too many combinations, will not consider peptide ", peptide.sequence, len(oxidized)
+                continue
+            for seq in oxidized:
+                mod_peptide = DDB.Peptide()
+                mod_peptide.set_sequence(seq)
+                mod_peptide.ssr_calc = peptide.ssr_calc
+                mod_peptide.id = -1
+                mod_peptide.charge = mycharge
+                # calculate charged mass and insert peptide into db
+                mod_peptide.create_fragmentation_pattern(residues)
+                if mod_peptide.charged_mass > mass_cutoff: continue
+                insert_peptide_in_db(mod_peptide, db, peptide_table,
+                                              transition_group=transition_group)
+
 
 if use_sqlite: db.commit()
+
+
 
