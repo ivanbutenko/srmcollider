@@ -53,8 +53,6 @@ usage = "usage: %prog [options]\n"
 parser = OptionParser(usage=usage)
 
 group = OptionGroup(parser, "Create db tables Options", "") 
-group.add_option("--exp_key", dest="exp_key", default='',
-                  help="Experiment Key(s)"  , metavar='(3475, 3474)' ) 
 group.add_option("--peptide_table", dest="peptide_table", default='hroest.srmPeptides_test',
                   help="MySQL table containing the peptides" )
 group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_test',
@@ -65,8 +63,6 @@ group.add_option("--tsv_file", dest="tsv_file", default='',
                   help="Take TSV file created by SSRCalc as input" )
 group.add_option("--sqlite_database", dest="sqlite_database", default='',
                   help="Use specified sqlite database instead of MySQL database" )
-group.add_option("--nr_isotopes", dest="nr_isotopes", default='3',
-                  help="Number of isotopes of the precursor to consider (default 3)" )
 group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
                   help="Location of mysql config (.my.cnf) file" )
 parser.add_option_group(group)
@@ -74,7 +70,6 @@ parser.add_option_group(group)
 options, args = parser.parse_args(sys.argv[1:])
 peptide_table = options.peptide_table
 transition_table = options.transition_table
-exp_key = options.exp_key
 dotransitions = options.dotransitions
 tsv_file = options.tsv_file
 sqlite_database = options.sqlite_database
@@ -82,10 +77,6 @@ if tsv_file != '': use_tsv = True
 else: use_tsv = False
 if sqlite_database != '': use_sqlite = True
 else: use_sqlite = False
-
-
-#up to how many isotopes should be considered
-PATTERNS_UP_TO = int(options.nr_isotopes) 
 
 if use_sqlite:
     import sqlite
@@ -98,8 +89,6 @@ else:
     db = MySQLdb.connect(read_default_file=options.mysql_config)
     c = db.cursor()
     c2 = db.cursor()
-
-
 
 ## fxn
 def get_peptide_from_table(t, row):
@@ -130,29 +119,7 @@ def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c.execute(q)
     self.parent_id = db.insert_id()
 
-
-##exp_key = 3061  #human (800 - 5000 Da)
-##exp_key = 3130  #human (all)
-###exp_key = 3120  #yeast
-##exp_key = 3131  #yeast (all)
-###exp_key = 3352  #yeast, 1200 peptides
-###exp_key = 3445  #mouse (all)
-##exp_key = '(3475, 3474)' #all TB
-
-
 residues = Residues.Residues('mono')
-
-all_peptide_query  = """
-select distinct peptide.sequence, molecular_weight, ssrcalc,
-genome_occurence, 
-peptide.id as peptide_key
-from peptide 
-inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
-inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
-peptide.sequence
-where experiment_key in %s
-and length( peptide.sequence ) > 1
-""" % exp_key
 
 #human go from parent_id = 1 to parent_id = 1177958
 #R.recalculate_monisotopic_data_for_N15()
@@ -242,7 +209,6 @@ for row in rows:
             #insert peptide into db
             insert_peptide_in_db(peptide, db, peptide_table,
                                           transition_group=transition_group)
-
 
 if use_sqlite: db.commit()
 
