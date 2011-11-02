@@ -66,7 +66,9 @@ group.add_option("--sqlite_database", dest="sqlite_database", default='',
 group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
                   help="Location of mysql config (.my.cnf) file" )
 group.add_option("--mass_cutoff", dest="mass_cutoff", default='1500',
-                  help="M/Z cutoff above which precursors will not be included in the databse" )
+                  help="M/Z cutoff above which precursors will not be included in the database (default 1500)" )
+group.add_option("--max_nr_modifications", dest="max_nr_modifications", default='3',
+                  help="Maximal number of modifications per peptide (default 3)" )
 parser.add_option_group(group)
 
 options, args = parser.parse_args(sys.argv[1:])
@@ -76,6 +78,7 @@ dotransitions = options.dotransitions
 tsv_file = options.tsv_file
 sqlite_database = options.sqlite_database
 mass_cutoff = int(options.mass_cutoff)
+max_nr_modifications = int(options.max_nr_modifications)
 if tsv_file != '': use_tsv = True
 else: use_tsv = False
 if sqlite_database != '': use_sqlite = True
@@ -122,10 +125,10 @@ def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c.execute(q)
     self.parent_id = db.insert_id()
 
-def get_all_modifications(this_sequence, to_modify, replace_with):
+def get_all_modifications(this_sequence, to_modify, replace_with, max_nr_modifications):
     import re
     positions = [m.start() for m in re.finditer(to_modify, this_sequence)]
-    for i in range(1,1+len(positions)):
+    for i in range(1,min(max_nr_modifications,1+len(positions))):
         to_replace = list(collider.combinations( positions, i))
         for new_peptide in to_replace:
             it = 0
@@ -134,7 +137,30 @@ def get_all_modifications(this_sequence, to_modify, replace_with):
                 curr_seq += this_sequence[it:pos] + replace_with
                 it = pos+1
             curr_seq += this_sequence[it:]
-            yield curr_seq
+            pep = DDB.Peptide()
+            pep.set_sequence(curr_seq)
+            pep.modifications = i
+            yield pep
+
+def get_all_modified_peptides(peptide, oxidize_methionines, deamidate_asparagine, max_nr_modifications):
+    modified = []
+    if oxidize_methionines: 
+        modified = list(get_all_modifications(peptide.get_modified_sequence(), 'M', 'M[147]', max_nr_modifications))
+    ##for pep in modified:
+    ##    print pep.get_modified_sequence()
+    #continue
+    if deamidate_asparagine:
+        toappend = []
+        for pep in modified:
+            tmp_modified = get_all_modifications(pep.get_modified_sequence(), 'N', 'N[115]', max_nr_modifications)
+            for pep_new in tmp_modified:
+                pep_new.modifications += pep.modifications
+                toappend.append(pep_new)
+        modified.extend(toappend)
+        modified.extend( list(get_all_modifications(peptide.get_modified_sequence(), 'N', 'N[115]', max_nr_modifications) ) )
+    return modified
+
+
 
 residues = Residues.Residues('mono')
 
@@ -147,6 +173,7 @@ residues = Residues.Residues('mono')
 
 modify_cysteins = True
 oxidize_methionines = True 
+deamidate_asparagine = True 
 
 # how to get the peptides 
 import csv
@@ -208,9 +235,6 @@ else:
     #c.execute('truncate table ' + peptide_table)
     if dotransitions: c.execute('truncate table ' + transition_table)
 
-mass_bins = [ []  for i in range(0, 10000) ]
-rt_bins = [ []  for i in range(-100, 500) ]
-tmp_c  = db.cursor()
 progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 transition_group = 0
 # which modifications:
@@ -219,38 +243,42 @@ transition_group = 0
 ## phospho? no
 ## N-terminal acetylation ?
 ## methylation
+charges = [2,3]  #precursor charge 2 and 3
 for row in rows:
     progressm.update(1)
     transition_group += 1 
+    #if(transition_group > 270): break
     if not use_tsv: peptide = get_peptide_from_table(t, row)
     else: peptide = row
     if modify_cysteins: peptide.modify_cysteins()
-    for mycharge in [2,3]:  #precursor charge 2 and 3
+    #print transition_group, peptide.sequence
+    for mycharge in charges:
         peptide.charge = mycharge
         # calculate charged mass and insert peptide into db
         peptide.create_fragmentation_pattern(residues)
         if peptide.charged_mass > mass_cutoff: continue
         insert_peptide_in_db(peptide, db, peptide_table,
                                       transition_group=transition_group)
-        if oxidize_methionines: 
-            oxidized = list(get_all_modifications(peptide.sequence, 'M', 'M[147]'))
-            if len(oxidized) > 1000: 
-                print "Too many combinations, will not consider peptide ", peptide.sequence, len(oxidized)
-                continue
-            for seq in oxidized:
-                mod_peptide = DDB.Peptide()
-                mod_peptide.set_sequence(seq)
-                mod_peptide.ssr_calc = peptide.ssr_calc
-                mod_peptide.id = -1
-                mod_peptide.charge = mycharge
-                # calculate charged mass and insert peptide into db
-                mod_peptide.create_fragmentation_pattern(residues)
-                if mod_peptide.charged_mass > mass_cutoff: continue
-                insert_peptide_in_db(mod_peptide, db, peptide_table,
-                                              transition_group=transition_group)
+    #
+    # some heuristics to make the whole thing faster, if already the charged
+    # mass if twice as high as the cutoff, even with modifications we will
+    # never get into the allowed mass range.
+    if peptide.charged_mass / 2.0 > mass_cutoff: continue
+    #
+    modified = get_all_modified_peptides(peptide, oxidize_methionines, deamidate_asparagine, max_nr_modifications) 
+    for mod_peptide in modified:
+        if mod_peptide.modifications > max_nr_modifications: continue
+        transition_group += 1 
+        for mycharge in charges: 
+            mod_peptide.ssr_calc = peptide.ssr_calc
+            mod_peptide.id = peptide.id
+            mod_peptide.charge = mycharge
+            # calculate charged mass and insert peptide into db
+            mod_peptide.create_fragmentation_pattern(residues)
+            if mod_peptide.charged_mass > mass_cutoff: continue
+            insert_peptide_in_db(mod_peptide, db, peptide_table,
+                                          transition_group=transition_group)
 
 
 if use_sqlite: db.commit()
-
-
 

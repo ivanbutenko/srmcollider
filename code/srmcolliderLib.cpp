@@ -79,6 +79,17 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
                         return -1;
                     }
                     res_mass = 160.030653721; break;
+                case 'N': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '1' && 
+                         sequence[start+4] == '5' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 115.026945583; break;
+
                 default: 
                     PyErr_SetString(PyExc_ValueError, 
                         "Unknown modification ");
@@ -87,6 +98,7 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
             }
             //'M[147]':  131.04049 + mass_O), # oxygen
             //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
 
             acc_mass += res_mass;
             b_series[scounter] = acc_mass + MASS_H ;
@@ -210,6 +222,17 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
                         return -1;
                     }
                     res_mass = 160.030653721; break;
+                case 'N': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '1' && 
+                         sequence[start+4] == '5' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 115.026945583; break;
+
                 default: 
                     PyErr_SetString(PyExc_ValueError, 
                         "Unknown modification ");
@@ -218,6 +241,7 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
             }
             //'M[147]':  131.04049 + mass_O), # oxygen
             //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
 
             acc_mass += res_mass;
             tmp[scounter] = acc_mass;

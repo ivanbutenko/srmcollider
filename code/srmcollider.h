@@ -6,7 +6,13 @@
 
 using namespace std;
 
+/*
+ * http://www.sisweb.com/referenc/source/exactmaa.htm
+ * http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl
+*/
 #define MASS_H 1.007825032
+#define MASS_N 14.003074005
+#define MASS_O 15.994914620
 #define MASS_OH 17.002739651999999
 #define MASS_NH3 17.026549101000001
 #define MASS_H2O 18.010564683999998
