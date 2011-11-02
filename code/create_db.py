@@ -36,12 +36,11 @@
  *
 """
 
-import sys
+import sys, csv
 sys.path.append('external/')
 import MySQLdb
 import Residues
 import DDB 
-import progress
 import collider
 
 print "Script is deactivated, please edit if you want to use it."
@@ -181,21 +180,6 @@ residues = Residues.Residues('mono')
 ###################################
 
 
-# how to get the peptides 
-import csv
-rows = []
-#f = open('ssrcalc.out')
-f = open(tsv_file)
-reader = csv.reader(f, delimiter='\t')
-for id, line in enumerate(reader):
-    if len(line[0]) < 2: continue
-    peptide = DDB.Peptide()
-    peptide.set_sequence( line[0] )
-    peptide.ssr_calc = line[2] 
-    peptide.id = id
-    rows.append(peptide)
-
-
 
 # where to store the peptides (in MySQL or sqlite)
 if use_sqlite:
@@ -241,7 +225,6 @@ else:
     #c.execute('truncate table ' + peptide_table)
     if dotransitions: c.execute('truncate table ' + transition_table)
 
-progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 transition_group = 0
 # which modifications:
 ## methionine oxidation
@@ -250,12 +233,18 @@ transition_group = 0
 ## N-terminal acetylation ?
 ## methylation
 charges = [2,3]  #precursor charge 2 and 3
-for row in rows:
-    progressm.update(1)
+
+f = open(tsv_file)
+reader = csv.reader(f, delimiter='\t')
+for id, line in enumerate(reader):
+    if len(line[0]) < 2: continue
+    if line[0].startswith("<tr class="): continue
+    peptide = DDB.Peptide()
+    peptide.set_sequence( line[0] )
+    peptide.ssr_calc = line[2] 
+    peptide.id = id
+
     transition_group += 1 
-    #if(transition_group > 270): break
-    if not use_tsv: peptide = get_peptide_from_table(t, row)
-    else: peptide = row
     if modify_cysteins: peptide.modify_cysteins()
     #print transition_group, peptide.sequence
     for mycharge in charges:
@@ -284,6 +273,8 @@ for row in rows:
             if mod_peptide.charged_mass > mass_cutoff: continue
             insert_peptide_in_db(mod_peptide, db, peptide_table,
                                           transition_group=transition_group)
+    del modified
+    del peptide
 
 if use_sqlite: db.commit()
 
