@@ -31,6 +31,8 @@ class SRM_parameters(object):
         self.cions      =  None
         self.xions      =  None
         self.zions      =  None
+        self.MMinusH20  =  None
+        self.MMinusNH3  =  None
         #
         self.q3_low     = None
         self.q3_high    = None
@@ -63,6 +65,8 @@ class SRM_parameters(object):
         if self.cions      is None: self.cions      =  False
         if self.xions      is None: self.xions      =  False
         if self.zions      is None: self.zions      =  False
+        if self.MMinusH2O  is None: self.MMinusH2O  =  False
+        if self.MMinusNH3  is None: self.MMinusNH3  =  False
  
     def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup
@@ -213,7 +217,9 @@ class SRM_parameters(object):
         self.yions      ==  True  and
         self.yMinusH2O  ==  False and
         self.yMinusNH3  ==  False and
-        self.zions      ==  False 
+        self.zions      ==  False and
+        self.MMinusH2O  ==  False and
+        self.MMinusNH3  ==  False 
         )
 
     @property

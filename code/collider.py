@@ -113,7 +113,9 @@ class SRMcollider(object):
                 yMinusNH3  =  par.yMinusNH3,
                 cions      =  par.cions    ,
                 xions      =  par.xions    ,
-                zions      =  par.zions )
+                zions      =  par.zions    ,
+                MMinusH2O  =  par.MMinusH2O,
+                MMinusNH3  =  par.MMinusNH3)
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch

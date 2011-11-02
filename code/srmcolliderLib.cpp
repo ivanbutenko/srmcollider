@@ -185,6 +185,8 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     bool yMinusH2O  =  python::extract<bool>(parameters.attr("yMinusH2O"));
     bool yMinusNH3  =  python::extract<bool>(parameters.attr("yMinusNH3"));
     bool zions      =  python::extract<bool>(parameters.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(parameters.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(parameters.attr("MMinusNH3"));
 
     acc_mass = 0.0;
     res_mass = 0.0;
@@ -337,7 +339,12 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     if bPlusH2O:  self.b_plus_H2O  = [b + R.mass_H2O for b in self.b_series]
     if yMinusH2O: self.y_minus_H2O = [y - R.mass_H2O for y in self.y_series]
     if yMinusNH3: self.y_minus_NH3 = [y - R.mass_NH3 for y in self.y_series]
+    if MMinusH2O: self.waterloss = self.mass; self.allseries.append(self.waterloss)
+    if MMinusNH3: self.nh3loss =   self.mass + R.mass_H2O - R.mass_NH3; self.allseries.append(self.nh3loss)
     */
+
+    if (MMinusH2O) series[frg_cnt++] = acc_mass 
+    if (MMinusNH3) series[frg_cnt++] = acc_mass + MASS_H2O - MASS_NH3;
 
     // calculate the charged mass of the fragments
     for (int j=0; j<frg_cnt; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
