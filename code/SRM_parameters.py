@@ -1,81 +1,121 @@
 class SRM_parameters(object):
 
     def __init__(self): 
-        self.do_1vs = True #check only one charge state?
-        self.do_vs1 = False #background only one charge state?
-        self.dontdo2p2f = True #do not look at 2+ parent / 2+ fragment ions
-        #self.considerIsotopes = False #do not consider the C13 isotopes
-        self.isotopes_up_to = 0
-        self.ppm = True #measure q3 in ppm
-        self.transition_table = 'srmcollider.srmTransitions_yeast'
-        self.peptide_table = 'srmcollider.srmPeptides_yeast'
-        self.q3_range = [400, 1200]
-        self.ssrcalc_window = 2.0 / 2
-        self.q1_window = 25.0 / 2.0
-        self.q3_window = 10.0 / 2.0
-        self.max_uis = 5 #maximal order of UIS to calculate (no UIS => set to 0)
-        self.do_1_only = "and q1_charge = 2 and q3_charge = 1"
-        self.print_query = False
+        self.do_1vs            = None
+        self.do_vs1            = None
+        self.dontdo2p2f        = None
+        self.isotopes_up_to    = None
+        self.ppm               = None
+        self.transition_table  = None
+        self.peptide_table     = None
+        self.q3_range          = None
+        self.ssrcalc_window    = None
+        self.q1_window         = None
+        self.q3_window         = None
+        self.max_uis           = None
+        self.do_1_only         = None
+        self.print_query       = None
+        self.quiet             = None
         # 
         self.parent_charges = [2,3] # parent ion charge states
         #self.select_floor = False
-        self.quiet = False
-        self.bions      =  True
-        self.yions      =  True
-        self.aions      =  False
-        self.aMinusNH3  =  False
-        self.bMinusH2O  =  False
-        self.bMinusNH3  =  False
-        self.bPlusH2O   =  False
-        self.yMinusH2O  =  False
-        self.yMinusNH3  =  False
-        self.cions      =  False
-        self.xions      =  False
-        self.zions      =  False
+        self.bions      =  None
+        self.yions      =  None
+        self.aions      =  None
+        self.aMinusNH3  =  None
+        self.bMinusH2O  =  None
+        self.bMinusNH3  =  None
+        self.bPlusH2O   =  None
+        self.yMinusH2O  =  None
+        self.yMinusNH3  =  None
+        self.cions      =  None
+        self.xions      =  None
+        self.zions      =  None
+        #
+        self.q3_low     = None
+        self.q3_high    = None
+        self.isotopes_up_to = None
+
+
+    def set_default_vars(self):
+        # set the default values if they are not yet set
+        if self.q1_window is None: self.q1_window = 1
+        if self.q3_window is None: self.q3_window = 1
+        if self.ssrcalc_window is None: self.ssrcalc_window = 9999
+        if self.ppm is None: self.ppm = False
+        if self.isotopes_up_to is None: self.isotopes_up_to = 3
+        if self.q3_low is None: self.q3_low = 400
+        if self.q3_high is None: self.q3_high = 1400
+        if self.max_uis is None: self.max_uis = 0
+        if self.peptide_table is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
+        if self.mysql_config is None: self.mysql_config = '~/.my.cnf'
+        if self.quiet is None: self.quiet = False
+
+        if self.bions      is None: self.bions      =  True
+        if self.yions      is None: self.yions      =  True
+        if self.aions      is None: self.aions      =  False
+        if self.aMinusNH3  is None: self.aMinusNH3  =  False
+        if self.bMinusH2O  is None: self.bMinusH2O  =  False
+        if self.bMinusNH3  is None: self.bMinusNH3  =  False
+        if self.bPlusH2O   is None: self.bPlusH2O   =  False
+        if self.yMinusH2O  is None: self.yMinusH2O  =  False
+        if self.yMinusNH3  is None: self.yMinusNH3  =  False
+        if self.cions      is None: self.cions      =  False
+        if self.xions      is None: self.xions      =  False
+        if self.zions      is None: self.zions      =  False
  
     def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup
         group = OptionGroup(parser, "General Options",
                             "These are the general options for the SRM  Collider")
-        group.add_option("-c", "--config", dest="config_file", default='',
+        group.add_option("-c", "--config", dest="config_file", 
                           help="Configuration file (it overrides cmdline options!)" )
-        group.add_option("--q1_window", dest="q1_window", default=1, type="float",
+        group.add_option("--q1_window", dest="q1_window", type="float",
                           help="Q1 window (e.g. use 1 for +- 0.5 Da). " + 
                           "Defaults to 1", metavar="Q1WIN")
-        group.add_option("--q3_window", dest="q3_window", default=1, type="float",
+        group.add_option("--q3_window", dest="q3_window", type="float",
                           help="Q3 window (e.g. use 1 for +- 0.5 Da). " + 
                           "Defaults to 1", metavar="Q3WIN")
-        group.add_option("--ssrcalc_window", dest="ssrcalc_window", default=9999, type="float",
+        group.add_option("--ssrcalc_window", dest="ssrcalc_window", type="float",
                           help="RT (retention time) window (e.g. use 1 for +- 0.5 units)." + 
                           " Defaults to 9999 (infinite.)", metavar="RTWIN")
-        group.add_option("--ppm", dest="ppm", default=False, 
+        group.add_option("--ppm", dest="ppm", 
                           help="Interpret Q3 window as PPM (default False)")
         group.add_option("-i", "--isotopes_up_to", dest="isotopes_up_to", 
-            default=3, type='int', help="Consider isotopes of the precursors,"+\
+            type='int', help="Consider isotopes of the precursors,"+\
             " (default up to 3amu) ")
-        group.add_option("--q3_low", dest="q3_low", default=400, type="float",
+        group.add_option("--q3_low", dest="q3_low", type="float",
                           help="Start of transition range to analyse (default 400)", metavar="Q3LOW")
-        group.add_option("--q3_high", dest="q3_high", default=1400, type="float",
+        group.add_option("--q3_high", dest="q3_high", type="float",
                           help="End of transition range to analyse (default 1400)", metavar="Q3HIGH")
-        group.add_option("--max_uis", dest="max_uis", default=0, type='int',
+        group.add_option("--max_uis", dest="max_uis", type='int',
                           help="maximal order of UIS to calculate " +
                           "(defaults to 0 == no UIS)" )
-        group.add_option("--peptide_table", dest="peptide_table", default='srmcollider.srmPeptides_yeast',
+        group.add_option("--peptide_table", dest="peptide_table", 
                           help="MySQL table containing the peptides" )
-        group.add_option("--transition_table", dest="transition_table", default='srmcollider.srmTransitions_yeast',
+        group.add_option("--transition_table", dest="transition_table", 
                           help="MySQL table containing the transitions" )
-        group.add_option("--mysql_config", dest="mysql_config", default=default_mysql,
-                          help="Location of mysql config file, defaults to %s" % default_mysql )
-        group.add_option("-q", "--quiet", dest="quiet", default=False,
+        group.add_option("--mysql_config", dest="mysql_config", 
+                          help="Location of mysql config file, defaults to ~/.my.cnf" )
+        group.add_option("-q", "--quiet", dest="quiet", 
                           help="don't print status messages to stdout")
         parser.add_option_group(group)
 
     def parse_options(self, options):
-        if options.config_file != '':
-            self.read_parameter_file(options.config_file)
-        else: self.__dict__.update( options.__dict__ )
 
-        self.q3_range = [options.q3_low, options.q3_high]
+        # First read all information from the config file
+        if not options.config_file is None:
+            self.read_parameter_file(options.config_file)
+        # Then overwrite with options from the commandline
+        for key in options.__dict__:
+            if not options.__dict__[key] is None:
+                self.__dict__[key] = options.__dict__[key]
+
+        # Set all variables that are not assigned yet
+        self.set_default_vars()
+
+        # calculate some windows
+        self.q3_range = [self.q3_low, self.q3_high]
         self.q1_window /= 2.0
         self.q3_window /= 2.0
         self.ssrcalc_window /= 2.0

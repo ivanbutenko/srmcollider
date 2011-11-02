@@ -69,6 +69,10 @@ group.add_option("--mass_cutoff", dest="mass_cutoff", default='1500',
                   help="M/Z cutoff above which precursors will not be included in the database (default 1500)" )
 group.add_option("--max_nr_modifications", dest="max_nr_modifications", default='3',
                   help="Maximal number of modifications per peptide (default 3)" )
+group.add_option("--oxidize_methionines", dest="oxidize_methionines", default=False, action="store_true",
+                  help="Oxidize Methionines")
+group.add_option("--deamidate_asparagine", dest="deamidate_asparagine", default=False, action="store_true",
+                  help="Deamindate asparagines")
 parser.add_option_group(group)
 
 options, args = parser.parse_args(sys.argv[1:])
@@ -78,7 +82,12 @@ dotransitions = options.dotransitions
 tsv_file = options.tsv_file
 sqlite_database = options.sqlite_database
 mass_cutoff = int(options.mass_cutoff)
+# Modifications 
+modify_cysteins = True
+oxidize_methionines = options.oxidize_methionines 
+deamidate_asparagine = options.deamidate_asparagine 
 max_nr_modifications = int(options.max_nr_modifications)
+# Input file and db
 if tsv_file != '': use_tsv = True
 else: use_tsv = False
 if sqlite_database != '': use_sqlite = True
@@ -171,9 +180,6 @@ residues = Residues.Residues('mono')
 # A) store the transitions
 ###################################
 
-modify_cysteins = True
-oxidize_methionines = True 
-deamidate_asparagine = True 
 
 # how to get the peptides 
 import csv
@@ -278,7 +284,6 @@ for row in rows:
             if mod_peptide.charged_mass > mass_cutoff: continue
             insert_peptide_in_db(mod_peptide, db, peptide_table,
                                           transition_group=transition_group)
-
 
 if use_sqlite: db.commit()
 

@@ -5,7 +5,7 @@ import DDB
 
 usage = 'A script to read a fasta file and output trypsinized peptides, one per line\n'
 usage += "usage: %prog fasta_file outputfile missed_cleavages\nAfterwards run SSRcalc:\n" 
-usage += "perl SSRCalc3.pl --alg 3.0 --source_file outfile  --output tsv --B 1 --A 0  > ssrcalc.out"
+usage += "perl SSRCalc3.pl --alg 3.0 --source_file peptide_file  --output tsv --B 1 --A 0  > ssrcalc.out"
 parser = OptionParser(usage=usage)
 options, args = parser.parse_args(sys.argv[1:])
 
@@ -42,6 +42,8 @@ for r in records:
 f.close()
 
 """
-mysql -s -e "select protein.id,sequence from ddbMeta.sequence inner join ddb.protein on sequence.id = protein.sequence_key where experiment_key = 3131 limit 2" | perl -ane 'printf ">%d\n%s\n", @F; '
+mysql -s -e "select protein.id,sequence from ddbMeta.sequence inner join \
+        ddb.protein on sequence.id = protein.sequence_key where experiment_key \
+        = 3131 limit 2" | perl -ane 'printf ">%d\n%s\n", @F; '
 
 """
