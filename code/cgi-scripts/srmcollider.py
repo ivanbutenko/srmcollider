@@ -215,6 +215,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
         #only alphanumeric and [ ]
         sanitized = "".join( [i for i in inp if (str.isalnum(i) or i in [ '[', ']']  )] )
         #to look ssrcalc up in the db, we need no modifications
+        if len(sanitized) == 0: continue
         seqs += filter(str.isalpha, inp) + "','"
         input_sequences.append(sanitized)
     seqs = seqs[:-2]
@@ -272,6 +273,10 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
     print "</ul></div>"
     print shared.toggleDisplay # Javascript function to toggle a div
     
+    print """<a title="Toggle all" href="javascript:toggleAll()">
+    Toggle all <small>Click to fold/unfold all</small>
+    </a>"""
+    toggle_all_str = '<script language="javascript"> function toggleAll(){ '
 
     ###########################################################################
     # Start analysis
@@ -283,7 +288,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
     ###########################################################################
 
     pepmap = get_ssrcalc_values(seqs, input_sequences, default_ssrcalc)
- 
+
     for ii,s in enumerate(input_sequences):
         try: ssrcalc = pepmap[filter(str.isalpha,s)]
         except KeyError: ssrcalc = 25
@@ -432,6 +437,10 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
 
         print_collding_peptides(collisions_per_peptide, precdic, ii, peaks)
         print_unuseable(unuseable, nonunique, ii)
+        toggle_all_str += "toggleDisplay('col_peptides_%s'); toggleDisplay('col_transitions_%s');\n" % (ii,ii)
+
+    toggle_all_str += "};</script>"
+    print toggle_all_str
 
     fuis.close()
     f.close()
@@ -568,7 +577,7 @@ else:
         Background Ion Series
     </a>
 
-    <p id="bg_ion" style="display:none;">
+    <p id="bg_ion" style="display:block;">
       %(ion_series)s
 
     </p>
