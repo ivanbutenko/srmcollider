@@ -38,17 +38,15 @@ class SRMcollider(object):
 
     def _get_all_precursors(self, par, pep, cursor, 
          # this seems to be somewhat faster, around 30% and can handle all isotopes
-         values="q1, modified_sequence, peptide_key, q1_charge", 
+         values="q1, modified_sequence, transition_group, q1_charge", 
          bysequence=False):
-        #we compare the parent ion against 4 different parent ions
-        #thus we need to take the PEPTIDE key here
         vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
-                'peptide_key' : pep['peptide_key'], 'q1_window' : par.q1_window,
+                'transition_group' : pep['transition_group'], 'q1_window' : par.q1_window,
                 'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                 'pep' : par.peptide_table, 'values' : values, 
                 'pepseq' : pep['mod_sequence']}
         if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
-        else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
+        else: selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
         vdict['selectby'] = selectby
         #
         # calculate how much lower we need to select to get all potential isotopes: lower_winow - nr_isotopes/2
@@ -72,7 +70,7 @@ class SRMcollider(object):
         # if the mass of the peptide or that of any of its isotopes is within
         # the window, we will use it.
         result = cursor.fetchall()
-        assert(values[:45] == "q1, modified_sequence, peptide_key, q1_charge")
+        assert(values[:45] == "q1, modified_sequence, transition_group, q1_charge")
         new_result = []
         for r in result:
           append = False

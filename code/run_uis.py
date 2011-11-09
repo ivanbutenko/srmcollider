@@ -71,12 +71,12 @@ par.parse_options(options)
 par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 par.eval()
 print par.get_common_filename()
+print "only b y ", par.do_b_y_only()
+print par.aions
 
 if len(sys.argv) < 4: 
     print "wrong number of arguments"
     sys.exit()
-
-old_tables_with_isotopes = False
 
 #local arguments
 exp_key = sys.argv[1]
@@ -94,7 +94,7 @@ if use_sqlite:
     db = sqlite.connect(sqlite_database)
     cursor = db.cursor()
 else:
-    db = MySQLdb.connect(read_default_file=options.mysql_config)
+    db = MySQLdb.connect(read_default_file=par.mysql_config)
     cursor = db.cursor()
 
 print 'isotopes' , par.isotopes_up_to
@@ -120,25 +120,12 @@ if options.insert_mysql:
 
 start = time.time()
 q = """
-select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
+select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
       }
-if old_tables_with_isotopes: 
-    # only of the old tables are used
-    q = """
-    select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
-    from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-    and isotope_nr <= %(nr_isotopes)s
-    """ % {'peptide_table' : par.peptide_table, 
-                  'lowq1'  : min_q1 - par.q1_window, 
-                  'highq1' : max_q1 + par.q1_window,
-                  'highq1' : max_q1 + par.q1_window,
-                  'highq1' : max_q1 + par.q1_window,
-                   'nr_isotopes' :  par.isotopes_up_to
-          }
 print q
 cursor.execute( q )
 alltuples =  list(cursor.fetchall() )
@@ -146,15 +133,16 @@ alltuples =  list(cursor.fetchall() )
 mypepids = [
             {
                 'mod_sequence'  :  r[0],
-                'peptide_key' :r[1],
+                'transition_group' :r[1],
                 'parent_id' :  r[2],
                 'q1_charge' :  r[3],
                 'q1' :         r[4],
                 'ssrcalc' :    r[5],
             }
             for r in alltuples
-    if r[3] == 2 #charge is 2
-    and r[6] == 0 #isotope is 0
+    if r[3] == 2  # charge is 2
+    and r[6] == 0 # no modification 
+    and r[7] == 0 # no missed cleavages 
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
@@ -163,14 +151,14 @@ print "analyzing %s peptides" % len(mypepids)
 
 # use the rangetree?
 if not use_db:
-    if not old_tables_with_isotopes: 
+    if True:
         if swath_mode: this_min = min_q1; this_max = max_q1
         else: this_min = min_q1 - par.q1_window; this_max = max_q1 + par.q1_window
         import Residues
         R = Residues.Residues('mono')
         isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
         q = """
-        select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
+        select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
         from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
         """ % {'peptide_table' : par.peptide_table, 
                       'lowq1'  : this_min,
@@ -199,6 +187,7 @@ if not use_db:
     parentid_lookup  = dict(parentid_lookup)
     print "building tree with %s Nodes" % len(alltuples)
     if use_sqlite: alltuples = [tuple(t) for t in alltuples]
+    # print [p for p in alltuples if p[1] == 554689]
     c_rangetree.create_tree(tuple(alltuples))
 
 # in SWATH mode, select all precursors that are relevant for the background at
@@ -208,7 +197,7 @@ if use_db and swath_mode:
     import Residues
     R = Residues.Residues('mono')
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    values="q1, modified_sequence, peptide_key, q1_charge, ssrcalc"
+    values="q1, modified_sequence, transition_group, q1_charge, ssrcalc"
     q1_low = min_q1; q1_high = max_q1
     query2 = """
     select %(values)s
@@ -263,11 +252,11 @@ for kk, pep in enumerate(self.pepids):
         precursors = self._get_all_precursors(par, pep, cursor)
     elif use_db and swath_mode:
         if par.ssrcalc_window > 1000:
-            precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] ]
+            precursors = [p for p in allprecursors if p[2] != pep['transition_group'] ]
         else:
             ssrcalc_low = ssrcalc - par.ssrcalc_window 
             ssrcalc_high = ssrcalc + par.ssrcalc_window 
-            precursors = [p for p in allprecursors if p[2] != pep['peptide_key'] 
+            precursors = [p for p in allprecursors if p[2] != pep['transition_group'] 
                          and p[4] > ssrcalc_low and p[4] < ssrcalc_high ]
     elif not use_db:
         # Use the rangetree, whether it is swath or not
@@ -279,7 +268,7 @@ for kk, pep in enumerate(self.pepids):
         if swath_mode:
             precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                                 #dont select myself 
-                               if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+                               if parentid_lookup[myid[0]][2]  != pep['transition_group']])
         else:
             precursors = []
             # filter out wrong isotopes
@@ -290,12 +279,17 @@ for kk, pep in enumerate(self.pepids):
               for iso in range(par.isotopes_up_to+1):
                 if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
                     r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
-              if(append and r[2]  != pep['peptide_key']): precursors.append(r)
+              if(append and r[2]  != pep['transition_group']): precursors.append(r)
+        selecttime += time.time() - s
 
     import c_getnonuis
     precursors = tuple(precursors)
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+    if par.do_b_y_only():
+      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
             transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+    else:
+      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
+            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 
     ## Lets count the number of peptides that interfere

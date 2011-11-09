@@ -31,12 +31,14 @@ class SRM_parameters(object):
         self.cions      =  None
         self.xions      =  None
         self.zions      =  None
-        self.MMinusH20  =  None
+        self.MMinusH2O  =  None
         self.MMinusNH3  =  None
         #
         self.q3_low     = None
         self.q3_high    = None
         self.isotopes_up_to = None
+
+        self.mysql_config = None
 
 
     def set_default_vars(self):
