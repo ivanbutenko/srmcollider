@@ -146,7 +146,8 @@ def print_collding_peptides(collisions_per_peptide, precdic, ii, peaks):
 
     print """
     <a title="Show Tables" href="javascript:toggleDisplay('col_peptides_%s')">
-        <h3>Colliding peptides</h3>
+        <h3>Interfering peptides <small><small>(Click to fold in.)</small></small> </h3>
+
     </a>""" % ii
 
     #helper functions
@@ -179,7 +180,8 @@ def print_unuseable(unuseable, nonunique, ii):
 
     print """
     <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
-        <h3>Unuseable transitions (Collisions)</h3>
+        <h3>All transitions with Collisions <small><small>(Click to fold in.)</small></small> </h3>
+
     </a>""" % ii
     print "<table class='col_table' id='col_transitions_%s'>" % ii
     print "<tr> <td>Type / Q3</td> <td>Colliding (Q1, Q3) / SSRCalc / Type / Sequence / Isotope </td> </tr>"
@@ -249,6 +251,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
     par.eval()
     mycollider = collider.SRMcollider()
 
+    print shared.resultInterpretation
     if uis > 0:
         if uis > 5:
             print "I will only calculate UIS up to order 5 \
@@ -259,8 +262,8 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
 
     # Print headers, link to csv file and table of content
     unique = unique_values(myinput.split() )
-    print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
-    print "<br/>"
+    # print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
+    # print "<br/>"
     print "input: %s peptides" % (len( myinput.split() )) 
     print "<br/>"
     print "unique: %s peptides" % (len( unique )) 
@@ -407,11 +410,11 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
         print "<div class='pep_property'>"
         print "<p>Q1: %s</p>" % pep['q1']
         print "<p>SSRCalc: %s</p>" % round(pep['ssrcalc'], 2)
-        print "<p>Percent Useable: %d %%</p>" % (len(useable)*100.0 / len(transitions)  )
+        # print "<p>Percent Useable: %d %%</p>" % (len(useable)*100.0 / len(transitions)  )
         print "</div>"
 
         if len( useable ) > 0:
-            print "<h3>Useable transitions</h3>"
+            print "<h3>Transitions without any interferences</h3>"
             print "<table class='tr_table'>"
             print "<tr><td>Type</td> <td>Q3</td> </tr>"
             for peak in useable:
@@ -424,7 +427,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
                 print "</td><td>"
             print "</table>"
         else: 
-            print "<p>No useable transitions for this peptide!</p>"
+            print "<p>No transitions that have no interference at all!</p>"
             w.writerow( ['"Sorry: no useable transitions for this peptide. Try to calculate UIS."' ] )
 
         print_collding_peptides(collisions_per_peptide, precdic, ii, peaks)
@@ -515,7 +518,7 @@ else:
 
     <p class='input_field'>
         <label class="mylabel" for="ssr_window">SSRCalc window</label>
-        <input class="number_input" type="text" name="ssr_window" value="4"> arbitrary units
+        <input class="number_input" type="text" name="ssr_window" value="10"> arbitrary units
     </p>
 
     <p class='input_field'>
@@ -556,7 +559,7 @@ else:
 
     <p class='input_field'>
         <label class="mylabel" for="uis">Find UIS up to order* </label>
-        <input class="number_input" type="text" name="uis" value="0"> 
+        <input class="number_input" type="text" name="uis" value="2"> 
     </p>
 
         
