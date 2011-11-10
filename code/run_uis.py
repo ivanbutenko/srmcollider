@@ -70,9 +70,9 @@ options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
 par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 par.eval()
-print par.get_common_filename()
-print "only b y ", par.do_b_y_only()
-print par.aions
+if not par.quiet: print par.get_common_filename()
+if not par.quiet: print "only b y ", par.do_b_y_only()
+if not par.quiet: print par.aions
 
 if len(sys.argv) < 4: 
     print "wrong number of arguments"
@@ -97,7 +97,7 @@ else:
     db = MySQLdb.connect(read_default_file=par.mysql_config)
     cursor = db.cursor()
 
-print 'isotopes' , par.isotopes_up_to
+if not par.quiet: print 'isotopes' , par.isotopes_up_to
 
 if options.insert_mysql:
     common_filename = par.get_common_filename()
@@ -126,7 +126,7 @@ from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
       }
-print q
+if not par.quiet: print q
 cursor.execute( q )
 alltuples =  list(cursor.fetchall() )
 
@@ -165,7 +165,7 @@ if not use_db:
                       'highq1' : this_max,
                       'isotope_correction' : isotope_correction
               }
-        print q
+        if not par.quiet: print q
         cursor.execute( q )
         if not swath_mode:
             alltuples = tuple(cursor.fetchall() )
@@ -207,7 +207,7 @@ if use_db and swath_mode:
            'correction' : isotope_correction,
            'pep' : par.peptide_table,
            'values' : values}
-    print 'swath ' , query2
+    if not par.quiet: print 'swath ' , query2
     cursor.execute( query2 )
     result = cursor.fetchall() 
     # filter out wrong isotopes
@@ -280,7 +280,6 @@ for kk, pep in enumerate(self.pepids):
                 if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
                     r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
               if(append and r[2]  != pep['transition_group']): precursors.append(r)
-        selecttime += time.time() - s
 
     import c_getnonuis
     precursors = tuple(precursors)
@@ -315,7 +314,12 @@ if count_avg_transitions:
 # if any problems with the packet/buffer length occur, try this:
 ## set global max_allowed_packet=1000000000;
 ## set global net_buffer_length=1000000;
-cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
-                  parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
+# cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
+#                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 
+for order in range(1,6):
+    sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
+    nr_peptides = len([p for p in prepare if p[3] == order])
+    if not par.quiet: print sum_all *1.0/ nr_peptides
+    cursor.execute("insert into hroest.result_completegraph_aggr (sum_nonUIS, nr_peptides, uisorder, experiment) VALUES (%s,%s,%s,'%s')" % (sum_all, nr_peptides, order, exp_key))
 

@@ -343,7 +343,7 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     if MMinusNH3: self.nh3loss =   self.mass + R.mass_H2O - R.mass_NH3; self.allseries.append(self.nh3loss)
     */
 
-    if (MMinusH2O) series[frg_cnt++] = acc_mass 
+    if (MMinusH2O) series[frg_cnt++] = acc_mass;
     if (MMinusNH3) series[frg_cnt++] = acc_mass + MASS_H2O - MASS_NH3;
 
     // calculate the charged mass of the fragments
