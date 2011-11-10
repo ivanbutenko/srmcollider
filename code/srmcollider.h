@@ -18,6 +18,10 @@ using namespace std;
 #define MASS_H2O 18.010564683999998
 #define MASS_CO 27.994914619999999
 
+#define MASS_C   12.000000
+#define MASS_C13 13.00335484
+#define MASS_DIFFC13 (MASS_C13 - MASS_C)
+
 //assume that there are never more than 32 transitions in an assay :-)
 //please change when an error occurs
 #define COMBINT uint32_t

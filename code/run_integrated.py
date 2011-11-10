@@ -68,44 +68,46 @@ exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
 max_q1 = float(sys.argv[3])
 
-if use_sqlite:
+if False: #use_sqlite:
     import sqlite
     db = sqlite.connect(sqlite_database)
     cursor = db.cursor()
 else:
-    db = MySQLdb.connect(read_default_file=options.mysql_config)
+    db = MySQLdb.connect(read_default_file=par.mysql_config)
     cursor = db.cursor()
 
 if par.max_uis ==0: 
     print "Please change --max_uis option, 0 does not make sense here"
     sys.exit()
 
-print 'isotopes' , par.isotopes_up_to
-qadd = "and isotope_nr <= %s" % par.isotopes_up_to
-
-cursor.execute( """
-select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
-from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-%(qadd)s
+import Residues
+R = Residues.Residues('mono')
+isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+q =  """
+select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
+from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
-              'qadd'   : qadd
-      } )
+               'isotope_correction' : isotope_correction
+      } 
+#print q
+cursor.execute(q)
 
 alltuples =  list(cursor.fetchall() )
 mypepids = [
             {
                 'sequence'  :  r[0],
-                'peptide_key' :r[1],
+                'transition_group' :r[1],
                 'parent_id' :  r[2],
                 'q1_charge' :  r[3],
                 'q1' :         r[4],
                 'ssrcalc' :    r[5],
             }
             for r in alltuples
-    if r[3] == 2 #charge is 2
-    and r[6] == 0 #isotope is 0
+    if r[3] == 2  # charge is 2
+    and r[6] == 0 # no modification 
+    and r[7] == 0 # no missed cleavages 
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
@@ -139,16 +141,19 @@ for pep in self.pepids:
     ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
     try:
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
-            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, pep['peptide_key'],  
-            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm )
+            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, pep['transition_group'],  
+            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction)
     except ValueError: print "Too many transitions for", pep['sequence']; continue
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (result[order-1], collider.choose(nr_transitions, 
             order), p_id , order, exp_key)  )
     progressm.update(1)
 
-cursor.executemany('insert into hroest.result_srmuis (non_useable_UIS, \
-    total_UIS, parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)', prepare)
+for order in range(1,6):
+    sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
+    nr_peptides = len([p for p in prepare if p[3] == order])
+    if not par.quiet: print sum_all *1.0/ nr_peptides
+    cursor.execute("insert into hroest.result_completegraph_aggr (sum_nonUIS, nr_peptides, uisorder, experiment) VALUES (%s,%s,%s,'%s')" % (sum_all, nr_peptides, order, exp_key))
 
 """
 create table hroest.result_completegraph (
