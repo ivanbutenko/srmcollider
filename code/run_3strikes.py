@@ -158,13 +158,13 @@ This is a 3 strikes rule to find good UIS combinations.
 VERY_LARGE_SSR_WINDOW = 9999999
 myssrcalc = par.ssrcalc_window
 
+print par.experiment_type
 self = mycollider
 self.mysqlnewtime = 0
 self.pepids = mypepids
 MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 prepare  = []
-print par.experiment_type
 at_least_one = 0
 f = open(outfile, 'a')
 for kk, pep in enumerate(self.pepids):
@@ -229,17 +229,16 @@ for kk, pep in enumerate(self.pepids):
     #    n transitions, we get n vectors with a number of SSRCalc values.
     # 2. Check whether there exists one retention time (SSRcalc value) that is
     #    present in all vectors.
-    ## Idea: precalculate all the "collisions per peptide" for each transition
+    ssrcalcvalues_dict = {}
+    for t in transitions:
+        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
+            (t,), globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
+        ssrcalcvalues_dict[t[1]] = [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] 
     for mytuple in tuples_2strike: 
         thistransitions = [ t for t in transitions if t[1] in mytuple]
-        ssrcalc_low = -999
-        ssrcalc_high = 999
         ssrcalcvalues = []
         for t in thistransitions:
-            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-                (t,), globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
-            ssrcalcvalues.append( 
-                [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] )
+            ssrcalcvalues.append(  ssrcalcvalues_dict [t[1]] )
         N = [len(v) for v in ssrcalcvalues]
         # if one of the transitions is contamination-free, the whole set is ok
         if min(N) == 0: tuples_3strike.append( mytuple ); continue
@@ -253,6 +252,7 @@ for kk, pep in enumerate(self.pepids):
     if len(tuples_3strike) > 0: at_least_one += 1
     prepare.append( [ len(tuples_3strike), 
         collider.choose(nr_transitions, min(myorder, nr_transitions)), len(tuples_2strike)-len(tuples_3strike) ] )
+    progressm.update(1)
 
 print "Analysed:", kk
 print "At least one eUIS of order %s :" % myorder, at_least_one, " which is %s %%" % (at_least_one *100.0/kk)
