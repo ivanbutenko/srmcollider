@@ -58,8 +58,10 @@ db = MySQLdb.connect(read_default_file="~/.my.cnf")
 cursor = db.cursor()
 par = collider.SRM_parameters()
 
+par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
+par.parse_options(options)
 
 #local arguments
 exp_key = sys.argv[1]
@@ -69,16 +71,6 @@ outfile = options.outfile
 strike3_ssrcalcwindow = options.ssr3strike
 myorder =options.myorder
 contamination_allow =options.allow_contamination
-#ssrcalcwin = float(sys.argv[4])
-#peptide_table = sys.argv[5]
-par.__dict__.update( options.__dict__ )
-par.q3_range = [options.q3_low, options.q3_high]
-par.q1_window /= 2.0
-par.q3_window /= 2.0
-par.ssrcalc_window /= 2.0
-if par.ppm == 'True': par.ppm = True
-elif par.ppm == 'False': par.ppm = False
-
 par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
 
 """
@@ -103,22 +95,19 @@ par.eval()
 print par.get_common_filename()
 mycollider = collider.SRMcollider()
 
-print par.ppm
-print par.considerIsotopes
-
-qadd = ''
-if not par.considerIsotopes: qadd = 'and isotope_nr = 0'
-
-start = time.time()
-cursor.execute( """
-select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
-from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-%(qadd)s
+import Residues
+R = Residues.Residues('mono')
+isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+q =  """
+select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
+from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
               'highq1' : max_q1 + par.q1_window,
-              'qadd'   : qadd
-      } )
+              'isotope_correction' : isotope_correction
+      } 
+cursor.execute(q)
+
 
 #print "finished query execution: ", time.time() - start
 alltuples =  list(cursor.fetchall() )
@@ -129,7 +118,7 @@ alltuples =  list(cursor.fetchall() )
 mypepids = [
             {
                 'sequence'  :  r[0],
-                'peptide_key' :r[1],
+                'transition_group' :r[1],
                 'parent_id' :  r[2],
                 'q1_charge' :  r[3],
                 'q1' :         r[4],
@@ -137,7 +126,8 @@ mypepids = [
             }
             for r in alltuples
     if r[3] == 2 #charge is 2
-    and r[6] == 0 #isotope is 0
+    and r[6] == 0 # no modification 
+    and r[7] == 0 # no missed cleavages 
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
@@ -175,8 +165,8 @@ MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 prepare  = []
 print par.experiment_type
-#f = open('3strikes_order4_nostrike2.out', 'w')
-f = open(outfile, 'w')
+at_least_one = 0
+f = open(outfile, 'a')
 for kk, pep in enumerate(self.pepids):
 
     p_id = pep['parent_id']
@@ -197,19 +187,18 @@ for kk, pep in enumerate(self.pepids):
 
     ###############################################################
     #strike 1: it has to be global UIS
-    ssrcalc_low = -999
-    ssrcalc_high = 999
+    # ssrcalc_low = -999
+    # ssrcalc_high = 999
     precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
                                                  q1_high,  ssrcalc_high )  )
     globalprecursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                         #dont select myself 
-                       if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+                       if parentid_lookup[myid[0]][2]  != pep['transition_group']])
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
         transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
     tmpnonlist = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
     srm_ids = [t[1] for t in transitions]
     tuples_1strike = collider.get_uis(srm_ids, tmpnonlist, myorder)
-    #print "1 strike", len(tuples_1strike)
 
     ###############################################################
     #strike 2: it has to be locally clean
@@ -219,7 +208,7 @@ for kk, pep in enumerate(self.pepids):
                                                  q1_high,  ssrcalc_high )  )
     precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                         #dont select myself 
-                       if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
+                       if parentid_lookup[myid[0]][2]  != pep['transition_group']])
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
         transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
     local_interferences = [t[0] for t in c_getnonuis.get_non_uis( collisions_per_peptide, 1).keys()]
@@ -229,15 +218,18 @@ for kk, pep in enumerate(self.pepids):
         for dirty_t in local_interferences:
             if dirty_t in mytuple: contaminated += 1.0
         if contaminated <= contamination_allow: tuples_2strike.append(mytuple)
+    #tuples_2strike = tuples_1strike
 
     ###############################################################
     #strike 3: the transitions in the tuple shall not coelute elsewhere
+    # Strike 3 takes usually over 90 % of the time
     tuples_3strike = []
     # 1. For each tuple that we found, find all peptides that collide with
     #    each single transition and store their SSRCalc values. For a tuple of
     #    n transitions, we get n vectors with a number of SSRCalc values.
     # 2. Check whether there exists one retention time (SSRcalc value) that is
     #    present in all vectors.
+    ## Idea: precalculate all the "collisions per peptide" for each transition
     for mytuple in tuples_2strike: 
         thistransitions = [ t for t in transitions if t[1] in mytuple]
         ssrcalc_low = -999
@@ -258,9 +250,23 @@ for kk, pep in enumerate(self.pepids):
         contaminated = c_getnonuis.thirdstrike_sort( N, ssrcalcvalues, strike3_ssrcalcwindow)
         if not contaminated: tuples_3strike.append( mytuple )
 
-    print "1 strike", len(tuples_1strike),  "\t2 strike", len(tuples_2strike),\
-        "\t3 strike", len(tuples_3strike), pep['sequence']
-    f.write( '%s %s %s\n' % (pep['sequence'], len(tuples_3strike), repr(tuples_3strike)))
+    if len(tuples_3strike) > 0: at_least_one += 1
+    prepare.append( [ len(tuples_3strike), 
+        collider.choose(nr_transitions, min(myorder, nr_transitions)), len(tuples_2strike)-len(tuples_3strike) ] )
+
+print "Analysed:", kk
+print "At least one eUIS of order %s :" % myorder, at_least_one, " which is %s %%" % (at_least_one *100.0/kk)
+f.write( "At least one eUIS of order %s : %s which is %s %%\n" % (myorder, at_least_one, at_least_one *100.0/kk) )
+f.write( "\n\nt.append([%s,%s])\n\n" % (kk, at_least_one) )
+
+sum_all = sum([p[0]*1.0/p[1] for p in prepare]) 
+nr_peptides = len([p for p in prepare])
+print  "Random probability to choose good", sum_all*1.0/nr_peptides
+sum_all = sum([p[2]*1.0/p[1] for p in prepare]) 
+nr_peptides = len([p for p in prepare])
+print  "Average lost in strike 3", sum_all*1.0/nr_peptides
 
 f.close()
+
+
 
