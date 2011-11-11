@@ -158,6 +158,67 @@ This is a 3 strikes rule to find good UIS combinations.
 VERY_LARGE_SSR_WINDOW = 9999999
 myssrcalc = par.ssrcalc_window
 
+def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
+    M = len(ssrcalcvalues)
+    index = [0 for i in range(M)]
+    myssr = [0 for i in range(M)]
+    discarded_indices = []
+    all_nonuis = {}
+    # check whether there are any empty ssrcalcvalues
+    for k in range(M):
+        if len(ssrcalcvalues[k]) == 0:
+            discarded_indices.append(k)
+    if len(discarded_indices) == M: return {}
+
+    # in each iteration we we either advance one or add one to discarded
+    # thus we do this at most sum(N) + len(N) times which is bounded by
+    # c*k + c
+    while True:
+        myssr = [-1 for i in range(M)]
+        for k in range(M):
+            if k in discarded_indices: continue
+            myssr[k] = ssrcalcvalues[k][ index[k] ]
+
+        # find the pivot element (the smallest element that is not yet in a discarded group)
+        tmin = max(myssr); piv_i = -1
+        for k in range(M):
+            if k in discarded_indices: continue
+            if myssr[k] <= tmin:
+                tmin=myssr[k]
+                piv_i = k
+
+        # we need to sort by we also need to have a map back to retrieve the original!
+        with_in = [ (a,b) for a,b in enumerate(myssr) ]
+        with_in.sort( lambda x,y: cmp(x[1],y[1]))
+        sort_idx = [x[0] for x in with_in]
+        myssr.sort()
+        #if index == [0, 0, 1, 0, 1, 19]: print index, piv_i, tmin, "== ", myssr, sort_idx
+
+        # now find all N different combinations that are not UIS. Since they are
+        # sorted we only need to consider elements that have a higher index.
+        for k in range(M):
+          # or myssr[k] == -1 would also work here
+          if sort_idx[k] in discarded_indices: continue 
+          nonuis = [k]
+          for m in range(k+1,M):
+              if not m == k and not (abs(myssr[k] - myssr[m]) > strike3_ssrcalcwindow):
+                  nonuis.append(m)
+          backsorted = [sort_idx[n] for n in nonuis]
+          backsorted.sort()
+          all_nonuis[ tuple(backsorted) ] = 0
+          #if len(nonuis) > 1: print "added tuple ", tuple(backsorted)
+                    
+        # Advance the pivot element
+        index[piv_i] += 1
+        if(index[piv_i] >= len(ssrcalcvalues[piv_i])):
+            discarded_indices.append(piv_i)
+            #print "wanted to advance", piv_i, "had to append to discarded ", discarded_indices
+            if len(discarded_indices) == len(ssrcalcvalues): 
+                # break out of loop
+                break
+    return all_nonuis
+
+
 print par.experiment_type
 self = mycollider
 self.mysqlnewtime = 0
@@ -248,6 +309,15 @@ for kk, pep in enumerate(self.pepids):
         #contaminated = c_getnonuis.thirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow)
         contaminated = c_getnonuis.thirdstrike_sort( N, ssrcalcvalues, strike3_ssrcalcwindow)
         if not contaminated: tuples_3strike.append( mytuple )
+
+    old_len_tuples = len(tuples_3strike)
+
+    ssrcalcvalues = ssrcalcvalues_dict.values()
+    N = [len(v) for v in ssrcalcvalues]
+    contaminated = thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow)
+    newdic = dict([(i,list(v)) for i,v in enumerate(contaminated.keys())])
+    tmpnonlist.update(c_getnonuis.get_non_uis( newdic, myorder))
+    tuples_3strike = collider.get_uis(srm_ids, tmpnonlist, myorder)
 
     if len(tuples_3strike) > 0: at_least_one += 1
     prepare.append( [ len(tuples_3strike), 
