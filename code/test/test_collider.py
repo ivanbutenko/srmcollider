@@ -83,6 +83,39 @@ from Residues import Residues
 # inc def _combinations(N, M):
 # OK  def combinations(iterable, r):
 #     
+
+
+
+
+
+#### helper functions
+
+
+def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
+    """ Get all combinations that are not UIS """
+    #collisions
+    #q3, q1, srm_id, peptide_key
+    #transitions
+    #q3, srm_id
+    collisions_per_peptide = {}
+    non_uis_list = [set() for i in range(MAX_UIS+1)]
+    q3_window_used = par.q3_window
+    for t in transitions:
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        this_min = q3_window_used
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    #here we calculate the UIS for this peptide with the given RT-range
+    for pepc in collisions_per_peptide.values():
+        for i in range(1,MAX_UIS+1):
+            collider.get_non_uis(pepc, non_uis_list[i], i)
+    return non_uis_list
+
 class Test_collider_function(unittest.TestCase): 
 
     def setUp(self):
@@ -198,7 +231,7 @@ class Test_collider_function(unittest.TestCase):
         self.assertEqual(test, set([(1, 2), (1, 3), (1, 4), (2, 3), (3, 4), (2, 4)]))
 
     def test_get_non_UIS_from_transitions1(self): 
-        oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions, self.collisions, 
+        oldnon_uis = get_non_UIS_from_transitions_old(self.transitions, self.collisions, 
                                          self.par, self.MAX_UIS)
         self.assertEqual([len(l) for l in oldnon_uis[1:]], test_shared.lennonuis1)
         self.assertEqual(oldnon_uis, test_shared.refnonuis1)
@@ -206,25 +239,15 @@ class Test_collider_function(unittest.TestCase):
     def test_get_non_UIS_from_transitions2(self): 
         self.transitions = test_shared.transitions_def2
         self.collisions  = test_shared.collisions_def2
-        oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions,
+        oldnon_uis = get_non_UIS_from_transitions_old(self.transitions,
             self.collisions, self.par, self.MAX_UIS)
         self.assertEqual([len(l) for l in oldnon_uis[1:]], test_shared.lennonuis2)
         self.assertEqual(oldnon_uis, test_shared.refnonuis2_sorted)
 
-    def test_get_non_UIS_from_transitions2_unsorted(self): 
-        #here we have the transitions in the wrong order
-        #it should still work
-        self.transitions = transitions_def2_unsorted
-        self.collisions  = collisions_def2
-        oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions,
-            self.collisions, self.par, self.MAX_UIS, unsorted=True)
-        self.assertEqual([len(l) for l in oldnon_uis[1:]], test_shared.lennonuis2)
-        self.assertEqual(oldnon_uis, test_shared.refnonuis2_unsorted)
-
     def test_get_non_UIS_from_transitions3(self): 
         self.transitions = transitions_def3
         self.collisions  = collisions_def3
-        oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions,
+        oldnon_uis = get_non_UIS_from_transitions_old(self.transitions,
             self.collisions, self.par, self.MAX_UIS)
         self.assertEqual([len(l) for l in oldnon_uis[1:]], test_shared.lennonuis3)
         self.assertEqual(oldnon_uis, test_shared.refnonuis3)
@@ -232,13 +255,13 @@ class Test_collider_function(unittest.TestCase):
     def test_get_non_UIS_from_transitions4(self): 
         self.transitions = transitions_def4
         self.collisions  = collisions_def4
-        oldnon_uis = collider.get_non_UIS_from_transitions_old(self.transitions,
+        oldnon_uis = get_non_UIS_from_transitions_old(self.transitions,
             self.collisions, self.par, self.MAX_UIS)
         self.assertEqual([len(l) for l in oldnon_uis[1:]], test_shared.lennonuis4)
         self.assertEqual(oldnon_uis, test_shared.refnonuis4)
 
     def test_get_uis(self):
-        non_uis_list = collider.get_non_UIS_from_transitions_old(self.transitions,
+        non_uis_list = get_non_UIS_from_transitions_old(self.transitions,
                  self.collisions, self.par, self.MAX_UIS)
         srm_ids = [t[1] for t in self.transitions]
         rr = collider.get_uis(srm_ids, non_uis_list[2], 2)
@@ -246,37 +269,11 @@ class Test_collider_function(unittest.TestCase):
         #
         self.transitions = transitions_def2
         self.collisions  = collisions_def2
-        non_uis_list = collider.get_non_UIS_from_transitions_old(self.transitions,
+        non_uis_list = get_non_UIS_from_transitions_old(self.transitions,
                  self.collisions, self.par, self.MAX_UIS)
         srm_ids = [t[1] for t in self.transitions]
         rr = collider.get_uis(srm_ids, non_uis_list[2], 2)
         self.assertEqual(len(rr), 1)
-
-    def test_get_UIS_from_transitions(self):
-        res = collider.get_UIS_from_transitions(self.transitions, 
-            self.collisions, self.par, self.MAX_UIS)
-        self.assertEqual( [len(r) for r in res] , [0,0,0,0,0,0])
-
-    def test_get_UIS_from_transitions2(self):
-        self.transitions = transitions_def2
-        self.collisions  = collisions_def2
-        res = collider.get_UIS_from_transitions(self.transitions,
-            self.collisions, self.par, self.MAX_UIS)
-        self.assertEqual( [len(r) for r in res] , [0,0,1,2,1,0])
-
-    def test_get_UIS_from_transitions3(self):
-        self.transitions = transitions_def3
-        self.collisions  = collisions_def3
-        res = collider.get_UIS_from_transitions(self.transitions,
-            self.collisions, self.par, self.MAX_UIS)
-        self.assertEqual( [len(r) for r in res] , [0,0,0,0,0,0])
-
-    def test_get_UIS_from_transitions4(self):
-        self.transitions = transitions_def4
-        self.collisions  = collisions_def4
-        res = collider.get_UIS_from_transitions(self.transitions,
-            self.collisions, self.par, self.MAX_UIS)
-        self.assertEqual( [len(r) for r in res] , [0, 0, 7, 17, 15, 6])
 
     def test_calculate_collisions_1(self):
         pep = test_shared.runpep1

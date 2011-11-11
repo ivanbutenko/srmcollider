@@ -3,8 +3,8 @@ import string
 
 class Residues:
 
-    #http://www.sisweb.com/referenc/source/exactmaa.htm
-    #http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl
+    # http://www.sisweb.com/referenc/source/exactmaa.htm
+    # http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl
     average_elements = {
         'H' : 1.007825   * 99.99/100 + 2.014102  * 0.015/100,
         'N' : 14.003074  * 99.63/100 + 15.000109 * 0.37/100,
@@ -207,6 +207,7 @@ class Residues:
         'm': ('Modified methionine', 131.04049 + mass_O), # oxygen
         'M[147]': ('Modified methionine', 131.04049 + mass_O), # oxygen
         'N': ('Asparagine', 114.04293),
+        'N[115]': ('Asparagine', 114.04293 - mass_N - mass_H + mass_O),
         'P': ('Proline', 97.05276),
         'Q': ('Glutamine', 128.05858),
         'R': ('Arginine', 156.10111),

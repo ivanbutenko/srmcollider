@@ -20,6 +20,24 @@ Module c_getnonuis is not available. Please compile it if you want to use it.
 
 
 
+def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
+                                forceset=False):
+    """ Get all combinations that are not UIS 
+    
+    Note that the new version returns a dictionary. To convert it to a set, one 
+    needs to force the function to return a set.
+    """
+    import c_getnonuis
+    non_uis_list = [{} for i in range(MAX_UIS+1)]
+    collisions_per_peptide = c_getnonuis.getnonuis(
+        transitions, collisions, par.q3_window, par.ppm)
+    for order in range(1,MAX_UIS+1):
+        non_uis_list[order] = c_getnonuis.get_non_uis(
+            collisions_per_peptide, order)
+
+    return non_uis_list
+
+
 
 class Test_cgetnonuis(unittest.TestCase):
     def setUp(self):
@@ -43,6 +61,20 @@ class Test_cgetnonuis(unittest.TestCase):
             self.par.ppm = False
             self.q3_high = 1500
             self.q3_low = 300
+
+            self.par.bions      =  True
+            self.par.yions      =  True
+            self.par.aions      =  False
+            self.par.aMinusNH3  =  False
+            self.par.bMinusH2O  =  False
+            self.par.bMinusNH3  =  False
+            self.par.bPlusH2O   =  False
+            self.par.yMinusH2O  =  False
+            self.par.yMinusNH3  =  False
+            self.par.cions      =  False
+            self.par.xions      =  False
+            self.par.zions      =  False
+
 
     def test_getnonuis(self):
             q3window = 1.0
@@ -221,7 +253,6 @@ class Test_cgetnonuis(unittest.TestCase):
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
                 transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
-            #
             self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
 
     def test_calculate_calculate_collisions_per_peptide_2(self):
@@ -232,11 +263,148 @@ class Test_cgetnonuis(unittest.TestCase):
             q3_high = self.q3_high
             q3_low = self.q3_low
 
+
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
                 transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
-            #
             self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
+    def test_calculate_calculate_collisions_per_peptide_other_ionseries_debug1(self):
+            """
+            Debug test, if there is something wrong rather not use the big ones.
+
+            Is contained in the big test
+            """
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            #precursors = test_shared.runprecursors1
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            precursors = ( 
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+            )
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+            #
+
+            self.assertEqual(collisions_per_peptide,
+                             { 11498839: [3]} )
+
+    def test_calculate_calculate_collisions_per_peptide_1_other(self):
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            precursors = test_shared.runprecursors1
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+            for key in collisions_per_peptide:
+                self.assertEqual(collisions_per_peptide[key], test_shared.collpepresult1[key])
+            self.assertEqual(len(collisions_per_peptide), len(test_shared.collpepresult1))
+            self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_calculate_calculate_collisions_per_peptide_2_other(self):
+            pep = test_shared.runpep2
+            transitions = test_shared.runtransitions2
+            precursors = test_shared.runprecursors2
+            par = self.par
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+            for key in collisions_per_peptide:
+                self.assertEqual(collisions_per_peptide[key], test_shared.collpepresult2[key])
+            self.assertEqual(len(collisions_per_peptide), len(test_shared.collpepresult2))
+            self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
+
+    def test_calculate_calculate_collisions_per_peptide_other_ionseries_debug_part1(self):
+            """
+            Debug test, if there is something wrong rather not use the big ones.
+
+            Is contained in the big test
+            """
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            #precursors = test_shared.runprecursors1
+            par = self.par
+
+            par.bions      =  True
+            par.yions      =  True
+            par.aions      =  True
+            par.aMinusNH3  =  True
+            par.bMinusH2O  =  False
+            par.bMinusNH3  =  False
+            par.bPlusH2O   =  False
+            par.yMinusH2O  =  False
+            par.yMinusNH3  =  False
+            par.cions      =  False
+            par.xions      =  True
+            par.zions      =  True
+
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            # there is a b3 350.17164  interfering with a y3 347.22949 close to transition 3
+            # there is an a4 393.21384                      close to transition 8
+            # there is an a4-NH3 393.21384 - 17 = 376.21384 close to transition 11
+            # there is an x2 316.12575                      close to transition 9  
+            # there is an z3 459.19925                      close to transition 2
+            precursors = ( 
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+            )
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+            #
+
+            self.assertEqual(collisions_per_peptide,
+                             { 11498839: [2, 3, 8, 9, 11]} )
+
+    def test_calculate_calculate_collisions_per_peptide_other_ionseries_debug_part2(self):
+            """
+            Debug test, if there is something wrong rather not use the big ones.
+
+            Is contained in the big test
+            """
+            pep = test_shared.runpep1
+            transitions = test_shared.runtransitions1
+            #precursors = test_shared.runprecursors1
+            par = self.par
+
+            par.bions      =  False #
+            par.yions      =  False #
+            par.aions      =  False #
+            par.aMinusNH3  =  False #
+            par.bMinusH2O  =  False
+            par.bMinusNH3  =  False
+            par.bPlusH2O   =  True
+            par.yMinusH2O  =  True
+            par.yMinusNH3  =  False
+            par.cions      =  False
+            par.xions      =  False #
+            par.zions      =  False #
+
+            q3_high = self.q3_high
+            q3_low = self.q3_low
+
+            precursors = ( 
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+            )
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+            #
+
+            self.assertEqual(collisions_per_peptide,
+                             { 11498839: [1,2,4, 8, 9 ]} )
 
     def get_charged_mass(self):
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 1)
@@ -269,7 +437,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions1(self): 
             self.transitions = test_shared.transitions_def1
             self.collisions  = test_shared.collisions_def1
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis1)
@@ -278,7 +446,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions2(self): 
             self.transitions = test_shared.transitions_def2
             self.collisions  = test_shared.collisions_def2
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
@@ -289,7 +457,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             #it should still work
             self.transitions = test_shared.transitions_def2_unsorted
             self.collisions  = test_shared.collisions_def2
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis2)
@@ -298,7 +466,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions3(self): 
             self.transitions = test_shared.transitions_def3
             self.collisions  = test_shared.collisions_def3
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis3)
@@ -307,7 +475,7 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     def test_get_non_UIS_from_transitions4(self): 
             self.transitions = test_shared.transitions_def4
             self.collisions  = test_shared.collisions_def4
-            newnon_uis = collider.get_non_UIS_from_transitions(self.transitions, 
+            newnon_uis = get_non_UIS_from_transitions(self.transitions, 
                 self.collisions, self.par, self.MAX_UIS)
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)

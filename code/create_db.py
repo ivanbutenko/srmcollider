@@ -36,12 +36,11 @@
  *
 """
 
-import sys
+import sys, csv
 sys.path.append('external/')
 import MySQLdb
 import Residues
 import DDB 
-import progress
 import collider
 
 print "Script is deactivated, please edit if you want to use it."
@@ -53,8 +52,6 @@ usage = "usage: %prog [options]\n"
 parser = OptionParser(usage=usage)
 
 group = OptionGroup(parser, "Create db tables Options", "") 
-group.add_option("--exp_key", dest="exp_key", default='',
-                  help="Experiment Key(s)"  , metavar='(3475, 3474)' ) 
 group.add_option("--peptide_table", dest="peptide_table", default='hroest.srmPeptides_test',
                   help="MySQL table containing the peptides" )
 group.add_option("--transition_table", dest="transition_table", default='hroest.srmTransitions_test',
@@ -65,27 +62,35 @@ group.add_option("--tsv_file", dest="tsv_file", default='',
                   help="Take TSV file created by SSRCalc as input" )
 group.add_option("--sqlite_database", dest="sqlite_database", default='',
                   help="Use specified sqlite database instead of MySQL database" )
-group.add_option("--nr_isotopes", dest="nr_isotopes", default='3',
-                  help="Number of isotopes of the precursor to consider (default 3)" )
 group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
                   help="Location of mysql config (.my.cnf) file" )
+group.add_option("--mass_cutoff", dest="mass_cutoff", default='1500',
+                  help="M/Z cutoff above which precursors will not be included in the database (default 1500)" )
+group.add_option("--max_nr_modifications", dest="max_nr_modifications", default='3',
+                  help="Maximal number of modifications per peptide (default 3)" )
+group.add_option("--oxidize_methionines", dest="oxidize_methionines", default=False, action="store_true",
+                  help="Oxidize Methionines")
+group.add_option("--deamidate_asparagine", dest="deamidate_asparagine", default=False, action="store_true",
+                  help="Deamindate asparagines")
 parser.add_option_group(group)
 
 options, args = parser.parse_args(sys.argv[1:])
 peptide_table = options.peptide_table
 transition_table = options.transition_table
-exp_key = options.exp_key
 dotransitions = options.dotransitions
 tsv_file = options.tsv_file
 sqlite_database = options.sqlite_database
+mass_cutoff = int(options.mass_cutoff)
+# Modifications 
+modify_cysteins = True
+oxidize_methionines = options.oxidize_methionines 
+deamidate_asparagine = options.deamidate_asparagine 
+max_nr_modifications = int(options.max_nr_modifications)
+# Input file and db
 if tsv_file != '': use_tsv = True
 else: use_tsv = False
 if sqlite_database != '': use_sqlite = True
 else: use_sqlite = False
-
-
-#up to how many isotopes should be considered
-PATTERNS_UP_TO = int(options.nr_isotopes) 
 
 if use_sqlite:
     import sqlite
@@ -99,29 +104,73 @@ else:
     c = db.cursor()
     c2 = db.cursor()
 
+## fxn
+def get_peptide_from_table(t, row):
+    peptide = DDB.Peptide()
+    peptide.set_sequence( t.row(row, 'sequence')  )
+    peptide.genome_occurence = t.row( row, 'genome_occurence' )
+    peptide.ssr_calc         = t.row( row, 'ssrcalc' )
+    #peptide.gene_id          = t.row( row, 'gene_id' )
+    peptide.mw               = t.row( row, 'molecular_weight' )
+    peptide.id               = t.row( row, 'peptide_key' )
+    peptide.pairs            = []
+    peptide.non_unique = {}
+    return peptide
 
-##exp_key = 3061  #human (800 - 5000 Da)
-##exp_key = 3130  #human (all)
-###exp_key = 3120  #yeast
-##exp_key = 3131  #yeast (all)
-###exp_key = 3352  #yeast, 1200 peptides
-###exp_key = 3445  #mouse (all)
-##exp_key = '(3475, 3474)' #all TB
+def insert_peptide_in_db(self, db, peptide_table, transition_group):
+    c = db.cursor()
+    #insert peptide into db
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
+        peptide_table,
+        vals, 
+        self.id, self.charge, 
+        self.charged_mass, self.ssr_calc, 
+        self.get_modified_sequence(),
+        0, #we only have the 0th isotope (0 C13 atoms)
+        transition_group
+    )
+    c.execute(q)
+    self.parent_id = db.insert_id()
+
+def get_all_modifications(this_sequence, to_modify, replace_with, max_nr_modifications):
+    import re
+    positions = [m.start() for m in re.finditer(to_modify, this_sequence)]
+    for i in range(1,min(max_nr_modifications,1+len(positions))):
+        to_replace = list(collider.combinations( positions, i))
+        for new_peptide in to_replace:
+            it = 0
+            curr_seq = ''
+            for pos in new_peptide:
+                curr_seq += this_sequence[it:pos] + replace_with
+                it = pos+1
+            curr_seq += this_sequence[it:]
+            pep = DDB.Peptide()
+            pep.set_sequence(curr_seq)
+            pep.modifications = i
+            yield pep
+
+def get_all_modified_peptides(peptide, oxidize_methionines, deamidate_asparagine, max_nr_modifications):
+    modified = []
+    if oxidize_methionines: 
+        modified = list(get_all_modifications(peptide.get_modified_sequence(), 'M', 'M[147]', max_nr_modifications))
+    ##for pep in modified:
+    ##    print pep.get_modified_sequence()
+    #continue
+    if deamidate_asparagine:
+        toappend = []
+        for pep in modified:
+            tmp_modified = get_all_modifications(pep.get_modified_sequence(), 'N', 'N[115]', max_nr_modifications)
+            for pep_new in tmp_modified:
+                pep_new.modifications += pep.modifications
+                toappend.append(pep_new)
+        modified.extend(toappend)
+        modified.extend( list(get_all_modifications(peptide.get_modified_sequence(), 'N', 'N[115]', max_nr_modifications) ) )
+    return modified
+
 
 
 residues = Residues.Residues('mono')
-
-all_peptide_query  = """
-select distinct peptide.sequence, molecular_weight, ssrcalc,
-genome_occurence, 
-peptide.id as peptide_key
-from peptide 
-inner join peptideOrganism on peptide.id = peptideOrganism.peptide_key
-inner join compep.ssrcalc_prediction on ssrcalc_prediction.sequence =
-peptide.sequence
-where experiment_key in %s
-and length( peptide.sequence ) > 1
-""" % exp_key
 
 #human go from parent_id = 1 to parent_id = 1177958
 #R.recalculate_monisotopic_data_for_N15()
@@ -129,23 +178,6 @@ and length( peptide.sequence ) > 1
 ###################################
 # A) store the transitions
 ###################################
-
-insert_db = True
-modify_cysteins = False
-
-# how to get the peptides 
-import csv
-rows = []
-#f = open('ssrcalc.out')
-f = open(tsv_file)
-reader = csv.reader(f, delimiter='\t')
-for id, line in enumerate(reader):
-    if len(line[0]) < 2: continue
-    peptide = DDB.Peptide()
-    peptide.set_sequence( line[0] )
-    peptide.ssr_calc = line[2] 
-    peptide.id = id
-    rows.append(peptide)
 
 
 
@@ -193,55 +225,56 @@ else:
     #c.execute('truncate table ' + peptide_table)
     if dotransitions: c.execute('truncate table ' + transition_table)
 
-mass_bins = [ []  for i in range(0, 10000) ]
-rt_bins = [ []  for i in range(-100, 500) ]
-tmp_c  = db.cursor()
-progressm = progress.ProgressMeter(total=len(rows), unit='peptides')
 transition_group = 0
-for row in rows:
-    progressm.update(1)
+# which modifications:
+## methionine oxidation
+## de-amidation
+## phospho? no
+## N-terminal acetylation ?
+## methylation
+charges = [2,3]  #precursor charge 2 and 3
+
+f = open(tsv_file)
+reader = csv.reader(f, delimiter='\t')
+for id, line in enumerate(reader):
+    if len(line[0]) < 2: continue
+    if line[0].startswith("<tr class="): continue
+    peptide = DDB.Peptide()
+    peptide.set_sequence( line[0] )
+    peptide.ssr_calc = line[2] 
+    peptide.id = id
+
     transition_group += 1 
-    #if transition_group >= 1001: break #####FOR TESTING ONLY
-    for mycharge in [2,3]:  #precursor charge 2 and 3
-        if not use_tsv: peptide = collider.get_peptide_from_table(t, row)
-        else: peptide = row
+    if modify_cysteins: peptide.modify_cysteins()
+    #print transition_group, peptide.sequence
+    for mycharge in charges:
         peptide.charge = mycharge
-        if modify_cysteins: peptide.modify_cysteins()
+        # calculate charged mass and insert peptide into db
         peptide.create_fragmentation_pattern(residues)
-        if insert_db:
-            #insert peptide into db
-            collider.insert_peptide_in_db(peptide, db, peptide_table,
+        if peptide.charged_mass > mass_cutoff: continue
+        insert_peptide_in_db(peptide, db, peptide_table,
+                                      transition_group=transition_group)
+    #
+    # some heuristics to make the whole thing faster, if already the charged
+    # mass if twice as high as the cutoff, even with modifications we will
+    # never get into the allowed mass range.
+    if peptide.charged_mass / 2.0 > mass_cutoff: continue
+    #
+    modified = get_all_modified_peptides(peptide, oxidize_methionines, deamidate_asparagine, max_nr_modifications) 
+    for mod_peptide in modified:
+        if mod_peptide.modifications > max_nr_modifications: continue
+        transition_group += 1 
+        for mycharge in charges: 
+            mod_peptide.ssr_calc = peptide.ssr_calc
+            mod_peptide.id = peptide.id
+            mod_peptide.charge = mycharge
+            # calculate charged mass and insert peptide into db
+            mod_peptide.create_fragmentation_pattern(residues)
+            if mod_peptide.charged_mass > mass_cutoff: continue
+            insert_peptide_in_db(mod_peptide, db, peptide_table,
                                           transition_group=transition_group)
-    #we want to insert the fragments only once per peptide
-    if insert_db and dotransitions:
-        #insert fragment charge 1 and 2 into database
-        peptide.mass_H = residues.mass_H
-        collider.fast_insert_in_db(peptide, db, 1, transition_table,
-                                   transition_group=transition_group)
-        collider.fast_insert_in_db(peptide, db, 2, transition_table,
-                                   transition_group=transition_group)
-
-
-#A2 create the additional parent ions for the isotope patterns
-cursor = c
-vals = "peptide_key, q1_charge, q1, modified_sequence, ssrcalc, isotope_nr, transition_group"
-query = "SELECT parent_id, %s FROM %s" % (vals, peptide_table)
-cursor.execute( query )
-allpeptides =  cursor.fetchall()
-prepared = []
-for p in allpeptides:
-    q1_charge = p[2]
-    for i in range(1,1+PATTERNS_UP_TO):
-        prepared.append( [p[1], p[2], p[3] + (residues.mass_diffC13 * i* 1.0) / q1_charge,
-                              p[4], p[5], i, p[7]] )
-
-q = "INSERT INTO %s (%s)" % (peptide_table, vals)  + \
-     " VALUES (" + "%s," *6 + "%s)"
-c.executemany( q, prepared)
-
-# if any problems with the packet/buffer length occur, try this:
-## set global max_allowed_packet=1000000000;
-## set global net_buffer_length=1000000;
+    del modified
+    del peptide
 
 if use_sqlite: db.commit()
 

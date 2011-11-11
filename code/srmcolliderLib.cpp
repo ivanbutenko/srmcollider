@@ -24,6 +24,8 @@
  */
 
 //include our own libraries
+#ifndef SRMCOLLIDERLIB_H
+#define SRMCOLLIDERLIB_H
 #include "srmcollider.h"
 
 /* 
@@ -77,6 +79,17 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
                         return -1;
                     }
                     res_mass = 160.030653721; break;
+                case 'N': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '1' && 
+                         sequence[start+4] == '5' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 115.026945583; break;
+
                 default: 
                     PyErr_SetString(PyExc_ValueError, 
                         "Unknown modification ");
@@ -85,6 +98,7 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
             }
             //'M[147]':  131.04049 + mass_O), # oxygen
             //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
 
             acc_mass += res_mass;
             b_series[scounter] = acc_mass + MASS_H ;
@@ -171,6 +185,8 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     bool yMinusH2O  =  python::extract<bool>(parameters.attr("yMinusH2O"));
     bool yMinusNH3  =  python::extract<bool>(parameters.attr("yMinusNH3"));
     bool zions      =  python::extract<bool>(parameters.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(parameters.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(parameters.attr("MMinusNH3"));
 
     acc_mass = 0.0;
     res_mass = 0.0;
@@ -208,6 +224,17 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
                         return -1;
                     }
                     res_mass = 160.030653721; break;
+                case 'N': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '1' && 
+                         sequence[start+4] == '5' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 115.026945583; break;
+
                 default: 
                     PyErr_SetString(PyExc_ValueError, 
                         "Unknown modification ");
@@ -216,6 +243,7 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
             }
             //'M[147]':  131.04049 + mass_O), # oxygen
             //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
 
             acc_mass += res_mass;
             tmp[scounter] = acc_mass;
@@ -311,10 +339,15 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     if bPlusH2O:  self.b_plus_H2O  = [b + R.mass_H2O for b in self.b_series]
     if yMinusH2O: self.y_minus_H2O = [y - R.mass_H2O for y in self.y_series]
     if yMinusNH3: self.y_minus_NH3 = [y - R.mass_NH3 for y in self.y_series]
+    if MMinusH2O: self.waterloss = self.mass; self.allseries.append(self.waterloss)
+    if MMinusNH3: self.nh3loss =   self.mass + R.mass_H2O - R.mass_NH3; self.allseries.append(self.nh3loss)
     */
 
+    if (MMinusH2O) series[frg_cnt++] = acc_mass;
+    if (MMinusNH3) series[frg_cnt++] = acc_mass + MASS_H2O - MASS_NH3;
+
     // calculate the charged mass of the fragments
-    for (int j=0; j<frg_cnt-1; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
+    for (int j=0; j<frg_cnt; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
     return frg_cnt;
 }
 
@@ -795,3 +828,4 @@ python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int
     return result;
 }
 
+#endif

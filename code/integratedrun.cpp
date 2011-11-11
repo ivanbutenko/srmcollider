@@ -56,7 +56,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 // using magic gives a speedup of around 2fold
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
-        bool ppm );
+        bool ppm, int max_nr_isotopes, double isotope_correction);
 python::list wrap_all(python::tuple transitions, double a, double b, double c,
         double d, long thispeptide_key, int max_uis, double q3window, bool ppm);
 
@@ -230,7 +230,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 */
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
-        bool ppm )   {
+        bool ppm, int max_nr_isotopes, double isotope_correction)   {
 
     //use the defined COMBINT (default 32bit int) and some magic to do this :-)
     COMBINT one;
@@ -248,6 +248,9 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
 
     double* b_series = new double[256];
     double* y_series = new double[256];
+
+    int iso;
+    double q1_low = a; double q1_high = c;
 
     //Check whether we have more transitions than we have bits in our number
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
@@ -273,7 +276,8 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
         mytransitions[i] = entry;
     }
 
-    Interval win(Interval(K::Point_2(a,b),K::Point_2(c,d)));
+    // search for all matching peptides (including all potential isotopes)
+    Interval win(Interval(K::Point_2(a-isotope_correction,b),K::Point_2(c,d)));
     Range_tree_2->window_query(win, std::back_inserter(OutputList));
     std::vector<Key>::iterator current=OutputList.begin();
 
@@ -285,9 +289,26 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     // produce the same interefering transitions and thus the same entry in the
     // collisions per peptide table.
     while(current!=OutputList.end()){
-        if (thispeptide_key != (*current).second.peptide_key) {
 
-            precursor =  (*current).second;
+            double q1 = current->first[0];
+            int charge = current->second.q1_charge;
+            bool proceed = false;
+            // check whether there are any relevant isotopes, otherwise exclude this hit
+            for (iso=0; iso<=max_nr_isotopes; iso++) {
+                if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
+                      q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
+                {
+                    proceed = true;
+                }
+            }
+
+            if (!proceed || thispeptide_key == current->second.peptide_key) {
+              // go to next
+              current++;
+              continue;
+            }
+
+            precursor =  current->second;
             sequence = precursor.sequence;
             for (ch=1; ch<=2; ch++) {
                 //this takes about 30% of the time spent
@@ -319,7 +340,7 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
                 currenttmp = 0;
             }
 
-        }//end of if
+
       current++;
     }
 
@@ -508,7 +529,7 @@ BOOST_PYTHON_MODULE(c_integrated)
  " Signature\n"
  "list wrap_all_magic(python::tuple transitions, double a, double b,\n"
         "double c, double d, long thispeptide_key, int max_uis, double q3window,\n"
-        "bool ppm )\n"
+        "bool ppm, int max_nr_isotopes, double isotope_correction)"
     );
 
     def("getMinNeededTransitions", min_needed,

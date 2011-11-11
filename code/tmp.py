@@ -2121,3 +2121,93 @@ modified_sequence = @seq ;
 select * from 
 MRMAtlas_yeast_qqq_201002_q2 order by rand() limit 2;
 
+
+def print_trans_collisions(par, db, p_id = 1, q3_low = 300, q3_high = 2000,
+    query1_add = 'and q1_charge = 2 and q3_charge = 1'):
+    res_str = ''
+    cursor = db.cursor()
+    non_unique = {}
+    non_unique_q1 = {}
+    non_unique_ppm = {}
+    non_unique_clash = {}
+    query1 = """
+    select q3, srm_id, q1, ssrcalc, sequence, type, %(pep)s.peptide_key
+    from %(pep)s
+    inner join %(trans)s
+      on %(pep)s.transition_group = %(trans)s.group_id
+    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
+    where parent_id = %(parent_id)s
+    and q3 > %(q3_low)s and q3 < %(q3_high)s         %(query_add)s
+    """ % { 'parent_id' : p_id, 'q3_low' : q3_low,
+           'q3_high' : q3_high, 'query_add' : par.query1_add,
+           'pep' : par.peptide_table, 'trans' : par.transition_table }
+    nr_transitions = cursor.execute( query1 )
+    transitions = cursor.fetchall()
+    q1 = transitions[0][2]
+    ssrcalc = transitions[0][3]
+    sequence = transitions[0][4]
+    peptide_key = transitions[0][6]
+    prt = '\nAnalysing 2+ fragment ions of peptide nr %s\nWith sequence %s, q1 at %s and ssrcalc %s\n'
+    res_str += prt % (p_id, sequence, q1, ssrcalc) 
+    res_str += 'q3\tion      q3\tion q1   SSRcal dq3   sequence   q3charge\n'
+    #
+    query2 = """
+    select q3, q1, ssrcalc, sequence, type, q3_charge, fragment_number
+    from %(pep)s
+    inner join %(trans)s
+      on %(pep)s.transition_group = %(trans)s.group_id
+    inner join ddb.peptide on %(pep)s.peptide_key = peptide.id
+    where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+        and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+    and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+    and %(pep)s.peptide_key != %(peptide_key)d
+    and q3 > %(q3_low)s and q3 < %(q3_high)s
+    %(query_add)s
+    """ % { 'q1' : q1, 'ssrcalc' : ssrcalc, 'peptide_key' : peptide_key,
+           'q3_low':q3_low,'q3_high':q3_high, 'q1_window' : par.q1_window,
+           'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+           'pep' : par.peptide_table, 'trans' : par.transition_table }
+    tmp = cursor.execute( query2 )
+    collisions = cursor.fetchall()
+    #here we loop through all possible combinations of transitions and
+    #potential collisions and check whether we really have a collision
+    q3_window_used = par.q3_window
+    isy = True; jj = len( transitions ) / 2 + 1
+    jj = 0
+    for ii,t in enumerate(transitions):
+        ##before we didnt have y and b ions labelled
+        if ii == len( transitions ) / 2: res_str += ( "=" * 75 + '\n'); isy = False; jj = 0
+        #if isy: jj -= 1
+        #else:  jj += 1
+        jj += 1
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        this_min = q3_window_used + 1
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= this_min:
+                this_min = abs( t[0] - c[0] )
+                non_unique[ t[1] ] = c
+                non_unique_q1[ t[1] ] = q1 - c[1]
+                non_unique_ppm[ t[1] ] = (t[0] - c[0] ) * 10**6 / t[0]
+        if this_min < q3_window_used:
+            c = non_unique[ t[1] ]
+            res_str += ("""%.2f\t%s%s <==> %.2f\t%s%s %07.2f %.2f %.2f %s %s\n""" %
+                  (t[0], t[5], jj, c[0], c[4], c[6], c[1], c[2], t[0] - c[0], c[3],
+                   c[5] ) )
+        else:
+            res_str += ("""%.2f\t%s%s \n""" % (t[0], t[5], jj) )
+    return res_str
+
+
+class TransitionPeptide(object):
+    def __init__(self):
+        self.transitions = []
+    def someprint(self):
+        res_str = ''
+        prt = '\nAnalysing peptide nr %s\nWith sequence %s, q1 at %s and ssrcalc %s\n'
+        res_str += prt % (self.p_id, self.sequence, self.q1, self.ssrcalc) 
+        res_str += 'q3\tion      q3\tion q1   SSRcal dq3   sequence   q3charge\n'
+        return res_str
+    def latex_describe(self):
+        prt = '\nAnalysing peptide nr %s\nWith sequence %s, q1 at %s and ssrcalc %s\n'
+        prt = 'Analysing peptide %s \\\\ With sequence %s, q1 at %s and ssrcalc %s'
+        return prt % (self.p_id, self.sequence, self.q1, self.ssrcalc) 
