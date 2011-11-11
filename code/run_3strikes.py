@@ -233,7 +233,9 @@ for kk, pep in enumerate(self.pepids):
     for t in transitions:
         collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
             (t,), globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
-        ssrcalcvalues_dict[t[1]] = [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] 
+        svals = [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] 
+        svals.sort()
+        ssrcalcvalues_dict[t[1]] = svals
     for mytuple in tuples_2strike: 
         thistransitions = [ t for t in transitions if t[1] in mytuple]
         ssrcalcvalues = []
@@ -244,8 +246,6 @@ for kk, pep in enumerate(self.pepids):
         if min(N) == 0: tuples_3strike.append( mytuple ); continue
         # This usually takes 90 % of the time of strike 3
         #contaminated = c_getnonuis.thirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow)
-        for v in ssrcalcvalues:
-            v.sort()
         contaminated = c_getnonuis.thirdstrike_sort( N, ssrcalcvalues, strike3_ssrcalcwindow)
         if not contaminated: tuples_3strike.append( mytuple )
 
