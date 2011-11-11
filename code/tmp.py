@@ -571,6 +571,23 @@ where pI >= 14 and pI < 15
 
 
 #}}}
+
+drop TABLE hroest.humanpeptides;
+CREATE TABLE hroest.humanpeptides (
+        id int auto_increment,
+        sequence  varchar(255) )
+        ;
+
+LOAD DATA LOCAL INFILE
+'/tmp/humanpeptides.csv'
+INTO TABLE hroest.humanpeptides 
+FIELDS TERMINATED BY '\t'
+LINES TERMINATED BY '\n'
+#IGNORE 1 LINES 
+( sequence )
+;
+
+
 #################################################################
 
 #################################################################
@@ -941,9 +958,6 @@ for nr in range(1,7):
     dummy,  PEPTIDE, DECOY_da, none, dummy
 
 => then estimate FDR of the protein identifications
-
-
-
 
 
 #{{{tinas proteins
@@ -1538,38 +1552,6 @@ and p.experiment_key = 3131
 }}}
 
 
-{{{ 1. DP
-
-desc hroest.MRMAtlas_qtrap_final_no_pyroGlu ;
-
-#file dpsequences.txt
-select protein, tina.sequence as sequence, tina.peptide_key, parent_mass, retention_time,
-#q3, Intensity, Ion_description, parent_charge, m.sequence as modseq, collision_energy,
-m.protein_name as mrmatlas_protein, tina.protein as protein
-from  hroest.tmp_tinasproteins tina
-inner join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
-inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
-#make sure that the modifications are the same!
-and tina.sequence = left(m.sequence, length(m.sequence) -2)
-group by protein, sequence
-
-
-#file dpatlas.txt
-select protein, tina.sequence as sequence, tina.peptide_key, parent_mass, retention_time,
-q3, Intensity, Ion_description, parent_charge, m.sequence as modseq, collision_energy,
-m.protein_name as mrmatlas_protein, tina.protein as protein
-from  hroest.tmp_tinasproteins tina
-inner join hroest.MRMPepLink_final l on l.peptide_key = tina.peptide_key
-inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m on m.id = l.mrm_key
-#make sure that the modifications are the same!
-and tina.sequence = left(m.sequence, length(m.sequence) -2)
-;
-
-inner join hroest.MRMAtlas_qtrap_final_no_pyroGlu m
-on tina.sequence = left(m.sequence, length(m.sequence) -2)
-
-
-    }}}
 {{{ 2. Spectral count
 
 
