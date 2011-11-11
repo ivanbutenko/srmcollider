@@ -721,7 +721,7 @@ bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
     python::list result;
     int M = python::extract<int>(myN.attr("__len__")());
 
-    int j, k, i;
+    int j, k, i, m;
     int* index = new int[M];
     int* N = new int[M];
     double* myssr = new double[M];
@@ -796,15 +796,21 @@ bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
             avg += myssr[k];
         }
         avg /= M;
+
         contaminationfree = false;
         for(k=0; k < M; k++) {
-            //if one of them deviates more than ssrwindow from the avg, 
+            //if one pair deviates more than ssrwindow from the avg, 
             //there is no contamination, we are done with this index combination
-            if( fabs(myssr[k] - avg) > ssrwindow) {
-                contaminationfree = true; break;}
+            for(m=k+1; m < M; m++) {
+                if( fabs(myssr[k] - myssr[m]) > ssrwindow) {
+                    contaminationfree = true; 
+                    goto found_free;
+                    }
+            }
         }
         if(not contaminationfree) {contaminated = true; break;}
 
+found_free:
         //CALCULATE NEW INDEX
         // go through all combinations of M-tuples from the different arrays
         index[ M-1 ] += 1;
@@ -830,6 +836,142 @@ bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
 
     return contaminated;
 }
+
+bool thirdstrike_sort(python::list myN, python::list py_ssrcalcvalues, double
+        ssrwindow ) {
+
+    python::list result;
+    int M = python::extract<int>(myN.attr("__len__")());
+
+    int j, k, i, m;
+    int* index = new int[M];
+    int* N = new int[M];
+    double* myssr = new double[M];
+    double avg;
+    bool contaminationfree;
+    bool contaminated = false;
+
+    //check whether allocation was successfull
+    if (! (index && N && myssr)) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return false; }
+
+    for(int k=0;k<M;k++) index[k] = 0;
+    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
+    int sumlen = 0;
+    for(int k=0;k<M;k++) sumlen += N[k];
+
+    //allocate and check whether allocation was successfull
+    double **c_ssrcalcvalues = (double **) malloc(M * sizeof(double *));
+    if (!c_ssrcalcvalues) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return false; }
+
+    //allocate and check whether allocation was successfull
+    c_ssrcalcvalues[0] = (double *) malloc(sumlen * sizeof(double));
+    if (!c_ssrcalcvalues[0]) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return false; }
+
+    //calculate start position for each array in allocated memory and then fill 
+    for(i = 1; i < M; i++)  
+        c_ssrcalcvalues[i] = c_ssrcalcvalues[i-1] + N[i-1];
+    python::list tmplist;
+    for(k = 0; k < M; k++) {
+        tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
+        for(i = 0; i < N[k]; i++) {
+            c_ssrcalcvalues[k][i] = python::extract<double>(tmplist[i]); }
+    }
+
+    while(true) {
+
+        for(k=0; k < M; k++) {
+            myssr[k] = c_ssrcalcvalues[k][ index[k] ];
+        }
+
+        contaminationfree = false;
+        for(k=0; k < M; k++) {
+            //if one pair deviates more than ssrwindow from the avg, 
+            //there is no contamination, we are done with this index combination
+            for(m=k+1; m < M; m++) {
+                if( fabs(myssr[k] - myssr[m]) > ssrwindow) {
+                    contaminationfree = true; 
+                    goto found_free;
+                    }
+            }
+        }
+        if(not contaminationfree) {
+            contaminated = true; break;}
+
+found_free:
+        //CALCULATE NEW INDEX
+        // "zig-zag" through the array, always increasing the index of the
+        // minimal SSRCalc value. We are interested in finding tuples of
+        // values that are closest to each other.
+        double min = myssr[0]; int mink =0;
+        for(k=0; k < M; k++) {
+            if(myssr[k] < min)
+            {
+                min = myssr[k];
+                mink = k;
+            }
+        }
+        index[mink]++;
+        if(index[mink] >= N[mink])
+        {
+            break;
+        }
+    }
+
+    free((void *)c_ssrcalcvalues);
+    delete [] index;
+    delete [] N;
+    delete [] myssr;
+
+    return contaminated;
+
+
+/*
+def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
+    for v in ssrcalcvalues:
+        v.sort()
+    #print ssrcalcvalues
+    M = len(ssrcalcvalues)
+    index = [0 for i in range(M)]
+    myssr = [0 for i in range(M)]
+    while True:
+
+        #//for(k=0; k < M; k++) {
+        #//myssr[k] = c_ssrcalcvalues[k][ index[k] ];
+        for k in range(M):
+            myssr[k] = ssrcalcvalues[k][ index[k] ]
+
+        contaminationfree = False;
+        for k in range(M):
+          for m in range(k+1,M):
+              if( abs(myssr[k] - myssr[m]) > strike3_ssrcalcwindow):
+                    contaminationfree = True; 
+                    
+        if(not contaminationfree): return True
+        #print myssr, index, not contaminationfree
+        for ii,t in enumerate(myssr):
+            if t == min(myssr):
+                index[ii] += 1
+                break
+        if index[ii] >= len(ssrcalcvalues[ii]) : 
+            #print "break out of loop"
+            break
+        
+    return False
+*/
+}
+
 
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
@@ -938,6 +1080,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
    def("_find_clashes_forall", _find_clashes_forall, "");
    def("_find_clashes_forall_other_series", _find_clashes_forall_other_series, "");
    def ("thirdstrike", thirdstrike);
+   def ("thirdstrike_sort", thirdstrike_sort);
 
 }
 

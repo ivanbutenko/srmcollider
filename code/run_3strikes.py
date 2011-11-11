@@ -251,7 +251,11 @@ for kk, pep in enumerate(self.pepids):
         N = [len(v) for v in ssrcalcvalues]
         # if one of the transitions is contamination-free, the whole set is ok
         if min(N) == 0: tuples_3strike.append( mytuple ); continue
-        contaminated = c_getnonuis.thirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow)
+        # This usually takes 90 % of the time of strike 3
+        #contaminated = c_getnonuis.thirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow)
+        for v in ssrcalcvalues:
+            v.sort()
+        contaminated = c_getnonuis.thirdstrike_sort( N, ssrcalcvalues, strike3_ssrcalcwindow)
         if not contaminated: tuples_3strike.append( mytuple )
 
     print "1 strike", len(tuples_1strike),  "\t2 strike", len(tuples_2strike),\
