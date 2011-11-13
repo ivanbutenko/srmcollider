@@ -201,7 +201,7 @@ def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
           if sort_idx[k] in discarded_indices: continue 
           nonuis = [k]
           for m in range(k+1,M):
-              if not m == k and not (abs(myssr[k] - myssr[m]) > strike3_ssrcalcwindow):
+              if not sort_idx[m] in discarded_indices and not m == k and not (abs(myssr[k] - myssr[m]) > strike3_ssrcalcwindow):
                   nonuis.append(m)
           backsorted = [sort_idx[n] for n in nonuis]
           backsorted.sort()
