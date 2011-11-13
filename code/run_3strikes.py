@@ -261,7 +261,10 @@ for kk, pep in enumerate(self.pepids):
     non_useable_combinations = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
     srm_ids = [t[1] for t in transitions]
     ##print tmpnonlist, srm_ids, myorder
-    tuples_1strike = collider.get_uis(srm_ids, non_useable_combinations, myorder)
+    #tuples_1strike = collider.get_uis(srm_ids, non_useable_combinations, myorder)
+    tp1len = 0
+    if not nr_transitions < myorder:
+      tp1len = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
 
     ###############################################################
     #strike 2: it has to be locally clean
@@ -311,8 +314,8 @@ for kk, pep in enumerate(self.pepids):
       tp3len = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
 
     if tp3len > 0: at_least_one += 1
-    prepare.append( [ tp3len, #len(tuples_3strike), 
-      collider.choose(nr_transitions, min(myorder, nr_transitions)), len(tuples_2strike)-tp3len ] )
+    prepare.append( [ tp3len, 
+      collider.choose(nr_transitions, min(myorder, nr_transitions)), tp1len-tp3len ] )
     progressm.update(1)
 
 print "Analysed:", kk
