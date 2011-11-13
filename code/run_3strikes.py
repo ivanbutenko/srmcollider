@@ -257,9 +257,11 @@ for kk, pep in enumerate(self.pepids):
                        if parentid_lookup[myid[0]][2]  != pep['transition_group']])
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
         transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
-    tmpnonlist = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
+    #print "=", collisions_per_peptide
+    non_useable_combinations = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
     srm_ids = [t[1] for t in transitions]
-    tuples_1strike = collider.get_uis(srm_ids, tmpnonlist, myorder)
+    ##print tmpnonlist, srm_ids, myorder
+    tuples_1strike = collider.get_uis(srm_ids, non_useable_combinations, myorder)
 
     ###############################################################
     #strike 2: it has to be locally clean
@@ -284,44 +286,33 @@ for kk, pep in enumerate(self.pepids):
     ###############################################################
     #strike 3: the transitions in the tuple shall not coelute elsewhere
     # Strike 3 takes usually over 90 % of the time
-    tuples_3strike = []
     # 1. For each tuple that we found, find all peptides that collide with
     #    each single transition and store their SSRCalc values. For a tuple of
     #    n transitions, we get n vectors with a number of SSRCalc values.
     # 2. Check whether there exists one retention time (SSRcalc value) that is
     #    present in all vectors.
-    ssrcalcvalues_dict = {}
+    ssrcalcvalues = []
+    # complexity: nr_tr * k * log(k)
     for t in transitions:
         collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
             (t,), globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
         svals = [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] 
         svals.sort()
-        ssrcalcvalues_dict[t[1]] = svals
-    for mytuple in tuples_2strike: 
-        thistransitions = [ t for t in transitions if t[1] in mytuple]
-        ssrcalcvalues = []
-        for t in thistransitions:
-            ssrcalcvalues.append(  ssrcalcvalues_dict [t[1]] )
-        N = [len(v) for v in ssrcalcvalues]
-        # if one of the transitions is contamination-free, the whole set is ok
-        if min(N) == 0: tuples_3strike.append( mytuple ); continue
-        # This usually takes 90 % of the time of strike 3
-        #contaminated = c_getnonuis.thirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow)
-        contaminated = c_getnonuis.thirdstrike_sort( N, ssrcalcvalues, strike3_ssrcalcwindow)
-        if not contaminated: tuples_3strike.append( mytuple )
+        ssrcalcvalues.append(svals)
 
-    old_len_tuples = len(tuples_3strike)
-
-    ssrcalcvalues = ssrcalcvalues_dict.values()
     N = [len(v) for v in ssrcalcvalues]
-    contaminated = thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow)
-    newdic = dict([(i,list(v)) for i,v in enumerate(contaminated.keys())])
-    tmpnonlist.update(c_getnonuis.get_non_uis( newdic, myorder))
-    tuples_3strike = collider.get_uis(srm_ids, tmpnonlist, myorder)
+    cont_comb_list = c_getnonuis.calculate_eUIS(N, ssrcalcvalues, strike3_ssrcalcwindow)
 
-    if len(tuples_3strike) > 0: at_least_one += 1
-    prepare.append( [ len(tuples_3strike), 
-        collider.choose(nr_transitions, min(myorder, nr_transitions)), len(tuples_2strike)-len(tuples_3strike) ] )
+    # updated the non-UIS dictionary
+    newdic = dict([(i,list(v)) for i,v in enumerate(cont_comb_list)])
+    non_useable_combinations.update(c_getnonuis.get_non_uis( newdic, myorder))
+    tp3len = 0
+    if not nr_transitions < myorder:
+      tp3len = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
+
+    if tp3len > 0: at_least_one += 1
+    prepare.append( [ tp3len, #len(tuples_3strike), 
+      collider.choose(nr_transitions, min(myorder, nr_transitions)), len(tuples_2strike)-tp3len ] )
     progressm.update(1)
 
 print "Analysed:", kk

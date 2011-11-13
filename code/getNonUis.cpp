@@ -37,6 +37,11 @@
 #include "srmcollider.h"
 #include "srmcolliderLib.cpp"
 
+bool SortIntDoublePairSecond(const std::pair<int,double>& left, const std::pair<int,double>& right)
+{
+  return left.second < right.second;
+}
+
 
 // Function declarations
 
@@ -928,6 +933,156 @@ def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
 }
 
 
+python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, double
+        ssrwindow) {
+
+    python::list result;
+    int M = python::extract<int>(myN.attr("__len__")());
+
+    int k, i;
+    unsigned int m, n, o;
+    int sumlen = 0;
+    std::vector<int> index; index.resize(M);
+    std::vector<int> sort_idx; sort_idx.resize(M);
+    std::vector<int> N; N.resize(M);
+    std::vector<bool> discarded_indices; discarded_indices.resize(M);
+    std::vector<double> myssr; myssr.resize(M);
+    std::vector<std::vector<int> > all_nonuis;
+
+    for(int k=0;k<M;k++) index[k] = 0;
+    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
+    for(int k=0;k<M;k++) sumlen += N[k];
+    for(int k=0;k<M;k++) discarded_indices[k] = false;
+
+    std::vector<std::vector<double> > c_ssrcalcvalues; c_ssrcalcvalues.resize(M);
+    for(k = 0; k < M; k++) { c_ssrcalcvalues[k].resize(N[k]); }
+
+    python::list tmplist;
+    double max_elem = 0;
+    for(k = 0; k < M; k++) {
+        tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
+        for(i = 0; i < N[k]; i++) {
+            c_ssrcalcvalues[k][i] = python::extract<double>(tmplist[i]); 
+            if (c_ssrcalcvalues[k][i] > max_elem) {max_elem = c_ssrcalcvalues[k][i];}
+        }
+    }
+
+    //# check whether there are any empty ssrcalcvalues
+    int cnt =0;
+    for(k=0; k < M; k++) {
+      if(N[k] == 0)
+      {
+        discarded_indices[k] = true;
+        cnt++;
+      }
+    }
+
+    if(cnt==M) {return result;}
+
+    while(true) {
+
+        for(k=0; k < M; k++) {
+          if(!discarded_indices[k])
+          {
+            myssr[k] = c_ssrcalcvalues[k][ index[k] ];
+          }
+        }
+
+        // find the pivot element
+        double smin = max_elem;
+        int piv_i = -1;
+        for(k=0; k < M; k++) 
+        {
+          if(!discarded_indices[k])
+            if(myssr[k] <= smin) {
+              smin = myssr[k];
+              piv_i = k;
+            }
+        }
+
+        //# we need to sort by we also need to have a map back to retrieve the original!
+        // store them in a pair with the index, sort, retrieve values and index
+        std::vector< std::pair<int,double> > with_index;
+        for(k=0; k < M; k++) {
+          with_index.push_back(std::make_pair(k,myssr[k]));
+        }
+        std::stable_sort(with_index.begin(), with_index.end(), SortIntDoublePairSecond);
+        for(k=0; k < M; k++) {
+          sort_idx[k] = with_index[k].first;
+          myssr[k] = with_index[k].second;
+        }
+
+        //# now find all N different combinations that are not UIS. Since they are
+        //# sorted we only need to consider elements that have a higher index.
+        for(k=0; k < M; k++) {
+          if(discarded_indices[sort_idx[k]]) continue;
+
+          std::vector<int> nonuis;
+          nonuis.push_back(sort_idx[k]);
+          for(i=k+1; i < M; i++) {
+              if(!(fabs(myssr[k] - myssr[i]) > ssrwindow))
+              {
+                if(discarded_indices[sort_idx[i]]) continue;
+                nonuis.push_back(sort_idx[i]);
+              }
+          }
+
+          // here we have to figure out whether we want to append it (e.g. if it is not yet present)
+          std::sort(nonuis.begin(), nonuis.end());
+          bool is_present = false;
+          bool this_not_present = true;
+          for(m=0; m<all_nonuis.size(); m++)
+          {
+            this_not_present = false;
+            for(n=0; n<all_nonuis[m].size() and n < nonuis.size(); n++)
+            {
+              //for(o=0; o<nonuis.size(); o++)
+              
+                if(nonuis[n] != all_nonuis[m][n])
+                {
+                  this_not_present = true; break;
+                }
+              
+            }
+            if(all_nonuis[m].size() != nonuis.size()) {this_not_present = true;}
+            //cout << " compared " << m << endl;
+            if(!this_not_present) {
+              is_present = true; 
+              break;
+            }
+          }
+
+          if(!is_present)
+          {
+            all_nonuis.push_back(nonuis);
+          }
+        }
+
+        //# Advance the pivot element
+        index[piv_i] += 1;
+        if(index[piv_i] >= N[piv_i])
+        {
+            discarded_indices[ piv_i ] = true;
+            int dcount = 0;
+            while(dcount < M && discarded_indices[dcount]) dcount++;
+            if(dcount >= M)
+                break;
+        }
+    } // end of while loop
+
+    // convert to python datastructure
+    for(m=0; m<all_nonuis.size(); m++)
+    {
+      python::list tmplist;
+      for(n=0; n<all_nonuis[m].size(); n++)
+      {
+        tmplist.append(all_nonuis[m][n]);
+      }
+      result.append(tmplist);
+    }
+    return result;
+}
+
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
 {
@@ -1036,6 +1191,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
    def("_find_clashes_forall_other_series", _find_clashes_forall_other_series, "");
    def ("thirdstrike", thirdstrike);
    def ("thirdstrike_sort", thirdstrike_sort);
+   def ("calculate_eUIS", calculate_eUIS);
 
 }
 
