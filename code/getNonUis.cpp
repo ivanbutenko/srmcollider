@@ -722,63 +722,23 @@ bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
     int M = python::extract<int>(myN.attr("__len__")());
 
     int j, k, i, m;
-    int* index = new int[M];
-    int* N = new int[M];
-    double* myssr = new double[M];
+
+    std::vector<int> index; index.resize(M);
+    std::vector<int> N; N.resize(M);
+    std::vector<double> myssr; myssr.resize(M);
+
     double avg;
     bool contaminationfree;
     bool contaminated = false;
-
-    //check whether allocation was successfull
-    if (! (index && N && myssr)) {
-        PyErr_SetString(PyExc_ValueError, 
-            "Memory allocation failed. Sorry.");
-        python::throw_error_already_set();
-        return false; }
 
     for(int k=0;k<M;k++) index[k] = 0;
     for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
     int sumlen = 0;
     for(int k=0;k<M;k++) sumlen += N[k];
 
-    /*
-     * Memory layout
-     *
-     * First we allocate memory for an array that contains pointers to arrays.
-     * We need M arrays, so this array has M entries. Then we allocate enough
-     * consecutive memory to hold all our data, e.g. sumlen data. After this we
-     * can fill our first array with the points to the correct place in the
-     * second memory allocation space.
-     * 
-     * If our memory looks like this, 
-     *
-     * [ . . . . . . x . . . . . . y . . . . . . . . . . . z . . . ]
-     *
-     * and x,y,z are the starting points of an array, then c_ssrcalcvalues[0]
-     * will point to the start, c_ssrcalcvalues[1] will point to x, 2 to y etc.
-     * We thus have a matrix with different row lengths.
-     * 
-    */
+    std::vector<std::vector<double> > c_ssrcalcvalues; c_ssrcalcvalues.resize(M);
+    for(k = 0; k < M; k++) { c_ssrcalcvalues[k].resize(N[k]); }
 
-    //allocate and check whether allocation was successfull
-    double **c_ssrcalcvalues = (double **) malloc(M * sizeof(double *));
-    if (!c_ssrcalcvalues) {
-        PyErr_SetString(PyExc_ValueError, 
-            "Memory allocation failed. Sorry.");
-        python::throw_error_already_set();
-        return false; }
-
-    //allocate and check whether allocation was successfull
-    c_ssrcalcvalues[0] = (double *) malloc(sumlen * sizeof(double));
-    if (!c_ssrcalcvalues[0]) {
-        PyErr_SetString(PyExc_ValueError, 
-            "Memory allocation failed. Sorry.");
-        python::throw_error_already_set();
-        return false; }
-
-    //calculate start position for each array in allocated memory and then fill 
-    for(i = 1; i < M; i++)  
-        c_ssrcalcvalues[i] = c_ssrcalcvalues[i-1] + N[i-1];
     python::list tmplist;
     for(k = 0; k < M; k++) {
         tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
@@ -828,11 +788,6 @@ found_free:
         }
 
     }
-
-    free((void *)c_ssrcalcvalues);
-    delete [] index;
-    delete [] N;
-    delete [] myssr;
 
     return contaminated;
 }
