@@ -131,7 +131,8 @@ mypepids = [
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
-parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
+# parent_id : q1, sequence, trans_group, q1_charge
+parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3]) ] 
             for r in alltuples
     #if r[3] == 2 and r[6] == 0
 ]
@@ -250,11 +251,28 @@ for kk, pep in enumerate(self.pepids):
     #strike 1: it has to be global UIS
     # ssrcalc_low = -999
     # ssrcalc_high = 999
+
+    import Residues
+    R = Residues.Residues('mono')
+    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+    q1_low = q1 - par.q1_window -isotope_correction ; q1_high = q1 + par.q1_window
+    print q1_low, q1_high, ssrcalc_low, ssrcalc_high
+
+    par.print_query  = True
     precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
                                                  q1_high,  ssrcalc_high )  )
-    globalprecursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                        #dont select myself 
-                       if parentid_lookup[myid[0]][2]  != pep['transition_group']])
+    # filter out wrong isotopes
+    globalprecursors = []
+    for myid in precursor_ids:
+      append = False
+      r = parentid_lookup[myid[0]]
+      ch = r[3]
+      for iso in range(par.isotopes_up_to+1):
+        if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
+            r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
+      if(append and r[2]  != pep['transition_group']): globalprecursors.append(r)
+
+    globalprecursors = tuple(globalprecursors)
     collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
         transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
     #print "=", collisions_per_peptide
