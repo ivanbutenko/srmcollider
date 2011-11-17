@@ -49,7 +49,7 @@
 
 // Function declarations
 void create_tree(python::tuple pepids) ;
-python::list query_tree(double a, double b, double c, double d);
+python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction);
 
 struct Precursor{
   long parent_id;

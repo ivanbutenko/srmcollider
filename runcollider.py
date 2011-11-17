@@ -118,6 +118,9 @@ parser.add_option_group(group)
 parameters = collider.SRM_parameters()
 parameters.parse_cmdl_args(parser, default_mysql=default_mysql)
 options, args = parser.parse_args(sys.argv[1:])
+parameters.parse_options(options)
+
+
 
 #local arguments
 safetytransitions = options.safetytransitions
@@ -129,18 +132,8 @@ use_experimental_height = False
 if options.exp_resultfile != '': use_experimental_height = True
 
 par = parameters
-par.__dict__.update( options.__dict__ )
-par.q3_range = [options.q3_low, options.q3_high]
-par.q1_window /= 2.0
-par.q3_window /= 2.0
-par.ssrcalc_window /= 2.0
-if par.ppm == 'True': par.ppm = True
-elif par.ppm == 'False': par.ppm = False
-elif par.ppm in [True, False]: pass
-else: 'wrong arg for ppm'; assert False
-
-parameters.peptide_table = peptide_table
 parameters.dontdo2p2f = False
+parameters.peptide_table = peptide_table
 parameters.eval()
 
 if par.max_uis == 0:
@@ -154,7 +147,7 @@ try:
     use_cpp = True
 except ImportError: use_cpp = False
 
-db = MySQLdb.connect(read_default_file=options.mysql_config)
+db = MySQLdb.connect(read_default_file=par.mysql_config)
 cursor = db.cursor()
 try:
     cursor.execute("desc %s" % parameters.peptide_table)
@@ -433,7 +426,7 @@ for counter,spectrum in enumerate(library):
         'q1' :         spectrum.precursorMZ,
         'q1_charge' :  spectrum.name.split('/')[1],
         'ssrcalc' :    ssrcalc,
-        'peptide_key' :-1,
+        'transition_group' :-1,
     }
     transitions = [ (p.peak, i) for i,p in enumerate(peaks)]
     if use_experimental_height: transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
@@ -443,11 +436,11 @@ for counter,spectrum in enumerate(library):
     pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]')
     #
     # Get all interfering precursors (all but the one of the current peptide)
-    # If we dont use C++, we need to get the peptide_key correct
+    # If we dont use C++, we need to get the transition_group correct
     precursors = mycollider._get_all_precursors(par, pep, cursor)
     if not use_cpp: 
         own_peptide = [p for p in precursors if p[1] == pep['mod_sequence'] ]
-        if len(own_peptide) > 0: pep['peptide_key'] = own_peptide[0][2]
+        if len(own_peptide) > 0: pep['transition_group'] = own_peptide[0][2]
     precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
     R = Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
@@ -466,7 +459,7 @@ for counter,spectrum in enumerate(library):
     if not use_experimental_height and use_cpp:
         import c_integrated
         min_needed = c_integrated.getMinNeededTransitions(tuple(transitions), tuple(precursors), 
-            par.max_uis, par.q3_window, par.ppm)
+            par.max_uis, par.q3_window, par.ppm, par)
     elif not use_experimental_height:
         collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
             transitions, par, pep, cursor)

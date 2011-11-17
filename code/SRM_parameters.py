@@ -139,19 +139,17 @@ class SRM_parameters(object):
         #query1 will get all interesting transitions
         #query2 will get all colliding transitions
         self.query_add = "and isotope_nr = 0 "
-        self.query1_add = "and isotope_nr = 0"
         self.query2_add = ""
         self.ppm_string = "Th"
         if self.do_1vs :
             self.query_add += "and q1_charge = 2 "
-            self.query1_add = self.do_1_only
         if self.do_vs1 : 
             self.query2_add += self.do_1_only
         elif self.dontdo2p2f:
-            self.query2_add += "and not (q1_charge = 2 and q3_charge = 2) "
+            assert False
         #
         # is default since isotopes are not in the database any more
-        self.query2_add += " and isotope_nr = 0 " 
+        self.query2_add += " " 
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
@@ -243,6 +241,39 @@ class SRM_parameters(object):
 
     @property
     def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
+
+    def print_ionseries(self):
+        print """
+            self.bions      =  %s
+            self.yions      =  %s
+            self.aions      =  %s
+            self.aMinusNH3  =  %s
+            self.bMinusH2O  =  %s
+            self.bMinusNH3  =  %s
+            self.bPlusH2O   =  %s
+            self.yMinusH2O  =  %s
+            self.yMinusNH3  =  %s
+            self.cions      =  %s
+            self.xions      =  %s
+            self.zions      =  %s
+            self.MMinusH2O  =  %s
+            self.MMinusNH3  =  %s
+        """ % (
+            self.bions      ,
+            self.yions      ,
+            self.aions      ,
+            self.aMinusNH3  ,
+            self.bMinusH2O  ,
+            self.bMinusNH3  ,
+            self.bPlusH2O   ,
+            self.yMinusH2O  ,
+            self.yMinusNH3  ,
+            self.cions      ,
+            self.xions      ,
+            self.zions      ,
+            self.MMinusH2O  ,
+            self.MMinusNH3  ,
+            )
 
 def testcase(testdatabase='srmcollider'):
     par = SRM_parameters()
