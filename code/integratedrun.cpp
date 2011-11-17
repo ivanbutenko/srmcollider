@@ -224,7 +224,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 
     //we have counted from 0 to N-1, but now want the number of transitions
     ++maxoverlap;
-    if(maxoverlab > transitions_length) {return -1;}
+    if(maxoverlap > transitions_length) {return -1;}
     return maxoverlap;
 }
 

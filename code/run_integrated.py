@@ -142,7 +142,7 @@ for pep in self.pepids:
     try:
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, pep['transition_group'],  
-            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction)
+            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
     except ValueError: print "Too many transitions for", pep['sequence']; continue
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (result[order-1], collider.choose(nr_transitions, 

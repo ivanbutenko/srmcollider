@@ -74,6 +74,8 @@ class Test_cgetnonuis(unittest.TestCase):
             self.par.cions      =  False
             self.par.xions      =  False
             self.par.zions      =  False
+            self.par.MMinusH2O      =  False
+            self.par.MMinusNH3      =  False
 
 
     def test_getnonuis(self):
@@ -391,6 +393,8 @@ class Test_cgetnonuis(unittest.TestCase):
             par.cions      =  False
             par.xions      =  False #
             par.zions      =  False #
+            par.MMinusH2O      =  False
+            par.MMinusNH3      =  False
 
             q3_high = self.q3_high
             q3_low = self.q3_low

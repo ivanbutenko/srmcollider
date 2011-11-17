@@ -141,6 +141,8 @@ class Test_collider_function(unittest.TestCase):
         self.par.cions      = False
         self.par.xions      = False
         self.par.zions      = False
+        self.par.MMinusH2O      = False
+        self.par.MMinusNH3      = False
 
 
         def returnrange(): return self.q3_high, self.q3_low

@@ -151,7 +151,7 @@ class Residues:
     mass_CAM = 2* mass_C + 4*mass_H + mass_O + mass_N #CH2-CONH2
 
     mass_C13 = monoisotopic_elements['C13']
-    mass_C13 = monoisotopic_elements['N15']
+    mass_N15 = monoisotopic_elements['N15']
     mass_diffC13 = mass_C13 - mass_C
     mass_diffN15 = mass_N15 - mass_N
 
