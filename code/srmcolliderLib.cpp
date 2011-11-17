@@ -35,6 +35,14 @@
  * holds the y-(n-1) ion and y_series[n-1] holds the y-1 ion.
  */
 
+int _calculate_clashes_other_series_sub(const char* sequence, double* tmp, 
+        double* series, double ch, 
+        bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
+        bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
+        bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
+        bool MMinusH2O , bool MMinusNH3
+        ) ;
+
 int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
         double ch) {
 
@@ -166,13 +174,6 @@ int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
 int _calculate_clashes_other_series(const char* sequence, double* tmp, 
         double* series, double ch, python::object parameters) {
 
-    int j, start, scounter;
-    double acc_mass, res_mass;
-    char c;
-    bool inside;
-    int frg_cnt = 0;
-
-    // this takes 20% of the total time, just to extact the values
     bool aions      =  python::extract<bool>(parameters.attr("aions"));
     bool aMinusNH3  =  python::extract<bool>(parameters.attr("aMinusNH3"));
     bool bions      =  python::extract<bool>(parameters.attr("bions"));
@@ -187,6 +188,27 @@ int _calculate_clashes_other_series(const char* sequence, double* tmp,
     bool zions      =  python::extract<bool>(parameters.attr("zions"));
     bool MMinusH2O  =  python::extract<bool>(parameters.attr("MMinusH2O"));
     bool MMinusNH3  =  python::extract<bool>(parameters.attr("MMinusNH3"));
+
+return _calculate_clashes_other_series_sub(sequence, tmp, 
+        series, ch, aions, aMinusNH3, bions, bMinusH2O,
+        bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
+        yMinusNH3, zions, MMinusH2O, MMinusNH3);
+
+}
+
+int _calculate_clashes_other_series_sub(const char* sequence, double* tmp, 
+        double* series, double ch, 
+        bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
+        bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
+        bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
+        bool MMinusH2O , bool MMinusNH3
+        ) {
+
+    int j, start, scounter;
+    double acc_mass, res_mass;
+    char c;
+    bool inside;
+    int frg_cnt = 0;
 
     acc_mass = 0.0;
     res_mass = 0.0;

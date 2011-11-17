@@ -84,7 +84,7 @@ bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
  * Function to calculate the collisions_per_peptide out of a set of 
  * transitions and collisions. It will return a dictionary 
  * where for each key (colliding peptide key) the set of transitions
- * of the query peptide are stored that are interfered with is held.
+ * of the query peptide are stored that are interfered with.
  * Transitions are tuples of the form (q3, srm_id), collisions are tuples of the
  * form (q3, q1, srm_id, peptide_key).
  *
@@ -191,8 +191,23 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     double t0, q3used = q3window;
     char* sequence;
 
-    double* series = new double[10*256];
-    double* tmp_series = new double[256];
+    double* series = new double[1024];
+    double* tmp_series = new double[1024];
+
+    bool aions      =  python::extract<bool>(par.attr("aions"));
+    bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    bool bions      =  python::extract<bool>(par.attr("bions"));
+    bool bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    bool bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    bool bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    bool cions      =  python::extract<bool>(par.attr("cions"));
+    bool xions      =  python::extract<bool>(par.attr("xions"));
+    bool yions      =  python::extract<bool>(par.attr("yions"));
+    bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    bool zions      =  python::extract<bool>(par.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     // go through all (potential) collisions
     // and store the colliding SRM ids in a dictionary (they can be found at
@@ -202,7 +217,10 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         sequence = python::extract<char *>(clist[1]);
 
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes_other_series(sequence, tmp_series, series, ch, par);
+            fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
+                  aions, aMinusNH3, bions, bMinusH2O,
+                  bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
+                  yMinusNH3, zions, MMinusH2O, MMinusNH3);
 
             for (i=0; i<transitions_length; i++) {
                 tlist = python::extract< python::tuple >(transitions[i]);
@@ -677,6 +695,9 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
     bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
     bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
     bool zions      =  python::extract<bool>(par.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
+
     int scounter, icounter;
     double* b_series = new double[256];
     double* y_series = new double[256];
@@ -703,6 +724,10 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
 
     if (yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
     if (yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
+
+    if (MMinusH2O && !done) {l=0;if(icounter==k){curr_ion = "MMinusH2O"; done = true;}; icounter++;}
+    if (MMinusNH3 && !done) {l=0;if(icounter==k){curr_ion = "MMinusNH3"; done = true;}; icounter++;}
+
 
     l++; // ion series starts at 1, thus add one
 
