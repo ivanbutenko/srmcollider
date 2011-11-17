@@ -1,5 +1,5 @@
 
-include collider.py setup.py create_db.py
+include collider.py setup.py create_db.py SRM_parameters.py uis_functions.py
 include run_small.py runcollider.py run_uis.py
 include *.cpp *.h
 include test/*.py

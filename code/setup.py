@@ -70,7 +70,7 @@ CGAL_libraries = ''
  
 setup(name="srmcollider",
     url = "http://www.srmcollider.org", 
-    version = "1.0",
+    version = "1.2",
     author = "Hannes Roest",
     requires=["MySQLdb", "sqlite"],
 

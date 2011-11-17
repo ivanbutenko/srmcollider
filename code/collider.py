@@ -27,9 +27,7 @@
 """
 
 import sys, os, time
-import numpy
 import progress
-import gnuplot
 import DDB
 
 from SRM_parameters import *
@@ -70,7 +68,7 @@ class SRMcollider(object):
         # if the mass of the peptide or that of any of its isotopes is within
         # the window, we will use it.
         result = cursor.fetchall()
-        assert(values[:45] == "q1, modified_sequence, transition_group, q1_charge")
+        assert(values[:50] == "q1, modified_sequence, transition_group, q1_charge")
         new_result = []
         for r in result:
           append = False
