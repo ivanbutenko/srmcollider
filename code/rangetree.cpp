@@ -51,8 +51,14 @@
 void create_tree(python::tuple pepids) ;
 python::list query_tree(double a, double b, double c, double d);
 
+struct Precursor{
+  long parent_id;
+  int q1_charge;
+};
+
+
 typedef CGAL::Cartesian<double> K;
-typedef CGAL::Range_tree_map_traits_2<K, long> Traits;
+typedef CGAL::Range_tree_map_traits_2<K, Precursor> Traits;
 typedef CGAL::Range_tree_2<Traits> Range_tree_2_type;
 
 typedef Traits::Key Key;                
@@ -66,7 +72,7 @@ void create_tree(python::tuple pepids) {
 
     python::tuple tlist;
     std::vector<Key> InputList;
-    int i;
+    int i, q1_charge;
     long parent_id;
     double ssrcalc, q1;
 
@@ -75,10 +81,13 @@ void create_tree(python::tuple pepids) {
         tlist = python::extract< python::tuple >(pepids[i]);
 
         parent_id = python::extract<long>(tlist[2]);
+        q1_charge = python::extract<int>(tlist[3]);
+
         q1 = python::extract<double>(tlist[4]);
         ssrcalc = python::extract<double>(tlist[5]);
 
-        InputList.push_back(Key(K::Point_2(q1,ssrcalc), parent_id));
+        struct Precursor entry = {parent_id, q1_charge};
+        InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
     }
     Range_tree_2->make_tree(InputList.begin(),InputList.end());
 }
@@ -87,18 +96,34 @@ void create_tree(python::tuple pepids) {
  * in the defined square defined by these four numbers.
  * Returns a list with keys that were stored in the tree.
 */
-python::list query_tree(double a, double b, double c, double d)   {
+python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   {
 
   std::vector<Key> OutputList;
   python::list result;
 
-  Interval win(Interval(K::Point_2(a,b),K::Point_2(c,d)));
+  double q1, q1_low = a, q1_high = c;
+  int charge, iso;
+  bool proceed;
+  Interval win(Interval(K::Point_2(a-correction,b),K::Point_2(c,d)));
   Range_tree_2->window_query(win, std::back_inserter(OutputList));
   std::vector<Key>::iterator current=OutputList.begin();
   while(current!=OutputList.end()){
-      result.append(python::make_tuple( (*current).second));
+
+      q1 = current->first[0];
+      charge = current->second.q1_charge;
+      proceed = false;
+      // check whether there are any relevant isotopes, otherwise exclude this hit
+      for (iso=0; iso<=max_nr_isotopes; iso++) {
+          if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
+                q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
+          {
+              proceed = true;
+          }
+      }
+
+      if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
       current++;
-    }
+  }
   return result;
 
 }

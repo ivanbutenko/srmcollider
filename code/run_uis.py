@@ -263,32 +263,14 @@ for kk, pep in enumerate(self.pepids):
         #correct rounding errors, s.t. we get the same results as before!
         ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
         ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-        precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
-                                                     q1_high,  ssrcalc_high )  )
-        if swath_mode:
-            precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                                #dont select myself 
+        precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
+            q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
+        precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                            #dont select myself 
                                if parentid_lookup[myid[0]][2]  != pep['transition_group']])
-        else:
-            precursors = []
-            # filter out wrong isotopes
-            for myid in precursor_ids:
-              append = False
-              r = parentid_lookup[myid[0]]
-              ch = r[3]
-              for iso in range(par.isotopes_up_to+1):
-                if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
-                    r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
-              if(append and r[2]  != pep['transition_group']): precursors.append(r)
 
-    import c_getnonuis
-    precursors = tuple(precursors)
-    if par.do_b_y_only():
-      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-    else:
-      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
+    collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider,
+            transitions, precursors, par, pep)
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 
     ## Lets count the number of peptides that interfere

@@ -115,7 +115,7 @@ class SRMcollider(object):
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
-                    if q3 < q3_low or q3 > q3_high: continue
+                    #if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
 
     # calculates the minimally needed number of transitions for a peptide to be
@@ -207,6 +207,38 @@ class SRMcollider(object):
         if par.print_query: print query1
         cursor.execute( query1 )
         return cursor.fetchall()
+
+def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep, 
+        forceNonCpp=False):
+    q3_low, q3_high = par.get_q3range_transitions()
+    try: 
+        #try to use C++ libraries
+        if forceNonCpp: import somedummymodulethatwillneverexist
+        import c_getnonuis
+        return c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
+            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
+    except ImportError:
+        # if we dont have any C++ code compiled, calculate fragments 
+        import Residues
+        R = Residues.Residues('mono')
+        #RN15 = Residues.Residues('mono')
+        #RN15.recalculate_monisotopic_data_for_N15()
+        collisions = self._get_all_collisions_calculate_sub(precursors,
+            par, R, q3_low, q3_high)
+
+    collisions = list(collisions)
+    collisions_per_peptide = {}
+    q3_window_used = par.q3_window
+    for t in transitions:
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    return collisions_per_peptide 
 
 def get_coll_per_peptide(self, transitions, par, pep, cursor,
         do_not_calculate=False, forceNonCpp=False):
