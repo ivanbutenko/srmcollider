@@ -4,5 +4,5 @@ include run_small.py runcollider.py run_uis.py
 include *.cpp *.h
 include test/*.py
 include cgi-scripts/* css/*
-include external/DDB.py external/progress.py external/gnuplot.py Residues.py
+include DDB.py external/progress.py Residues.py
 

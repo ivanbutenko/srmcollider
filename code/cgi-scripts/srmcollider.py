@@ -492,7 +492,10 @@ if form.has_key('peptides'):
             'yions'    : bool(form.getvalue('yions'      )),
             'yMinusH2O': bool(form.getvalue('yMinusH2O'  )),
             'yMinusNH3': bool(form.getvalue('yMinusNH3'  )),
-            'zions'    : bool(form.getvalue('zions'      ))}
+             'zions'    : bool(form.getvalue('zions'      )), 
+             'MMinusH2O': bool(form.getvalue('MMinusH2O'  )), 
+             'MMinusNH3': bool(form.getvalue('MMinusNH3'  )), 
+        }
     start = time.time()
     main( peptides, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
@@ -508,7 +511,10 @@ else:
          'yions'      ,
          'yMinusH2O'  ,
          'yMinusNH3'  ,
-         'zions'      ]
+         'zions'      ,
+         'MMinusH2O'  ,
+         'MMinusNH3'  ,
+          ]
   html_ions = ''
   for ion in ions:
       #<label class="mylabel" for="%s">%s</label>

@@ -137,6 +137,9 @@ parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3]) ]
     #if r[3] == 2 and r[6] == 0
 ]
 parentid_lookup  = dict(parentid_lookup)
+trgroup_lookup = [ [ r[1], r[5] ] 
+            for r in alltuples]
+trgroup_lookup  = dict(trgroup_lookup)
 #print "finished python lookups: ", time.time() - start
 pepkey_lookup = [ [ r[1], r[5] ] for r in alltuples ]
 pepkey_lookup  = dict(pepkey_lookup)
@@ -256,26 +259,13 @@ for kk, pep in enumerate(self.pepids):
     R = Residues.Residues('mono')
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
     q1_low = q1 - par.q1_window -isotope_correction ; q1_high = q1 + par.q1_window
-    print q1_low, q1_high, ssrcalc_low, ssrcalc_high
-
-    par.print_query  = True
-    precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
-                                                 q1_high,  ssrcalc_high )  )
-    # filter out wrong isotopes
-    globalprecursors = []
-    for myid in precursor_ids:
-      append = False
-      r = parentid_lookup[myid[0]]
-      ch = r[3]
-      for iso in range(par.isotopes_up_to+1):
-        if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
-            r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
-      if(append and r[2]  != pep['transition_group']): globalprecursors.append(r)
-
-    globalprecursors = tuple(globalprecursors)
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-        transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
-    #print "=", collisions_per_peptide
+    precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
+        q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction)  )
+    globalprecursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                #dont select myself 
+               if parentid_lookup[myid[0]][2]  != pep['transition_group']])
+    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+        transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm, par)
     non_useable_combinations = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
     srm_ids = [t[1] for t in transitions]
     ##print tmpnonlist, srm_ids, myorder
@@ -312,14 +302,14 @@ for kk, pep in enumerate(self.pepids):
     #    n transitions, we get n vectors with a number of SSRCalc values.
     # 2. Check whether there exists one retention time (SSRcalc value) that is
     #    present in all vectors.
-    ssrcalcvalues = []
-    # complexity: nr_tr * k * log(k)
-    for t in transitions:
-        collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-            (t,), globalprecursors, q3_low, q3_high, par.q3_window, par.ppm)
-        svals = [pepkey_lookup[ collkey] for collkey in collisions_per_peptide] 
-        svals.sort()
-        ssrcalcvalues.append(svals)
+    tmp = time.time()
+    # complexity: nr_tr * k 
+    # we get the list of ssrcalc-values for each transition
+    ssrcalcvalues = [ [] for t in transitions]
+    for k,v in collisions_per_peptide.iteritems():
+        ssrcalc = trgroup_lookup[k]
+        for tr in v:
+            ssrcalcvalues[tr].append(ssrcalc)
 
     N = [len(v) for v in ssrcalcvalues]
     cont_comb_list = c_getnonuis.calculate_eUIS(N, ssrcalcvalues, strike3_ssrcalcwindow)
@@ -330,10 +320,9 @@ for kk, pep in enumerate(self.pepids):
     tp3len = 0
     if not nr_transitions < myorder:
       tp3len = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
-
+      prepare.append( [ tp3len, 
+          collider.choose(nr_transitions, min(myorder, nr_transitions)), tp1len-tp3len ] )
     if tp3len > 0: at_least_one += 1
-    prepare.append( [ tp3len, 
-      collider.choose(nr_transitions, min(myorder, nr_transitions)), tp1len-tp3len ] )
     progressm.update(1)
 
 print "Analysed:", kk
