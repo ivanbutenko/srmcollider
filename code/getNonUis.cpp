@@ -186,6 +186,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch, listmembers = 0;
+    int isotope_modification;
 
     long t1, peptide_key;
     double t0, q3used = q3window;
@@ -215,12 +216,13 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     for (j=0; j<precursor_length; j++) {
         clist = python::extract< python::tuple >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
+        isotope_modification = python::extract<char *>(clist[4]);
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
                   aions, aMinusNH3, bions, bMinusH2O,
                   bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-                  yMinusNH3, zions, MMinusH2O, MMinusNH3);
+                  yMinusNH3, zions, MMinusH2O, MMinusNH3, isotope_modification);
 
             for (i=0; i<transitions_length; i++) {
                 tlist = python::extract< python::tuple >(transitions[i]);
@@ -754,7 +756,7 @@ python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, dou
     int M = python::extract<int>(myN.attr("__len__")());
 
     int k, i;
-    unsigned int m, n, o;
+    unsigned int m, n;
     int sumlen = 0;
     std::vector<int> index; index.resize(M);
     std::vector<int> sort_idx; sort_idx.resize(M);

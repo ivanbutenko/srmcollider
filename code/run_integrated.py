@@ -84,7 +84,7 @@ import Residues
 R = Residues.Residues('mono')
 isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
 q =  """
-select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
+select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
 from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
@@ -103,6 +103,7 @@ mypepids = [
                 'q1_charge' :  r[3],
                 'q1' :         r[4],
                 'ssrcalc' :    r[5],
+                'isotope_mod': r[8],
             }
             for r in alltuples
     if r[3] == 2  # charge is 2
@@ -111,11 +112,6 @@ mypepids = [
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
-parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
-            for r in alltuples
-    #if r[3] == 2 and r[6] == 0
-]
-parentid_lookup  = dict(parentid_lookup)
 
 print "building tree with %s Nodes" % len(alltuples)
 c_integrated.create_tree(tuple(alltuples))

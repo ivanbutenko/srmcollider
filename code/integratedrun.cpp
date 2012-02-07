@@ -65,6 +65,7 @@ struct Precursor{
   long peptide_key;
   long parent_id;
   int q1_charge;
+  int isotope_modification;
 };
 
 struct Transition{
@@ -85,7 +86,7 @@ void create_tree(python::tuple pepids) {
 
     python::tuple tlist;
     std::vector<Key> InputList;
-    int i, q1_charge;
+    int i, q1_charge, isotope_modification;
     long parent_id, peptide_key;
     double ssrcalc, q1;
     char* sequence;
@@ -101,8 +102,9 @@ void create_tree(python::tuple pepids) {
 
         q1 = python::extract<double>(tlist[4]);
         ssrcalc = python::extract<double>(tlist[5]);
+        isotope_modification = python::extract<double>(tlist[8]);
 
-        struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge};
+        struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
         InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
 
         /*
@@ -189,6 +191,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
     //
     int maxoverlap = 0;
     for (j=0; j<precursor_length; j++) {
+      // TODO do N15
         clist = python::extract< python::tuple >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
         for (ch=1; ch<=2; ch++) {
@@ -353,7 +356,7 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
                 fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
                   aions, aMinusNH3, bions, bMinusH2O,
                   bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-                  yMinusNH3, zions, MMinusH2O, MMinusNH3);
+                  yMinusNH3, zions, MMinusH2O, MMinusNH3, current->second.isotope_modification);
 
                 for (i=0; i<transitions_length; i++) {
                     transition = mytransitions[i];

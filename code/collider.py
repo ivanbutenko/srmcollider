@@ -29,14 +29,14 @@
 import sys, os, time
 import progress
 import DDB
+import Residues
 
 from SRM_parameters import *
 
 class SRMcollider(object):
 
     def _get_all_precursors(self, par, pep, cursor, 
-         # this seems to be somewhat faster, around 30% and can handle all isotopes
-         values="q1, modified_sequence, transition_group, q1_charge", 
+         values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
          bysequence=False):
         vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
                 'transition_group' : pep['transition_group'], 'q1_window' : par.q1_window,
@@ -48,7 +48,6 @@ class SRMcollider(object):
         vdict['selectby'] = selectby
         #
         # calculate how much lower we need to select to get all potential isotopes: lower_winow - nr_isotopes/2
-        import Residues
         R = Residues.Residues('mono')
         vdict['isotope_correction'] = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
         query2 = """
@@ -83,21 +82,27 @@ class SRMcollider(object):
     # the fragments of the precursors
     def _get_all_collisions_calculate_new(self, par, pep, cursor, 
       values="q1, modified_sequence, transition_group, q1_charge, transition_group"):
-        import Residues
         R = Residues.Residues('mono')
+        RN15 = Residues.Residues('mono')
+        RN15.recalculate_monisotopic_data_for_N15()
         q3_low, q3_high = par.get_q3range_collisions()
         return self._get_all_collisions_calculate_sub(
             self._get_all_precursors(par, pep, cursor, values=values), 
-            par, R, q3_low, q3_high)
+            par, R, q3_low, q3_high, RN15)
 
-    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high):
+
+    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high, RN15=None):
         for c in precursors:
             q1 = c[0]
             peptide_key = c[2]
             peptide = DDB.Peptide()
             peptide.set_sequence(c[1])
             peptide.charge = c[3]
-            peptide.create_fragmentation_pattern( R, 
+            if c[4] == Residues.NOISOTOPEMODIFICATION:
+              R_used = R
+            elif c[4] == Residues.N15_ISOTOPEMODIFICATION:
+              R_used = RN15
+            peptide.create_fragmentation_pattern( R_used, 
                 aions      =  par.aions    ,
                 aMinusNH3  =  par.aMinusNH3,
                 bions      =  par.bions    ,
@@ -219,12 +224,11 @@ def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep
             transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
     except ImportError:
         # if we dont have any C++ code compiled, calculate fragments 
-        import Residues
         R = Residues.Residues('mono')
-        #RN15 = Residues.Residues('mono')
-        #RN15.recalculate_monisotopic_data_for_N15()
+        RN15 = Residues.Residues('mono')
+        RN15.recalculate_monisotopic_data_for_N15()
         collisions = self._get_all_collisions_calculate_sub(precursors,
-            par, R, q3_low, q3_high)
+            par, R, q3_low, q3_high, RN15)
 
     collisions = list(collisions)
     collisions_per_peptide = {}
@@ -313,7 +317,6 @@ def calculate_transitions_ch(peptides, charges, q3_low, q3_high):
             peptides, charges, q3_low, q3_high))
 
 def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
-    import Residues
     import DDB 
     R = Residues.Residues('mono')
     for p in peptides:

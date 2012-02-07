@@ -40,7 +40,8 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
         bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
         bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
-        bool MMinusH2O , bool MMinusNH3
+        bool MMinusH2O , bool MMinusNH3 ,
+        int isotope_mod = NOISOTOPEMODIFICATION
         ) ;
 
 int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
@@ -201,7 +202,8 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
         bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
         bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
-        bool MMinusH2O , bool MMinusNH3
+        bool MMinusH2O , bool MMinusNH3 ,
+        int isotope_mod = NOISOTOPEMODIFICATION
         ) {
 
     int j, start, scounter;
@@ -217,6 +219,7 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
     inside = false;
     start = 0;
     j = 0; 
+    if(isotope_mod == NOISOTOPEMODIFICATION) {
     //go through all characters in the sequence until 0 is hit
     while((c = sequence[j++])) {
         if(sequence[j] == '[') {
@@ -251,7 +254,7 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
                          sequence[start+3] == '1' && 
                          sequence[start+4] == '5' )) {
                         PyErr_SetString(PyExc_ValueError, 
-                            "Unknown modification for cysteine");
+                            "Unknown modification for asparagine");
                         boost::python::throw_error_already_set();
                         return -1;
                     }
@@ -276,7 +279,6 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         else if(inside) { }
         else {
             //We found a regular AA
-            //TODO use hash map http://en.wikipedia.org/wiki/Hash_map_%28C%2B%2B%29
             switch(c) {
                 case 'A': res_mass = 71.03711; break;
                 case 'C': res_mass = 103.00919; break;
@@ -310,6 +312,103 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
             tmp[scounter] = acc_mass;
             scounter++;
         }
+    }
+
+    } else if(isotope_mod == N15_ISOTOPEMODIFICATION ) {
+    // using values for N15 isotopic modification 
+    while((c = sequence[j++])) {
+        if(sequence[j] == '[') {
+            start = j-1;
+            inside = true;
+        }
+        else if(sequence[j-1] == ']') {
+            //We found a modification
+            switch(sequence[start]) {
+                case 'M': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '4' && 
+                         sequence[start+4] == '7' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for methionine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                        }
+                    res_mass = 148.0324344260; break;
+                case 'C': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '6' && 
+                         sequence[start+4] == '0' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 161.027683399; break;
+                case 'N': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '1' && 
+                         sequence[start+4] == '5' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for asparagine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 116.023977918; break;
+
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown modification ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+            //'M[147]':  131.04049 + mass_O), # oxygen
+            //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
+
+            acc_mass += res_mass;
+            tmp[scounter] = acc_mass;
+            scounter++;
+
+            inside = false;
+        }
+        else if(inside) { }
+        else {
+            //We found a regular AA
+            switch(c) {
+                case 'A': res_mass = 72.0341486780; break;
+                case 'C': res_mass = 104.006219678; break;
+                case 'D': res_mass = 116.023977918; break;
+                case 'E': res_mass = 130.039627982; break;
+                case 'F': res_mass = 148.065448806; break;
+                case 'G': res_mass = 58.018498614; break;
+                case 'H': res_mass = 140.050016538; break;
+                case 'I': res_mass = 114.08109887; break;
+                case 'K': res_mass = 130.0890328; break;
+                case 'L': res_mass = 114.08109887; break;
+                case 'M': res_mass = 132.037519806; break;
+                case 'N': res_mass = 116.036997228; break;
+                case 'P': res_mass = 98.049798742; break;
+                case 'Q': res_mass = 130.052647292; break;
+                case 'R': res_mass = 160.089250596; break;
+                case 'S': res_mass = 88.029063298; break;
+                case 'T': res_mass = 102.044713362; break;
+                case 'V': res_mass = 100.065448806; break;
+                case 'W': res_mass = 188.073382736; break;
+                case 'X': res_mass = 114.08109887; break;
+                case 'Y': res_mass = 164.060363426; break;
+
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown amino acid ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+
+            acc_mass += res_mass;
+            tmp[scounter] = acc_mass;
+            scounter++;
+        }
+    } 
     }
 
     // see also http://www.matrixscience.com/help/fragmentation_help.html

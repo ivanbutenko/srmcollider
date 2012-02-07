@@ -120,7 +120,7 @@ if options.insert_mysql:
 
 start = time.time()
 q = """
-select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
+select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
@@ -158,7 +158,7 @@ if not use_db:
         R = Residues.Residues('mono')
         isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
         q = """
-        select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
+        select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr, isotopically_modified
         from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
         """ % {'peptide_table' : par.peptide_table, 
                       'lowq1'  : this_min,
@@ -182,7 +182,8 @@ if not use_db:
               if(append): new_result.append(r)
             alltuples = tuple(new_result)
     import c_rangetree
-    parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3]) ] 
+    # parent_id : q1, sequence, trans_group, q1_charge
+    parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3], r[7]) ] 
             for r in alltuples ]
     parentid_lookup  = dict(parentid_lookup)
     print "building tree with %s Nodes" % len(alltuples)
@@ -197,7 +198,7 @@ if use_db and swath_mode:
     import Residues
     R = Residues.Residues('mono')
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    values="q1, modified_sequence, transition_group, q1_charge, ssrcalc"
+    values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
     q1_low = min_q1; q1_high = max_q1
     query2 = """
     select %(values)s
