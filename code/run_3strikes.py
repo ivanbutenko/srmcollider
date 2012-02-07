@@ -162,78 +162,7 @@ This is a 3 strikes rule to find good UIS combinations.
 VERY_LARGE_SSR_WINDOW = 9999999
 myssrcalc = par.ssrcalc_window
 
-# Input: a list of ssrcalcvalues in the for each transition one row (one array)
-#           N = [len(v) for v in ssrcalcvalues]
-#           strike3_ssrcalcwindow = window of ssrcalc
-#
-# Output a dictionary whose keys are all the "forbidden" tuples, e.g. tuples of
-# transitions that are interfering and can thus not be used for an eUIS.
-def thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow, verbose=False):
-    if verbose: print "Started Python function thisthirdstrike"
-    M = len(ssrcalcvalues)
-    index = [0 for i in range(M)]
-    myssr = [0 for i in range(M)]
-    discarded_indices = []
-    all_nonuis = {}
-    # check whether there are any empty ssrcalcvalues
-    for k in range(M):
-        if len(ssrcalcvalues[k]) == 0:
-            discarded_indices.append(k)
-            if verbose: print "Python discard index " , k
-    if len(discarded_indices) == M: return {}
-
-    # in each iteration we we either advance one or add one to discarded
-    # thus we do this at most sum(N) + len(N) times which is bounded by
-    # c*k + c
-    while True:
-        myssr = [-1 for i in range(M)]
-        for k in range(M):
-            if k in discarded_indices: continue
-            myssr[k] = ssrcalcvalues[k][ index[k] ]
-
-        # find the pivot element (the smallest element that is not yet in a discarded group)
-        tmin = max(myssr); piv_i = -1
-        for k in range(M):
-            if k in discarded_indices: continue
-            if myssr[k] <= tmin:
-                tmin=myssr[k]
-                piv_i = k
-
-        # we need to sort by we also need to have a map back to retrieve the original!
-        # sorting is O(c log(c) )
-        myssr_unsorted = myssr[ : ]
-        with_in = [ (a,b) for a,b in enumerate(myssr) ]
-        with_in.sort( lambda x,y: cmp(x[1],y[1]))
-        sort_idx = [x[0] for x in with_in]
-        myssr.sort()
-        #if index == [0, 0, 1, 0, 1, 19]: print index, piv_i, tmin, "== ", myssr, sort_idx
-
-        # now find all N different combinations that are not UIS. Since they are
-        # sorted we only need to consider elements that have a higher index.
-        # all against all is O( c^2 )
-        for k in range(M):
-          # or myssr[k] == -1 would also work here
-          if sort_idx[k] in discarded_indices: continue 
-          nonuis = [k]
-          for m in range(k+1,M):
-              if not sort_idx[m] in discarded_indices and not m == k and not (abs(myssr[k] - myssr[m]) > strike3_ssrcalcwindow):
-                  nonuis.append(m)
-          backsorted = [sort_idx[n] for n in nonuis]
-          backsorted.sort()
-          if not tuple(backsorted) in all_nonuis and verbose: 
-              print k, "added tuple ", tuple(backsorted), " myssr ", myssr_unsorted #, "index ", index
-          all_nonuis[ tuple(backsorted) ] = 0
-                    
-        # Advance the pivot element
-        index[piv_i] += 1
-        if(index[piv_i] >= len(ssrcalcvalues[piv_i])):
-            discarded_indices.append(piv_i)
-            if verbose: print "wanted to advance", piv_i, "had to append to discarded ", discarded_indices
-            if len(discarded_indices) == len(ssrcalcvalues): 
-                # break out of loop
-                break
-    return all_nonuis
-
+from collider import thisthirdstrike
 
 print par.experiment_type
 self = mycollider
