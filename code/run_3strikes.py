@@ -54,15 +54,13 @@ parser.add_option_group(group)
 #Run the collider
 ###########################################################################
 #Parse options
-db = MySQLdb.connect(read_default_file="~/.my.cnf")
-cursor = db.cursor()
-par = collider.SRM_parameters()
-
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
 
+db = MySQLdb.connect(read_default_file=par.mysql_config)
+cursor = db.cursor()
 #local arguments
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
@@ -209,11 +207,9 @@ for kk, pep in enumerate(self.pepids):
         transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm, par)
     non_useable_combinations = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
     srm_ids = [t[1] for t in transitions]
-    ##print tmpnonlist, srm_ids, myorder
-    #tuples_1strike = collider.get_uis(srm_ids, non_useable_combinations, myorder)
-    tp1len = 0
+    tuples_strike1 = 0
     if not nr_transitions < myorder:
-      tp1len = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
+      tuples_strike1 = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
 
     ###############################################################
     #strike 2: it has to be locally clean
@@ -243,42 +239,60 @@ for kk, pep in enumerate(self.pepids):
     #    n transitions, we get n vectors with a number of SSRCalc values.
     # 2. Check whether there exists one retention time (SSRcalc value) that is
     #    present in all vectors.
-    tmp = time.time()
+
     # complexity: nr_tr * k 
-    # we get the list of ssrcalc-values for each transition
+    # we get the list of ssrcalc-values for each transition 
     ssrcalcvalues = [ [] for t in transitions]
     for k,v in collisions_per_peptide.iteritems():
         ssrcalc = trgroup_lookup[k]
         for tr in v:
             ssrcalcvalues[tr].append(ssrcalc)
 
+    # then sort the ssrcalc values 
+    # complexity: nr_tr * k * log(k) 
+    for i in range(len(ssrcalcvalues)):
+        ssrcalcvalues[i] = sorted(ssrcalcvalues[i])
+
+    # get the list of combinations that are not eUIS
     N = [len(v) for v in ssrcalcvalues]
     cont_comb_list = c_getnonuis.calculate_eUIS(N, ssrcalcvalues, strike3_ssrcalcwindow)
+    
+    if False:
+        #compare c++/python code
+        compare = thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow)
+        cont3 = {}
+        for c in cont_comb_list:
+            cont3[ tuple(c)] = 0
+        assert compare == cont3
 
-    # updated the non-UIS dictionary
+    # the list of combinations has to be expanded for a specific order (e.g.
+    # for order 2, a combination of (1,2,3) has to be expanded into
+    # (1,2),(1,3),(2,3) to get all subcombinations.
     newdic = dict([(i,list(v)) for i,v in enumerate(cont_comb_list)])
     non_useable_combinations.update(c_getnonuis.get_non_uis( newdic, myorder))
-    tp3len = 0
+
+    tuples_strike3 = 0
     if not nr_transitions < myorder:
-      tp3len = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
-      prepare.append( [ tp3len, 
-          collider.choose(nr_transitions, min(myorder, nr_transitions)), tp1len-tp3len ] )
-    if tp3len > 0: at_least_one += 1
+      # We are mostly interested in how many tuples are left after strike 3
+      tuples_strike3 = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
+      prepare.append( [ tuples_strike3, collider.choose(nr_transitions, 
+        min(myorder, nr_transitions)), tuples_strike1-tuples_strike3 ] )
+    # If we have at least one tuple left
+    if tuples_strike3 > 0: at_least_one += 1
     progressm.update(1)
 
-print "Analysed:", kk
-print "At least one eUIS of order %s :" % myorder, at_least_one, " which is %s %%" % (at_least_one *100.0/kk)
-f.write( "At least one eUIS of order %s : %s which is %s %%\n" % (myorder, at_least_one, at_least_one *100.0/kk) )
-f.write( "\n\nt.append([%s,%s])\n\n" % (kk, at_least_one) )
+print "Analysed:", kk + 1
+print "At least one eUIS of order %s :" % myorder, at_least_one, " which is %s %%" % (at_least_one *100.0/(kk+1))
+f.write( "At least one eUIS of order %s : %s which is %s %%\n" % (myorder, at_least_one, at_least_one *100.0/(kk+1)) )
+f.write( "\n\nt.append([%s,%s])\n\n" % ((kk+1), at_least_one) )
 
 sum_all = sum([p[0]*1.0/p[1] for p in prepare]) 
 nr_peptides = len([p for p in prepare])
 print  "Random probability to choose good", sum_all*1.0/nr_peptides
 sum_all = sum([p[2]*1.0/p[1] for p in prepare]) 
-nr_peptides = len([p for p in prepare])
 print  "Average lost in strike 3", sum_all*1.0/nr_peptides
-
-f.close()
+sum_all = sum([(p[0]+p[2])*1.0/p[1] for p in prepare]) 
+print  "Average without strike 3", 1-sum_all*1.0/nr_peptides
 
 
 
