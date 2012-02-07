@@ -162,7 +162,14 @@ This is a 3 strikes rule to find good UIS combinations.
 VERY_LARGE_SSR_WINDOW = 9999999
 myssrcalc = par.ssrcalc_window
 
-def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
+# Input: a list of ssrcalcvalues in the for each transition one row (one array)
+#           N = [len(v) for v in ssrcalcvalues]
+#           strike3_ssrcalcwindow = window of ssrcalc
+#
+# Output a dictionary whose keys are all the "forbidden" tuples, e.g. tuples of
+# transitions that are interfering and can thus not be used for an eUIS.
+def thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow, verbose=False):
+    if verbose: print "Started Python function thisthirdstrike"
     M = len(ssrcalcvalues)
     index = [0 for i in range(M)]
     myssr = [0 for i in range(M)]
@@ -172,6 +179,7 @@ def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
     for k in range(M):
         if len(ssrcalcvalues[k]) == 0:
             discarded_indices.append(k)
+            if verbose: print "Python discard index " , k
     if len(discarded_indices) == M: return {}
 
     # in each iteration we we either advance one or add one to discarded
@@ -192,6 +200,8 @@ def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
                 piv_i = k
 
         # we need to sort by we also need to have a map back to retrieve the original!
+        # sorting is O(c log(c) )
+        myssr_unsorted = myssr[ : ]
         with_in = [ (a,b) for a,b in enumerate(myssr) ]
         with_in.sort( lambda x,y: cmp(x[1],y[1]))
         sort_idx = [x[0] for x in with_in]
@@ -200,6 +210,7 @@ def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
 
         # now find all N different combinations that are not UIS. Since they are
         # sorted we only need to consider elements that have a higher index.
+        # all against all is O( c^2 )
         for k in range(M):
           # or myssr[k] == -1 would also work here
           if sort_idx[k] in discarded_indices: continue 
@@ -209,14 +220,15 @@ def thisthirdstrike( N, ssrcalcvalues, strike3_ssrcalcwindow):
                   nonuis.append(m)
           backsorted = [sort_idx[n] for n in nonuis]
           backsorted.sort()
+          if not tuple(backsorted) in all_nonuis and verbose: 
+              print k, "added tuple ", tuple(backsorted), " myssr ", myssr_unsorted #, "index ", index
           all_nonuis[ tuple(backsorted) ] = 0
-          #if len(nonuis) > 1: print "added tuple ", tuple(backsorted)
                     
         # Advance the pivot element
         index[piv_i] += 1
         if(index[piv_i] >= len(ssrcalcvalues[piv_i])):
             discarded_indices.append(piv_i)
-            #print "wanted to advance", piv_i, "had to append to discarded ", discarded_indices
+            if verbose: print "wanted to advance", piv_i, "had to append to discarded ", discarded_indices
             if len(discarded_indices) == len(ssrcalcvalues): 
                 # break out of loop
                 break

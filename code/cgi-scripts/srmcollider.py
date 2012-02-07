@@ -217,7 +217,7 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions):
         #to look ssrcalc up in the db, we need no modifications
         if len(sanitized) == 0: continue
         seqs += filter(str.isalpha, inp) + "','"
-        input_sequences.append(sanitized)
+        input_sequences.append(sanitized.upper())
     seqs = seqs[:-2]
 
     table_used = map_db_tables(genome)
