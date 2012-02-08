@@ -40,6 +40,7 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
 
 
 class Test_cgetnonuis(unittest.TestCase):
+
     def setUp(self):
             self.transitions = test_shared.transitions_def1
             self.collisions = test_shared.collisions_def1
@@ -285,7 +286,7 @@ class Test_cgetnonuis(unittest.TestCase):
             q3_low = self.q3_low
 
             precursors = ( 
-                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2, 0),
             )
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
@@ -360,7 +361,7 @@ class Test_cgetnonuis(unittest.TestCase):
             # there is an x2 316.12575                      close to transition 9  
             # there is an z3 459.19925                      close to transition 2
             precursors = ( 
-                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2, 0),
             )
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
@@ -400,7 +401,7 @@ class Test_cgetnonuis(unittest.TestCase):
             q3_low = self.q3_low
 
             precursors = ( 
-                (449.72058221399999, 'SYVAWDR', 11498839L, 2),
+                (449.72058221399999, 'SYVAWDR', 11498839L, 2, 0),
             )
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 

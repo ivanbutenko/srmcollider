@@ -52,14 +52,13 @@ def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
         for r in res
     ]
 
-def find_clashes_small(mycollider, cursor, par, pepids):
+def find_clashes_small(self, mycollider, cursor, par, pepids):
         swath_mode = False
         mycollider.allpeps = {}
         mycollider.non_unique_count = 0
         mycollider.total_count = 0
         MAX_UIS = 5
         for kk, pep in enumerate(pepids):
-            #if pep['parent_id'] != 49: continue
             p_id = pep['parent_id']
             q1 = pep['q1']
             ssrcalc = pep['ssrcalc']
@@ -77,7 +76,7 @@ def find_clashes_small(mycollider, cursor, par, pepids):
                     transitions, precursors, par, pep, forceNonCpp=False)
             collisions_per_peptide_python = collider.get_coll_per_peptide_from_precursors(mycollider,
                     transitions, precursors, par, pep, forceNonCpp=True)
-            assert collisions_per_peptide == collisions_per_peptide_python
+            self.assertEqual(collisions_per_peptide, collisions_per_peptide_python)
             non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
             # 
             # here we count how many are locally clean, e.g. look at UIS of order 1
@@ -85,6 +84,36 @@ def find_clashes_small(mycollider, cursor, par, pepids):
             mycollider.non_unique_count += len(non_uis_list[1])
             mycollider.total_count += nr_transitions
 
+def do_check_complete(self, mycollider):
+
+        nonzero = [(k,v) for k,v in mycollider.allpeps.iteritems() if v < 1.0]
+        self.assertTrue(abs(mycollider.allpeps[49] - 1.0) < 1e-5)
+        self.assertTrue(abs(mycollider.allpeps[81] - 1.0) < 1e-5)
+        self.assertEqual( len(nonzero), 18)
+
+        self.assertTrue(abs(mycollider.allpeps[111] - 0.888888888889) < 1e-5  )
+        self.assertTrue(abs(mycollider.allpeps[191] - 0.7) < 1e-5             )
+        self.assertTrue(abs(mycollider.allpeps[375] - 0.941176470588) < 1e-5  )
+        self.assertTrue(abs(mycollider.allpeps[585] - 0.875) < 1e-5           )
+        self.assertTrue(abs(mycollider.allpeps[609] - 0.888888888889) < 1e-5  )
+        self.assertTrue(abs(mycollider.allpeps[929] - 0.857142857143) < 1e-5  )
+        self.assertTrue(abs(mycollider.allpeps[1089] - 0.7) < 1e-5            )
+        self.assertTrue(abs(mycollider.allpeps[1101] - 0.916666666667) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1177] - 0.928571428571) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1493] - 0.928571428571) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1537] - 0.857142857143) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1585] - 0.933333333333) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1663] - 0.928571428571) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1763] - 0.8125) < 1e-5         )
+        self.assertTrue(abs(mycollider.allpeps[1925] - 0.928571428571) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1957] - 0.833333333333) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1967] - 0.857142857143) < 1e-5 )
+        self.assertTrue(abs(mycollider.allpeps[1991] - 0.857142857143) < 1e-5 )
+
+        self.assertTrue( abs(sum( mycollider.allpeps.values() ) - 975.6326447245566) < 10**(-3) )
+        self.assertEqual( len([v for v in mycollider.allpeps.values() if v == 1.0 ] ), 960 )
+        self.assertEqual( mycollider.non_unique_count, 26 )
+        self.assertEqual( mycollider.total_count, 12502 )
 
 class Test_collider_mysql(unittest.TestCase):
 
@@ -265,7 +294,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.assertEqual(len(collisions_per_peptide), len(test_shared.collpepresult2))
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
 
-    def disabled_test_get_coll_per_peptide_debug(self): 
+    def test_get_coll_per_peptide_debug(self): 
         """This is a small example with very few interferences, 
         good to debug"""
         pep = test_shared.runpep2
@@ -278,6 +307,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.ssrcalc_window = 2.0 / 2.0 
         self.par.query2_add = ''
         self.par.peptide_table = test_database + '.srmPeptides_human'
+        self.par.query2_add = ' and isotope_nr = 0'  # necessary because of old style tables
         self.par.print_query = False
 
         # Our q1 from peptide 'ELNQLEDK' is 494.751462374, the q1 of the
@@ -303,6 +333,9 @@ class Test_collider_mysql(unittest.TestCase):
         cursor = self.db.cursor()
         collisions_per_peptide = collider.get_coll_per_peptide(self.acollider, 
            transitions, par, pep, cursor)
+
+        self.assertEqual(len(collisions_per_peptide[359414]), 5)
+        self.assertEqual(collisions_per_peptide[359414], [3, 5, 6, 9, 14])
         print pep
         print [k for k,v in collisions_per_peptide.iteritems() if len(v) == 4]
         print [k for k,v in collisions_per_peptide.iteritems() if len(v) == 5]
@@ -315,73 +348,46 @@ class Test_collider_mysql(unittest.TestCase):
         self.assertEqual(1, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 5]))
         self.assertEqual(0, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 6]))
 
+    def test_complete_without_isotopes(self):
 
-
-    #TODO also test uis option of clashes_small
-    def test_1(self):
-
-        par  = collider.testcase(testdatabase=test_database)
+        par = collider.testcase(testdatabase=test_database)
+        par.query2_add = ' and isotope_nr = 0 ' # still necessary, old style tables
         par.quiet = True
         mycollider = collider.SRMcollider()
-        find_clashes_small(mycollider, self.db, par) 
-        self.assertTrue( abs(sum( mycollider.allpeps.values() ) - 975.6326447245566) < 10**(-3) )
-        self.assertEqual( len(mycollider.allpeps ), 978 )
-        self.assertEqual( len([v for v in mycollider.allpeps.values() if v == 1.0 ] ), 960 )
+        cursor = self.db.cursor()
 
-        assert abs(mycollider.allpeps[111] - 0.888888888889) < 1e-5
-        assert abs(mycollider.allpeps[191] - 0.7) < 1e-5
-        assert abs(mycollider.allpeps[375] - 0.941176470588) < 1e-5
-        assert abs(mycollider.allpeps[585] - 0.875) < 1e-5
-        assert abs(mycollider.allpeps[609] - 0.888888888889) < 1e-5
-        assert abs(mycollider.allpeps[929] - 0.857142857143) < 1e-5
-        assert abs(mycollider.allpeps[1089] - 0.7) < 1e-5
-        assert abs(mycollider.allpeps[1101] - 0.916666666667) < 1e-5
-        assert abs(mycollider.allpeps[1177] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1493] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1537] - 0.857142857143) < 1e-5
-        assert abs(mycollider.allpeps[1585] - 0.933333333333) < 1e-5
-        assert abs(mycollider.allpeps[1663] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1763] - 0.8125) < 1e-5
-        assert abs(mycollider.allpeps[1925] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1957] - 0.833333333333) < 1e-5
-        assert abs(mycollider.allpeps[1967] - 0.857142857143) < 1e-5
-        assert abs(mycollider.allpeps[1991] - 0.857142857143) < 1e-5
-
-        self.assertEqual( mycollider.non_unique_count,  26 )
-        self.assertEqual( mycollider.total_count, 12502 )
-        self.assertTrue( abs(mycollider.allpeps[1585] - 0.93333) < 10**(-3) )
-
-
-    def test_2(self):
-        #verify that with toptrans=False we get the same results
-        par  = collider.testcase(testdatabase=test_database)
-        par.quiet = True
+        #for historic reasons, we only select a subset of peptides
+        exclude_pepids = [183, 203, 319, 345, 355, 365, 367, 385, 393, 425, 1227, 1233, 1297, 1299, 1303, 1305, 1307, 1309, 1311, 1509, 1681, 1683]
         mycollider = collider.SRMcollider()
-        find_clashes_small(mycollider, self.db, par) 
-        self.assertTrue (abs(sum( mycollider.allpeps.values() ) - 975.6326447245566) < 10**(-3) )
-        self.assertEqual( mycollider.non_unique_count,  26 )
-        self.assertEqual( mycollider.total_count, 12502 )
-        self.assertTrue (abs(mycollider.allpeps[1585] - 0.93333) < 10**(-3) )
-        #self.assertEqual( len( mycollider.q3min_distr ),  26)
-        #self.assertEqual( len( mycollider.q1min_distr ),  26)
-        #self.assertEqual( len( mycollider.found3good ),  978)
+        pepids = _get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
+        pepids = [p for p in pepids if p['parent_id'] not in exclude_pepids]
 
-    def test_3(self):
+        find_clashes_small(self, mycollider, cursor, par, pepids)
+        do_check_complete(self, mycollider)
+
+    def test_complete_with_isotopes(self):
         #now test with isotopes enabled
         par  = collider.testcase(testdatabase=test_database)
         par.quiet = True
         par.isotopes_up_to = 3
         par.eval()
+        par.query2_add = ' and isotope_nr = 0 ' # need to do this because we also have other isotopes in there!
         mycollider = collider.SRMcollider()
-        find_clashes_small(mycollider, self.db, par) 
-        self.assertTrue( abs(sum( mycollider.allpeps.values() ) - 975.6326447245566) < 10**(-3) )
-        self.assertEqual( len([v for v in mycollider.allpeps.values() if v == 1.0 ] ), 960 )
+        cursor = self.db.cursor()
+
+        #for historic reasons, we only select a subset of peptides
+        exclude_pepids = [183, 203, 319, 345, 355, 365, 367, 385, 393, 425, 1227, 1233, 1297, 1299, 1303, 1305, 1307, 1309, 1311, 1509, 1681, 1683]
+        mycollider = collider.SRMcollider()
+        pepids = _get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
+        pepids = [p for p in pepids if p['parent_id'] not in exclude_pepids]
+
+        find_clashes_small(self, mycollider, cursor, par, pepids) 
 
         assert abs(mycollider.allpeps[111] - 0.888888888889) < 1e-5
         assert abs(mycollider.allpeps[191] - 0.7) < 1e-5
         assert abs(mycollider.allpeps[375] - 0.941176470588) < 1e-5
         assert abs(mycollider.allpeps[585] - 0.875) < 1e-5
-        assert abs(mycollider.allpeps[609] - 0.888888888889) < 1e-5
+        assert abs(mycollider.allpeps[609] - 0.6666666) < 1e-5
         assert abs(mycollider.allpeps[929] - 0.857142857143) < 1e-5
         assert abs(mycollider.allpeps[1089] - 0.7) < 1e-5
         assert abs(mycollider.allpeps[1101] - 0.916666666667) < 1e-5
@@ -396,11 +402,11 @@ class Test_collider_mysql(unittest.TestCase):
         assert abs(mycollider.allpeps[1967] - 0.857142857143) < 1e-5
         assert abs(mycollider.allpeps[1991] - 0.857142857143) < 1e-5
 
-        self.assertEqual( mycollider.non_unique_count,  26 )
+        self.assertTrue( abs(sum( mycollider.allpeps.values() ) - 971.215436) < 10**(-3) )
+        self.assertEqual( len([v for v in mycollider.allpeps.values() if v == 1.0 ] ), 922 )
+
+        self.assertEqual( mycollider.non_unique_count,  71)
         self.assertEqual( mycollider.total_count, 12502 )
-        self.assertTrue( abs(mycollider.allpeps[1585] - 0.93333) < 10**(-3) )
-
-
 
 class Test_collider_sqlite(unittest.TestCase):
 
@@ -444,43 +450,15 @@ class Test_collider_sqlite(unittest.TestCase):
         par.transition_table = 'srmTransitions_test'
         par.peptide_table = 'srmPeptides_test'
         cursor = self.db.cursor()
+
         #for historic reasons, we only select a subset of peptides
         exclude_pepids = [183, 203, 319, 345, 355, 365, 367, 385, 393, 425, 1227, 1233, 1297, 1299, 1303, 1305, 1307, 1309, 1311, 1509, 1681, 1683]
         mycollider = collider.SRMcollider()
         pepids = _get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
         pepids = [p for p in pepids if p['parent_id'] not in exclude_pepids]
 
-        find_clashes_small(mycollider, cursor, par, pepids)
-
-        allpeps = mycollider.allpeps 
-        nonzero = [(k,v) for k,v in allpeps.iteritems() if v < 1.0]
-        self.assertTrue(abs(allpeps[49] - 1.0) < 1e-5)
-        self.assertTrue(abs(allpeps[81] - 1.0) < 1e-5)
-        self.assertEqual( len(nonzero), 18)
-
-        self.assertTrue(abs(allpeps[111] - 0.888888888889) < 1e-5)
-        assert abs(mycollider.allpeps[191] - 0.7) < 1e-5
-        assert abs(mycollider.allpeps[375] - 0.941176470588) < 1e-5
-        assert abs(mycollider.allpeps[585] - 0.875) < 1e-5
-        assert abs(mycollider.allpeps[609] - 0.888888888889) < 1e-5
-        assert abs(mycollider.allpeps[929] - 0.857142857143) < 1e-5
-        assert abs(mycollider.allpeps[1089] - 0.7) < 1e-5
-        assert abs(mycollider.allpeps[1101] - 0.916666666667) < 1e-5
-        assert abs(mycollider.allpeps[1177] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1493] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1537] - 0.857142857143) < 1e-5
-        assert abs(mycollider.allpeps[1585] - 0.933333333333) < 1e-5
-        assert abs(mycollider.allpeps[1663] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1763] - 0.8125) < 1e-5
-        assert abs(mycollider.allpeps[1925] - 0.928571428571) < 1e-5
-        assert abs(mycollider.allpeps[1957] - 0.833333333333) < 1e-5
-        assert abs(mycollider.allpeps[1967] - 0.857142857143) < 1e-5
-        assert abs(mycollider.allpeps[1991] - 0.857142857143) < 1e-5
-
-        self.assertTrue( abs(sum( allpeps.values() ) - 975.6326447245566) < 10**(-3) )
-        self.assertEqual( len([v for v in allpeps.values() if v == 1.0 ] ), 960 )
-        self.assertEqual( mycollider.non_unique_count, 26 )
-        self.assertEqual( mycollider.total_count, 12502 )
+        find_clashes_small(self, mycollider, cursor, par, pepids)
+        do_check_complete(self, mycollider)
 
 if __name__ == '__main__':
     unittest.main()
