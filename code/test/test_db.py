@@ -336,10 +336,7 @@ class Test_collider_mysql(unittest.TestCase):
 
         self.assertEqual(len(collisions_per_peptide[359414]), 5)
         self.assertEqual(collisions_per_peptide[359414], [3, 5, 6, 9, 14])
-        print pep
-        print [k for k,v in collisions_per_peptide.iteritems() if len(v) == 4]
-        print [k for k,v in collisions_per_peptide.iteritems() if len(v) == 5]
-        print collisions_per_peptide
+        
         self.assertEqual(59, len(collisions_per_peptide))
         self.assertEqual(19, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 1]))
         self.assertEqual(25, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 2]))

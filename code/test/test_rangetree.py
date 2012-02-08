@@ -47,10 +47,5 @@ class Test_crangetree(unittest.TestCase):
                                          self.q1,  self.ssrcalc, 1, 0) 
             self.assertEqual( len(res), 0)
 
-import inspect, types
-for name, fn in inspect.getmembers(Test_crangetree):
-    if isinstance(fn, types.UnboundMethodType):
-        setattr(Test_crangetree, name, ignoreImportError_rangetree(fn))
-
 if __name__ == '__main__':
     unittest.main()

@@ -18,8 +18,6 @@ except ImportError:
 Module c_getnonuis is not available. Please compile it if you want to use it.
 """, "=" * 75
 
-
-
 def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
                                 forceset=False):
     """ Get all combinations that are not UIS 
@@ -36,8 +34,6 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
             collisions_per_peptide, order)
 
     return non_uis_list
-
-
 
 class Test_cgetnonuis(unittest.TestCase):
 
@@ -485,17 +481,6 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             newnon_uis = [set( newn.keys() ) for newn in newnon_uis]
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)
             self.assertEqual(newnon_uis, test_shared.refnonuis4)
-
-
-
-import inspect, types
-for name, fn in inspect.getmembers(Test_cgetnonuis):
-    if isinstance(fn, types.UnboundMethodType):
-        setattr(Test_cgetnonuis, name, ignoreImportError_cget(fn))
-for name, fn in inspect.getmembers(Test_cgetnonuis_get_non_UIS_from_transitions):
-    if isinstance(fn, types.UnboundMethodType):
-        setattr(Test_cgetnonuis_get_non_UIS_from_transitions, name, ignoreImportError_cget(fn))
-
 
 if __name__ == '__main__':
     unittest.main()
