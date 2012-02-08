@@ -52,6 +52,40 @@ def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
         for r in res
     ]
 
+def find_clashes_small(mycollider, cursor, par, pepids):
+        swath_mode = False
+        mycollider.allpeps = {}
+        mycollider.non_unique_count = 0
+        mycollider.total_count = 0
+        MAX_UIS = 5
+        for kk, pep in enumerate(pepids):
+            #if pep['parent_id'] != 49: continue
+            p_id = pep['parent_id']
+            q1 = pep['q1']
+            ssrcalc = pep['ssrcalc']
+            q3_low, q3_high = par.get_q3range_transitions()
+            #
+            transitions = collider.calculate_transitions_ch(
+                ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
+            #fake some srm_id for the transitions
+            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            nr_transitions = len(transitions)
+            #
+            ### if use_db and not swath_mode:
+            precursors = mycollider._get_all_precursors(par, pep, cursor)
+            collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider,
+                    transitions, precursors, par, pep, forceNonCpp=False)
+            collisions_per_peptide_python = collider.get_coll_per_peptide_from_precursors(mycollider,
+                    transitions, precursors, par, pep, forceNonCpp=True)
+            assert collisions_per_peptide == collisions_per_peptide_python
+            non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
+            # 
+            # here we count how many are locally clean, e.g. look at UIS of order 1
+            mycollider.allpeps[ p_id ] = 1.0 - len(non_uis_list[1]) * 1.0  / nr_transitions
+            mycollider.non_unique_count += len(non_uis_list[1])
+            mycollider.total_count += nr_transitions
+
+
 class Test_collider_mysql(unittest.TestCase):
 
     def setUp(self):
@@ -367,6 +401,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.assertTrue( abs(mycollider.allpeps[1585] - 0.93333) < 10**(-3) )
 
 
+
 class Test_collider_sqlite(unittest.TestCase):
 
     def setUp(self):
@@ -399,7 +434,6 @@ class Test_collider_sqlite(unittest.TestCase):
             print "=" * 75
             self.database_available = False
 
-
     def test_1(self):
 
         if not self.database_available: return
@@ -416,43 +450,9 @@ class Test_collider_sqlite(unittest.TestCase):
         pepids = _get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
         pepids = [p for p in pepids if p['parent_id'] not in exclude_pepids]
 
-        # find_clashes_small(mycollider, self.db, par, pepids=pepids) 
+        find_clashes_small(mycollider, cursor, par, pepids)
 
-        swath_mode = False
-        allpeps = {}; prepare = []
-        exp_key = -1
-        non_unique_count = 0
-        total_count = 0
-        MAX_UIS = 5
-        for kk, pep in enumerate(pepids):
-            #if pep['parent_id'] != 49: continue
-            p_id = pep['parent_id']
-            q1 = pep['q1']
-            ssrcalc = pep['ssrcalc']
-            q3_low, q3_high = par.get_q3range_transitions()
-            #
-            transitions = collider.calculate_transitions_ch(
-                ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
-            #fake some srm_id for the transitions
-            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-            nr_transitions = len(transitions)
-            #
-            ### if use_db and not swath_mode:
-            precursors = mycollider._get_all_precursors(par, pep, cursor)
-            collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider,
-                    transitions, precursors, par, pep, forceNonCpp=False)
-            collisions_per_peptide_python = collider.get_coll_per_peptide_from_precursors(mycollider,
-                    transitions, precursors, par, pep, forceNonCpp=True)
-            self.assertEqual(collisions_per_peptide, collisions_per_peptide_python)
-            non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
-            # 
-            # here we count how many are locally clean, e.g. look at UIS of order 1
-            #allpeps[ p_id ] = 1.0 - len(non_uis_list[1]) * 1.0  / nr_transitions
-            allpeps[ p_id ] = 1.0 - len(non_uis_list[1]) * 1.0  / nr_transitions
-            non_unique_count += len(non_uis_list[1])
-            total_count += nr_transitions
-
-        mycollider.allpeps = allpeps
+        allpeps = mycollider.allpeps 
         nonzero = [(k,v) for k,v in allpeps.iteritems() if v < 1.0]
         self.assertTrue(abs(allpeps[49] - 1.0) < 1e-5)
         self.assertTrue(abs(allpeps[81] - 1.0) < 1e-5)
@@ -479,8 +479,8 @@ class Test_collider_sqlite(unittest.TestCase):
 
         self.assertTrue( abs(sum( allpeps.values() ) - 975.6326447245566) < 10**(-3) )
         self.assertEqual( len([v for v in allpeps.values() if v == 1.0 ] ), 960 )
-        self.assertEqual( non_unique_count, 26 )
-        self.assertEqual( total_count, 12502 )
+        self.assertEqual( mycollider.non_unique_count, 26 )
+        self.assertEqual( mycollider.total_count, 12502 )
 
 if __name__ == '__main__':
     unittest.main()
