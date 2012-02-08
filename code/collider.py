@@ -47,7 +47,8 @@ class SRMcollider(object):
         else: selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
         vdict['selectby'] = selectby
         #
-        # calculate how much lower we need to select to get all potential isotopes: lower_winow - nr_isotopes/2
+        # calculate how much lower we need to select to get all potential isotopes:
+        #  to get all isotopes = lower_winow - nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
         R = Residues.Residues('mono')
         vdict['isotope_correction'] = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
         query2 = """
@@ -414,3 +415,5 @@ def thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow, verbose=False):
                 # break out of loop
                 break
     return all_nonuis
+
+
