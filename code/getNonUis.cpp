@@ -179,7 +179,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         double q3_high, double q3window, bool ppm, python::object par) {
 
     python::dict collisions_per_peptide, tmpdict;
-    python::tuple clist;
+    python::object clist;
     python::tuple tlist;
     python::list tmplist;
 
@@ -214,9 +214,9 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     // and store the colliding SRM ids in a dictionary (they can be found at
     // position 3 and 1 respectively)
     for (j=0; j<precursor_length; j++) {
-        clist = python::extract< python::tuple >(precursors[j]);
+        clist = python::extract< python::object >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
-        isotope_modification = python::extract<char *>(clist[4]);
+        isotope_modification = python::extract<int>(clist[4]);
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
@@ -230,10 +230,8 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
                 t0 = python::extract< double >(tlist[0]);
                 if(ppm) {q3used = q3window / 1000000.0 * t0; } 
 
-
                     // go through all fragments of this precursor
                     for (k=0; k<fragcount; k++) {
-
 
                         if(fabs(t0-series[k]) < q3used ) {
                             // extract SRM_id from transition list and store it

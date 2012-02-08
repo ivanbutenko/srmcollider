@@ -82,7 +82,7 @@ class SRMcollider(object):
     # calculates all fragments of the peptide in Python and compares them to
     # the fragments of the precursors
     def _get_all_collisions_calculate_new(self, par, pep, cursor, 
-      values="q1, modified_sequence, transition_group, q1_charge, transition_group"):
+      values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified"):
         R = Residues.Residues('mono')
         RN15 = Residues.Residues('mono')
         RN15.recalculate_monisotopic_data_for_N15()

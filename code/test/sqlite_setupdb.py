@@ -15,7 +15,8 @@ create table %(table)s(
     q1 DOUBLE,
     ssrcalc DOUBLE,
     isotope_nr TINYINT,
-    transition_group INT
+    transition_group INT,
+    isotopically_modified TINYINT UNSIGNED
 );
 create index testpepkey   on %(table)s (peptide_key);
 create index testq1       on %(table)s (q1);
@@ -30,8 +31,8 @@ creader = csv.reader( open('sqltestp.out'), delimiter='\t')
 #creader.next()
 for rr in creader:
     query = 'insert into %s' % table + """
-( parent_id , peptide_key, modified_sequence, q1_charge, q1, ssrcalc, isotope_nr, transition_group)
-values (%s, %s, '%s', %s, %s, %s, %s, %s)
+( parent_id , peptide_key, modified_sequence, q1_charge, q1, ssrcalc, isotope_nr, transition_group, isotopically_modified)
+values (%s, %s, '%s', %s, %s, %s, %s, %s, 0)
         """ % (rr[0], rr[1], rr[2], rr[3], rr[4], rr[5], rr[6] , rr[7] )
     c.execute( query
     )

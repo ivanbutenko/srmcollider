@@ -291,6 +291,9 @@ def testcase(testdatabase='srmcollider'):
     par.q3_range = [400, 1200]
     par.ssrcalc_window = 2.0 / 2
     par.do_1_only = "and q1_charge = 2 and q3_charge = 1"
+    par.bions      =  True
+    par.yions      =  True
+    par.isotopes_up_to = 0
     #
     par.eval()
     return par

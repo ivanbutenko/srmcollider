@@ -32,19 +32,19 @@ class Test_crangetree(unittest.TestCase):
 
             #we get our peptide out again with a large window
             res = c_rangetree.query_tree( self.q1 - 1, self.ssrcalc -1, 
-                                         self.q1 + 1,  self.ssrcalc + 1 ) 
+                                         self.q1 + 1,  self.ssrcalc + 1, 1, 0) 
             self.assertEqual( len(res), 1)
             self.assertEqual( res[0][0], 101)
 
             #same result when lower boundary equals the value
             res = c_rangetree.query_tree( self.q1 , self.ssrcalc ,
-                                         self.q1 + 1,  self.ssrcalc + 1 ) 
+                                         self.q1 + 1,  self.ssrcalc + 1, 1, 0) 
             self.assertEqual( len(res), 1)
             self.assertEqual( res[0][0], 101)
 
             #no result when upper boundary equals the value
             res = c_rangetree.query_tree( self.q1 - 1, self.ssrcalc -1, 
-                                         self.q1,  self.ssrcalc ) 
+                                         self.q1,  self.ssrcalc, 1, 0) 
             self.assertEqual( len(res), 0)
 
 import inspect, types

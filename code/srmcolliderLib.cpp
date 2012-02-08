@@ -203,7 +203,7 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
         bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
         bool MMinusH2O , bool MMinusNH3 ,
-        int isotope_mod = NOISOTOPEMODIFICATION
+        int isotope_mod 
         ) {
 
     int j, start, scounter;
@@ -410,6 +410,7 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         }
     } 
     }
+
 
     // see also http://www.matrixscience.com/help/fragmentation_help.html
     // note that the b and y series only go up to y[n-1] and b[n-1] since
