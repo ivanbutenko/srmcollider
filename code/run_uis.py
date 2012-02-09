@@ -264,8 +264,13 @@ for kk, pep in enumerate(self.pepids):
         #correct rounding errors, s.t. we get the same results as before!
         ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
         ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-        precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
-            q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
+        if not swath_mode:
+            precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
+                q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
+        else:
+            # swath mode ON, use_db OFF: select all precursors between min_q1 and max_q1
+            precursor_ids = tuple(c_rangetree.query_tree(min_q1, ssrcalc_low, 
+                max_q1,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
         precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                             #dont select myself 
                                if parentid_lookup[myid[0]][2]  != pep['transition_group']])
