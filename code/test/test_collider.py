@@ -12,85 +12,6 @@ import test_shared
 import time
 from Residues import Residues
 
-#
-# inc     means it is included in another test
-# nc      means non critical (print fxn etc)
-# db      means tested in test_db
-# OK      means tested here
-#
-###################################
-###################################
-#         def eval(self):
-#         def get_copy(self):
-#         def get_q3range_transitions(self):
-#         def get_q3range_collisions(self):
-#         def get_q3_window_transitions(self, q3):
-#         def get_common_filename(self):
-#         def transition_db(self): return self.transition_table.split('.')[0]
-#         def transition_tbl(self): return self.transition_table.split('.')[1]
-#         def peptide_db(self): return self.peptide_table.split('.')[0]
-#         def peptide_tbl(self): 
-#         def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
-#     
-#     
-# db      def find_clashes_small(self, db, par, use_per_transition=False,
-# db      def _get_all_precursors(self, par, pep, cursor, 
-# db      def _get_all_collisions_calculate(self, par, pep, cursor, 
-# OK      def _get_all_collisions_calculate_sub(self, precursors, R, q3_low, q3_high):
-# db      def find_clashes(self, db, par, toptrans=False, pepids=None, 
-#         def find_clashes_toptrans_paola(self, db, par,
-# OK      def _getMinNeededTransitions(self, par, transitions, collisions):
-#         def find_clashes_toptrans_3strike(self, db, par, pepids=None, 
-#         def _get_unique_pepids(self, par, cursor, ignore_genomeoccurence=False):
-#         def _get_unique_pepids_toptransitions(self, par, cursor):
-#         def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
-#         def _get_all_transitions(self, par, pep, cursor, values = "q3, srm_id"):
-# db      def _get_all_collisions_per_transition(self, par, pep, transitions, cursor):
-# db      def _get_all_collisions(self, par, pep, cursor, 
-# incl     def _get_collisions_per_transition(self, par, pep, q3, cursor, 
-# nc      def store_object(self, par):
-# nc      def store_in_file(self, par):
-# nc      def load_from_file(self, par, directory):
-# nc      def print_unique_histogram(self, par):
-# nc      def print_cumm_unique(self, par):
-# nc      def print_cumm_unique_all(self, par, cursor):
-# nc          #def print_cumm_unique(self, par, mydist, filename):
-# nc      def print_q3min(self, par):
-# nc      def print_q3min_ppm(self, par):
-# nc      def print_q1all(self, par, bars = 50):
-# nc      def print_q3all_ppm(self, par, bars = 50):
-# nc      def print_stats(self):
-#     def get_cum_dist(original):
-# OK  def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
-# db def get_coll_per_peptide(self, transitions, par, pep):
-# OK  def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
-# OK  def get_UIS_from_transitions(transitions, collisions, par, MAX_UIS):
-# nc  def get_peptide_from_table(t, row):
-# ??  def insert_peptide_in_db(self, db, peptide_table, transition_group):
-# ??  def get_actual_mass(self):
-# ??  def insert_in_db(self, db, fragment_charge, transition_table):
-# ??  def fast_insert_in_db(self, db, fragment_charge, transition_table, transition_group):
-# ??  def all_calculate_clashes_in_series_insert_db( S, S2, pairs_dic, 
-# ??  def calculate_clashes_in_series_insert_db(S, S2, charge1, charge2, pairs_dic, 
-# ??  def reset_pairs_unique(mass_bins):
-# ??  def calculate_clashes_in_series(S, S2, charge1, charge2, pairs_dic, 
-# inc def get_non_uis(pepc, non_uis, order):
-# inc def get_non_uis_unsorted(pepc, non_uis, order):
-# OK  def choose(i,r):
-# OK  def get_uis(srm_ids, non_uis, order):
-#     def permutations(iterable, r=None):
-#     def _permutations(iterable, r=None):
-# inc def _combinations(N, M):
-# OK  def combinations(iterable, r):
-#     
-
-
-
-
-
-#### helper functions
-
-
 def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
     """ Get all combinations that are not UIS """
     #collisions
@@ -361,6 +282,35 @@ class Test_collider_function(unittest.TestCase):
             (3, 4)
         ])
         comb53 = list(collider.combinations( range(5), 3 ) )
+        self.assertEqual( comb53, [
+            (0, 1, 2),
+            (0, 1, 3),
+            (0, 1, 4),
+            (0, 2, 3), 
+            (0, 2, 4),
+            (0, 3, 4),
+            (1, 2, 3),
+            (1, 2, 4),
+            (1, 3, 4),
+            (2, 3, 4)
+        ])
+
+        # now also test the before 2.6 version
+
+        comb52 = list(collider.combinations( range(5), 2, True ) )
+        self.assertEqual(comb52, [
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (2, 3),
+            (2, 4),
+            (3, 4)
+        ])
+        comb53 = list(collider.combinations( range(5), 3, True ) )
         self.assertEqual( comb53, [
             (0, 1, 2),
             (0, 1, 3),
