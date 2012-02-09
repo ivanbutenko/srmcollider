@@ -32,7 +32,7 @@ number of total combinations for each order up to the specified limit for each
 precursor.
 """
 
-import MySQLdb, time, sys 
+import sys 
 import collider
 import progress
 
@@ -60,9 +60,9 @@ group.add_option("--insert",
                   help="Insert into mysql experiments table")
 parser.add_option_group(group)
 
-#Run the collider
+# Run the collider
 ###########################################################################
-#Parse options
+# Parse options
 mycollider = collider.SRMcollider()
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
@@ -89,11 +89,22 @@ sqlite_database = options.sqlite_database
 if sqlite_database != '': use_sqlite = True
 else: use_sqlite = False
 
+########
+# Sanity check for SWATH : the provided window needs to be the SWATH window
+if swath_mode:
+    if not par.q1_window >= max_q1 - min_q1:
+        raise Exception("Your Q1 window needs to be at least as large as the min/max q1 you chose.")
+        sys.exit()
+
+###########################################################################
+# Prepare the collider
+
 if use_sqlite:
     import sqlite
     db = sqlite.connect(sqlite_database)
     cursor = db.cursor()
 else:
+    import MySQLdb
     db = MySQLdb.connect(read_default_file=par.mysql_config)
     cursor = db.cursor()
 
@@ -118,36 +129,26 @@ if options.insert_mysql:
     exp_key = db.insert_id()
     print "Inserted into mysql db with id ", exp_key
 
-start = time.time()
-q = """
-select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
-from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-""" % {'peptide_table' : par.peptide_table, 
-              'lowq1'  : min_q1 - par.q1_window, 
-              'highq1' : max_q1 + par.q1_window,
-      }
-if not par.quiet: print q
-cursor.execute( q )
-alltuples =  list(cursor.fetchall() )
 
-mypepids = [
-            {
-                'mod_sequence'  :  r[0],
-                'transition_group' :r[1],
-                'parent_id' :  r[2],
-                'q1_charge' :  r[3],
-                'q1' :         r[4],
-                'ssrcalc' :    r[5],
-            }
-            for r in alltuples
-    if r[3] == 2  # charge is 2
-    and r[6] == 0 # no modification 
-    and r[7] == 0 # no missed cleavages 
-    and r[4] >= min_q1
-    and r[4] < max_q1
-]
+# Get the precursors
+###########################################################################
+from precursor import Precursors
+myprecursors = Precursors()
+myprecursors.getFromDB(par, db.cursor(), min_q1, max_q1)
+testrange = myprecursors.build_rangetree()
 
-print "analyzing %s peptides" % len(mypepids)
+precursors_to_evaluate = [p for p in myprecursors.precursors 
+                         if p.q1_charge == 2 
+                         and p.modifications == 0
+                         and p.missed_cleavages == 0 
+                         and p.q1 >= min_q1
+                         and p.q1 <= max_q1
+                         ]
+
+myprecursors.build_parent_id_lookup()
+myprecursors.build_transition_group_lookup()
+
+print "analyzing %s peptides" % len(precursors_to_evaluate)
 
 # use the rangetree?
 if not use_db:
@@ -222,62 +223,47 @@ if use_db and swath_mode:
       if(append): new_result.append(r)
     allprecursors = new_result
 
+    temp_precursors = Precursors()
+    temp_precursors.getFromDB(par, db.cursor(), min_q1 - isotope_correction, max_q1)
+    all_swath_precursors = []
+    for p in temp_precursors.precursors:
+      if(p.included_in_isotopic_range(min_q1, max_q1, par, R) ): 
+        all_swath_precursors.append(p)
+
+
+
+
+
+nr_interfering_prec = [ [] for i in range(7)]
+
 allintertr = []
-self = mycollider
-self.mysqlnewtime = 0
-self.pepids = mypepids
 MAX_UIS = par.max_uis
-progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
 prepare  = []
-for kk, pep in enumerate(self.pepids):
-    p_id = pep['parent_id']
-    q1 = pep['q1']
-    ssrcalc = pep['ssrcalc']
+for precursor in precursors_to_evaluate:
+
     q3_low, q3_high = par.get_q3range_transitions()
-    #
-    transitions = collider.calculate_transitions_ch(
-        ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
-    #fake some srm_id for the transitions
-    transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+    transitions = precursor.calculate_transitions(q3_low, q3_high)
     nr_transitions = len(transitions)
-    #
-    # in SWATH mode, we have a fixed window independent of q1
-    # in regular mode, we have to account for the isotope correction
-    import Residues
-    R = Residues.Residues('mono')
-    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    if swath_mode: q1_low = min_q1; q1_high = max_q1; q1_low -= isotope_correction
-    else: q1_low = q1 - par.q1_window -isotope_correction ; q1_high = q1 + par.q1_window
-    #
+
     if use_db and not swath_mode:
-        precursors = self._get_all_precursors(par, pep, cursor)
+        precursors_obj = mycollider._get_all_precursors_obj(par, precursor, cursor)
+        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(mycollider, 
+                transitions, precursors_obj, par, precursor)
     elif use_db and swath_mode:
         if par.ssrcalc_window > 1000:
-            precursors = [p for p in allprecursors if p[2] != pep['transition_group'] ]
+            precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group]
         else:
-            ssrcalc_low = ssrcalc - par.ssrcalc_window 
-            ssrcalc_high = ssrcalc + par.ssrcalc_window 
-            precursors = [p for p in allprecursors if p[2] != pep['transition_group'] 
-                         and p[5] > ssrcalc_low and p[5] < ssrcalc_high ]
-        precursors = tuple(precursors)
+            ssrcalc_low =  precursor.ssrcalc - par.ssrcalc_window 
+            ssrcalc_high = precursor.ssrcalc + par.ssrcalc_window 
+            precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group
+                         and p.ssrcalc > ssrcalc_low and p.ssrcalc < ssrcalc_high ]
+        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(mycollider, 
+                transitions, precursors_obj, par, precursor)
     elif not use_db:
         # Use the rangetree, whether it is swath or not
-        #correct rounding errors, s.t. we get the same results as before!
-        ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
-        ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-        if not swath_mode:
-            precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
-                q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
-        else:
-            # swath mode ON, use_db OFF: select all precursors between min_q1 and max_q1
-            precursor_ids = tuple(c_rangetree.query_tree(min_q1, ssrcalc_low, 
-                max_q1,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
-        precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                            #dont select myself 
-                               if parentid_lookup[myid[0]][2]  != pep['transition_group']])
+        collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, transitions, par)
 
-    collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider,
-            transitions, precursors, par, pep)
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 
     ## Lets count the number of peptides that interfere
@@ -291,7 +277,7 @@ for kk, pep in enumerate(self.pepids):
     #
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
-            order), p_id , order, exp_key) )
+            order), precursor.parent_id , order, exp_key) )
     progressm.update(1)
 
 if count_avg_transitions:
