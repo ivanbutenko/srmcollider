@@ -1,12 +1,15 @@
 import unittest
 import time
-import test_shared
 
 import sys
+sys.path.append( '.')
 sys.path.append( '..')
+sys.path.append( '../test/')
+sys.path.append( './test/')
 sys.path.append( '../external/')
 import collider
 import DDB 
+import test_shared
 from Residues import Residues
 
 try:
@@ -106,6 +109,8 @@ class Test_speed(unittest.TestCase):
             self.par.cions      =  False
             self.par.xions      =  False
             self.par.zions      =  False
+            self.par.MMinusH2O  =  False
+            self.par.MMinusNH3  =  False
 
         except ImportError:
             pass
@@ -263,7 +268,7 @@ class Test_speed(unittest.TestCase):
     def test_calculatetrans(self):
         print '\nTesting calculate_transitions'
 
-        myprecursors = ((500, 'PEPTIDE', 1, 1), (400, 'CEPC[160]IDM[147]E',2,2))
+        myprecursors = ((500, 'PEPTIDE', 1, 1, 0), (400, 'CEPC[160]IDM[147]E', 2, 2, 0))
         st = time.time()
         for i in range(100000):
             tr_new = c_getnonuis.calculate_transitions(myprecursors, self.q3_low, self.q3_high)
@@ -278,6 +283,7 @@ class Test_speed(unittest.TestCase):
         tr_new.sort(mysort)
         tr_old.sort(mysort)
 
+        self.assertEqual(len(tr_new), len(tr_old) )
         self.assertEqual(tr_new, tr_old)
         print ctime, oldtime
         print "Speedup:", oldtime / ctime
@@ -303,7 +309,7 @@ class Test_speed(unittest.TestCase):
         import c_integrated
         st = time.time()
         m = c_integrated.getMinNeededTransitions(transitions, tuple(precursors), 
-            par.max_uis, par.q3_window, par.ppm)
+            par.max_uis, par.q3_window, par.ppm, par)
         ctime = time.time() - st
 
         print ctime, oldtime
