@@ -83,13 +83,7 @@ myorder = 4
 
 """
 
-#par.considerIsotopes = True
-#par.max_uis = 5 #turn off uis if set to 0
-#par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
-#par.q3_range = [400, 1400]
 par.eval()
-#print par.experiment_type
-#par.peptide_table = peptide_table
 print par.get_common_filename()
 mycollider = collider.SRMcollider()
 
@@ -97,7 +91,7 @@ import Residues
 R = Residues.Residues('mono')
 isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
 q =  """
-select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
+select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
 from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
 """ % {'peptide_table' : par.peptide_table, 
               'lowq1'  : min_q1 - par.q1_window, 
@@ -106,6 +100,24 @@ from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %
       } 
 cursor.execute(q)
 
+
+from precursor import Precursors
+myprecursors = Precursors()
+myprecursors.getFromDB(par, db.cursor(), min_q1, max_q1)
+testrange = myprecursors.build_rangetree()
+
+precursors_to_evaluate = [p for p in myprecursors.precursors 
+                         if p.q1_charge == 2 
+                         and p.modifications == 0
+                         and p.missed_cleavages == 0 
+                         and p.q1 >= min_q1
+                         and p.q1 <= max_q1
+                         ]
+
+myprecursors.build_parent_id_lookup()
+myprecursors.build_transition_group_lookup()
+
+print "Want to evaluate precursors", len(precursors_to_evaluate)
 
 #print "finished query execution: ", time.time() - start
 alltuples =  list(cursor.fetchall() )
@@ -129,8 +141,10 @@ mypepids = [
     and r[4] >= min_q1
     and r[4] < max_q1
 ]
-# parent_id : q1, sequence, trans_group, q1_charge
-parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3]) ] 
+print "mypepids ", len(mypepids)
+
+# parent_id : q1, sequence, trans_group, q1_charge, isotope modification
+parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3], r[8]) ] 
             for r in alltuples
     #if r[3] == 2 and r[6] == 0
 ]
@@ -138,14 +152,14 @@ parentid_lookup  = dict(parentid_lookup)
 trgroup_lookup = [ [ r[1], r[5] ] 
             for r in alltuples]
 trgroup_lookup  = dict(trgroup_lookup)
-#print "finished python lookups: ", time.time() - start
-pepkey_lookup = [ [ r[1], r[5] ] for r in alltuples ]
-pepkey_lookup  = dict(pepkey_lookup)
 
 print "building tree with %s Nodes" % len(alltuples)
-c_rangetree.create_tree(tuple(alltuples))
+### c_rangetree.create_tree(tuple(alltuples))
 #print "finished build tree : ", time.time() - start
 
+
+print "building tree with %s Nodes" % len(myprecursors.precursors)
+#c_rangetree = testrange
 
 """
 The idea is to find UIS combinations that are globally UIS, locally
@@ -162,16 +176,23 @@ myssrcalc = par.ssrcalc_window
 
 from collider import thisthirdstrike
 
+for kk, precursor in enumerate(precursors_to_evaluate):
+    q3_low, q3_high = par.get_q3range_transitions()
+    transitions = precursor.calculate_transitions(q3_low, q3_high)
+    computed_collisions = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, transitions, par)
+    non_useable_combinations = c_getnonuis.get_non_uis(computed_collisions, myorder)
+
+
 print par.experiment_type
 self = mycollider
 self.mysqlnewtime = 0
 self.pepids = mypepids
-MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
 prepare  = []
 at_least_one = 0
 f = open(outfile, 'a')
-for kk, pep in enumerate(self.pepids):
+kk = len(self.pepids) -1
+for pep, precursor in zip(self.pepids, precursors_to_evaluate):
 
     p_id = pep['parent_id']
     q1 = pep['q1']
@@ -182,6 +203,10 @@ for kk, pep in enumerate(self.pepids):
         ((q1, pep['sequence'], p_id),), [1], q3_low, q3_high)
     #fake some srm_id for the transitions
     transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+    # Replace above codeblock
+    assert precursor.calculate_transitions(q3_low, q3_high) == transitions
+
     nr_transitions = len(transitions)
     q1_low = q1 - par.q1_window 
     q1_high = q1 + par.q1_window
@@ -198,6 +223,7 @@ for kk, pep in enumerate(self.pepids):
     R = Residues.Residues('mono')
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
     q1_low = q1 - par.q1_window -isotope_correction ; q1_high = q1 + par.q1_window
+
     precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
         q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction)  )
     globalprecursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
@@ -210,6 +236,11 @@ for kk, pep in enumerate(self.pepids):
     tuples_strike1 = 0
     if not nr_transitions < myorder:
       tuples_strike1 = collider.choose(nr_transitions, myorder ) - len(non_useable_combinations)
+
+    # Replace above codeblock
+    computed_collisions = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, transitions, par)
+    assert computed_collisions == collisions_per_peptide
+
 
     ###############################################################
     #strike 2: it has to be locally clean
