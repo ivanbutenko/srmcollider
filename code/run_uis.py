@@ -30,6 +30,19 @@ This program will process all peptides of a given proteome and compare it to
 the background in that proteome. It will output the number of UIS and the
 number of total combinations for each order up to the specified limit for each
 precursor.
+
+Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
+
+$ python run_uis.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/testdb 
+[------------------------------------------------------------>] 100%  9519.7 peptides/sec (eta 0s)
+It took 0s
+Analyzed 905 peptides
+Order 1, Average non useable UIS 0.055404336098
+Order 2, Average non useable UIS 0.00377300709314
+Order 3, Average non useable UIS 0.000427182046582
+Order 4, Average non useable UIS 4.72421355715e-05
+Order 5, Average non useable UIS 3.86353977514e-06
+
 """
 
 import sys 

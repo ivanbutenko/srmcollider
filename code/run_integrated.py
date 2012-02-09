@@ -30,9 +30,23 @@ This program will process all peptides of a given proteome and compare it to
 the background in that proteome. It will output the number of UIS and the
 number of total combinations for each order up to the specified limit for each
 precursor.
+
+Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
+
+python run_uis.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/testdb 
+analyzing 905 peptides
+[------------------------------------------------------------>] 100%  9828.8 peptides/sec (eta 0s)
+It took 0s
+Analyzed 905 peptides
+Order 1, Average non useable UIS 0.055404336098
+Order 2, Average non useable UIS 0.00377300709314
+Order 3, Average non useable UIS 0.000427182046582
+Order 4, Average non useable UIS 4.72421355715e-05
+Order 5, Average non useable UIS 3.86353977514e-06
+
 """
 
-import MySQLdb, sys 
+import sys 
 import c_integrated, c_rangetree, c_getnonuis
 sys.path.append( '/home/hroest/lib/hlib/' )
 sys.path.append( '/home/hroest/projects' )
@@ -43,8 +57,14 @@ import progress
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
-group = OptionGroup(parser, "Run uis Options",
+group = OptionGroup(parser, "Run integrated Options",
                     "None yet")
+group.add_option("--sqlite_database", dest="sqlite_database", default='',
+                  help="Use specified sqlite database instead of MySQL database" )
+group.add_option("--insert",
+                  action="store_true", dest="insert_mysql", default=False,
+                  help="Insert into mysql experiments table")
+parser.add_option_group(group)
 parser.add_option_group(group)
 
 #Run the collider
@@ -67,12 +87,17 @@ if len(sys.argv) < 4:
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
 max_q1 = float(sys.argv[3])
+sqlite_database = options.sqlite_database
+if sqlite_database != '': use_sqlite = True
+else: use_sqlite = False
 
-if False: #use_sqlite:
+if use_sqlite:
     import sqlite
     db = sqlite.connect(sqlite_database)
     cursor = db.cursor()
+    cursor.execute("select count(*) from srmPeptides_test")
 else:
+    import MySQLdb
     db = MySQLdb.connect(read_default_file=par.mysql_config)
     cursor = db.cursor()
 
@@ -114,6 +139,7 @@ mypepids = [
 ]
 
 print "building tree with %s Nodes" % len(alltuples)
+if use_sqlite: alltuples = [tuple(t) for t in alltuples]
 c_integrated.create_tree(tuple(alltuples))
 
 self = mycollider
@@ -148,8 +174,8 @@ for pep in self.pepids:
 for order in range(1,6):
     sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
     nr_peptides = len([p for p in prepare if p[3] == order])
-    if not par.quiet: print sum_all *1.0/ nr_peptides
-    cursor.execute("insert into hroest.result_completegraph_aggr (sum_nonUIS, nr_peptides, uisorder, experiment) VALUES (%s,%s,%s,'%s')" % (sum_all, nr_peptides, order, exp_key))
+    if not par.quiet and not nr_peptides ==0: print "Order %s, Average non useable UIS %s" % (order, sum_all *1.0/ nr_peptides)
+    #cursor.execute("insert into hroest.result_completegraph_aggr (sum_nonUIS, nr_peptides, uisorder, experiment) VALUES (%s,%s,%s,'%s')" % (sum_all, nr_peptides, order, exp_key))
 
 """
 create table hroest.result_completegraph (
