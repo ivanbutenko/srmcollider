@@ -67,6 +67,13 @@ Range_tree_2_type *Range_tree_2 = new Range_tree_2_type;
 
 /* Create the rangetree that will be used throughout. This is essential. The
  * rangetree will stay in place while this module is loaded.
+ * The tuples have the following structure:
+ *   0
+ *   1 
+ *   2 - parent_id
+ *   3 - q1_charge
+ *   4 - q1
+ *   5 - ssrcalc
 */
 void create_tree(python::tuple pepids) {
 
@@ -95,6 +102,15 @@ void create_tree(python::tuple pepids) {
 /* Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are
  * in the defined square defined by these four numbers.
  * Returns a list with keys that were stored in the tree.
+ *
+ * Requires the maximal number of isotopes to consider and a isotopic correction of the lower window.
+ * The isotope correction of the lower window is an offset that is used to
+ * include all the monoisotopic precursors that might have isotopes between x1
+ * and x2. Since the isotopes are not actively stored, the monoisotopic
+ * precursors have to be selected and then checked whether they have any
+ * potential isotopes that could fall in the (x1,x2) window.
+ * The isotope correction should be computed as:
+ *    nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
 */
 python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   {
 

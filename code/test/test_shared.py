@@ -295,3 +295,146 @@ peptide2 = (400, 'CEPC[160]IDM[147]E',2,2)
 
 from test_shared_large import *
 
+
+#########################
+#########################
+#########################
+##### Legacy functions
+##### used by speed test
+#########################
+#########################
+def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
+    query = """
+    select parent_id, q1, q1_charge, ssrcalc, peptide.id, modified_sequence, transition_group
+     from %s
+     inner join
+     ddb.peptide on peptide.id = %s.peptide_key
+     inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
+     where genome_occurence = 1
+     %s
+    """ % (par.peptide_table, par.peptide_table, par.query_add )
+    if ignore_genomeoccurence:
+        query = """
+        select parent_id, q1, q1_charge, ssrcalc, peptide_key, modified_sequence, transition_group
+         from %s
+         where 4 = 4
+         %s
+        """ % (par.peptide_table, par.query_add )
+    if par.print_query: print query
+    #print query
+    cursor.execute( query )
+    res = cursor.fetchall()
+    return [
+        {
+            'parent_id' :  r[0],
+            'q1' :         r[1],
+            'q1_charge' :  r[2],
+            'ssrcalc' :    r[3],
+            'peptide_key' :r[4],
+            'mod_sequence':r[5],
+            'transition_group':r[6],
+        }
+        for r in res
+    ]
+
+def _get_all_collisions(self, par, pep, cursor,
+            values="q3, q1, srm_id, peptide_key", transitions=None,
+            bysequence=False):
+    q3_low, q3_high = par.get_q3range_collisions()
+    vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
+            'peptide_key' : pep['peptide_key'], 'q1_window' : par.q1_window,
+            'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+            'pep' : par.peptide_table, 'values' : values,
+            'pepseq' : pep['mod_sequence'],
+            'q3_low':q3_low,'q3_high':q3_high,
+            'trans' : par.transition_table,
+            }
+    #we compare the parent ion against 4 different parent ions
+    #thus we need to take the PEPTIDE key here
+    if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
+    else: selectby = "and %(pep)s.peptide_key != %(peptide_key)d" % vdict
+    vdict['selectby'] = selectby
+    query2 = """
+    select %(values)s
+    from %(pep)s
+    inner join %(trans)s
+      on %(pep)s.transition_group = %(trans)s.group_id
+    where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+        and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+    and q1 > %(q1)s - %(q1_window)s and q1 < %(q1)s + %(q1_window)s
+    %(selectby)s
+    and q3 > %(q3_low)s and q3 < %(q3_high)s
+    %(query_add)s
+    """ % vdict
+    if transitions is None:
+        #if par.select_floor: query2 += "\n GROUP BY FLOOR(q3)"
+        if par.print_query: print query2
+        cursor.execute( query2 )
+    #Here we add N conditions to the SQL query where N = 2*len(transitions)
+    #we only select those transitions that also could possible interact
+    #We gain about a factor two to three [the smaller the window, the better]
+    else:
+        txt = 'and ('
+        q3_window_used = par.q3_window
+        for q3, id in transitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * q3
+            txt += '(q3 > %s and q3 < %s) or\n' % (q3 - q3_window_used, q3 + q3_window_used)
+        txt = txt[:-3] + ')'
+        #if par.select_floor: txt += "\n GROUP BY FLOOR(q3)"
+        if par.print_query: print query2 + txt
+        # print query2
+        # print txt
+        cursor.execute( query2 + txt )
+    return cursor.fetchall()
+
+def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
+                                forceset=False):
+    """ Get all combinations that are not UIS 
+    
+    Note that the new version returns a dictionary. To convert it to a set, one 
+    needs to force the function to return a set.
+    """
+    try: 
+        #using C++ functions for this == faster
+        import c_getnonuis
+        non_uis_list = [{} for i in range(MAX_UIS+1)]
+        collisions_per_peptide = c_getnonuis.getnonuis(
+            transitions, collisions, par.q3_window, par.ppm)
+        for order in range(1,MAX_UIS+1):
+            non_uis_list[order] = c_getnonuis.get_non_uis(
+                collisions_per_peptide, order)
+
+        if forceset: return [set(k.keys()) for k in non_uis_list]
+        return non_uis_list
+
+    except ImportError:
+        #old way of doing it
+        return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
+
+import uis_functions
+def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
+    """ Get all combinations that are not UIS """
+    #collisions
+    #q3, q1, srm_id, peptide_key
+    #transitions
+    #q3, srm_id
+    collisions_per_peptide = {}
+    non_uis_list = [set() for i in range(MAX_UIS+1)]
+    q3_window_used = par.q3_window
+    for t in transitions:
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        this_min = q3_window_used
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    #here we calculate the UIS for this peptide with the given RT-range
+    for pepc in collisions_per_peptide.values():
+        for i in range(1,MAX_UIS+1):
+            if unsorted: get_non_uis_unsorted(pepc, non_uis_list[i], i)
+            else: uis_functions.get_non_uis(pepc, non_uis_list[i], i)
+    return non_uis_list
+
