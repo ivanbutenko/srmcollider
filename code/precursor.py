@@ -67,6 +67,15 @@ class Precursors:
       if(p.included_in_isotopic_range(lower_q1, upper_q1, par, R) ): 
         self.precursors.append(p)
 
+  def getPrecursorsToEvaluate(self, min_q1, max_q1):
+    return [p for p in self.precursors 
+                       if p.q1_charge == 2 
+                       and p.modifications == 0
+                       and p.missed_cleavages == 0 
+                       and p.q1 >= min_q1
+                       and p.q1 <= max_q1
+                       ]
+
   def build_parent_id_lookup(self):
     self.parentid_lookup = dict([ [ p.parent_id, p] for p in self.precursors])
 

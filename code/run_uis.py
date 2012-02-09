@@ -55,19 +55,15 @@ count_avg_transitions = False
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
-group = OptionGroup(parser, "Run uis Options",
-                    "None yet")
+group = OptionGroup(parser, "Run uis Options")
 group.add_option("--swath_mode", action='store_true', dest="swath_mode", default=False,
                   help="SWATH mode enabled (use fixed window)")
 group.add_option("--use_db", action='store_true', dest="use_db", default=False,
                   help="Use db instead of rangetree")
-group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
-                  help="Only a dry run, do not start processing (but create experiment)")
+#group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
+#                  help="Only a dry run, do not start processing (but create experiment)")
 group.add_option("--restable", dest="restable", default='srmcollider.result_srmuis', type="str",
-                  help="MySQL result table" + 
-                  "Defaults to result_srmuis") 
-group.add_option("--sqlite_database", dest="sqlite_database", default='',
-                  help="Use specified sqlite database instead of MySQL database" )
+                  help="MySQL result table" + " - Defaults to result_srmuis") 
 group.add_option("--insert",
                   action="store_true", dest="insert_mysql", default=False,
                   help="Insert into mysql experiments table")
@@ -81,11 +77,7 @@ par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
-par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 par.eval()
-if not par.quiet: print par.get_common_filename()
-if not par.quiet: print "only b y ", par.do_b_y_only()
-if not par.quiet: print par.aions
 
 if len(sys.argv) < 4: 
     print "wrong number of arguments"
@@ -98,9 +90,6 @@ max_q1 = float(sys.argv[3])
 use_db = options.use_db
 swath_mode = options.swath_mode
 restable = options.restable
-sqlite_database = options.sqlite_database
-if sqlite_database != '': use_sqlite = True
-else: use_sqlite = False
 
 ########
 # Sanity check for SWATH : the provided window needs to be the SWATH window
@@ -114,17 +103,8 @@ if swath_mode:
 
 import Residues
 R = Residues.Residues('mono')
-
-if use_sqlite:
-    import sqlite
-    db = sqlite.connect(sqlite_database)
-    cursor = db.cursor()
-else:
-    import MySQLdb
-    db = MySQLdb.connect(read_default_file=par.mysql_config)
-    cursor = db.cursor()
-
-if not par.quiet: print 'isotopes' , par.isotopes_up_to
+db = par.get_db()
+cursor = db.cursor()
 
 if options.insert_mysql:
     common_filename = par.get_common_filename()
@@ -152,15 +132,7 @@ from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
 testrange = myprecursors.build_rangetree()
-
-precursors_to_evaluate = [p for p in myprecursors.precursors 
-                         if p.q1_charge == 2 
-                         and p.modifications == 0
-                         and p.missed_cleavages == 0 
-                         and p.q1 >= min_q1
-                         and p.q1 <= max_q1
-                         ]
-
+precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()
 myprecursors.build_transition_group_lookup()
 

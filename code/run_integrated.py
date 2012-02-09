@@ -54,14 +54,10 @@ import progress
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
-group = OptionGroup(parser, "Run integrated Options",
-                    "None yet")
-group.add_option("--sqlite_database", dest="sqlite_database", default='',
-                  help="Use specified sqlite database instead of MySQL database" )
+group = OptionGroup(parser, "Run integrated Options")
 group.add_option("--insert",
                   action="store_true", dest="insert_mysql", default=False,
                   help="Insert into mysql experiments table")
-parser.add_option_group(group)
 parser.add_option_group(group)
 
 # Run the collider
@@ -72,7 +68,6 @@ par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
-par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 par.eval()
 print par.get_common_filename()
 
@@ -84,19 +79,8 @@ if len(sys.argv) < 4:
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
 max_q1 = float(sys.argv[3])
-sqlite_database = options.sqlite_database
-if sqlite_database != '': use_sqlite = True
-else: use_sqlite = False
-
-if use_sqlite:
-    import sqlite
-    db = sqlite.connect(sqlite_database)
-    cursor = db.cursor()
-    cursor.execute("select count(*) from srmPeptides_test")
-else:
-    import MySQLdb
-    db = MySQLdb.connect(read_default_file=par.mysql_config)
-    cursor = db.cursor()
+db = par.get_db()
+cursor = db.cursor()
 
 if par.max_uis ==0: 
     print "Please change --max_uis option, 0 does not make sense here"
@@ -107,14 +91,7 @@ if par.max_uis ==0:
 from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
-
-precursors_to_evaluate = [p for p in myprecursors.precursors 
-                         if p.q1_charge == 2 
-                         and p.modifications == 0
-                         and p.missed_cleavages == 0 
-                         and p.q1 >= min_q1
-                         and p.q1 <= max_q1
-                         ]
+precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 
 import Residues
 R = Residues.Residues('mono')

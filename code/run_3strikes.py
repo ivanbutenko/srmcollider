@@ -10,18 +10,9 @@ sh /tmp/tmp.sh
 
 """
 
-import MySQLdb
 import time
 import sys 
 import c_rangetree, c_getnonuis
-sys.path.append( '/home/hroest/lib/hlib/' )
-sys.path.append( '/home/hroest/projects' )
-sys.path.append( '/home/hroest/projects/hlib' )
-#db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
-db = MySQLdb.connect(read_default_file="~/.my.cnf")
-cursor = db.cursor()
-#cursor_l = db_l.cursor()
-#cursor = cursor_l
 import collider
 import progress
 from collider import thisthirdstrike
@@ -49,7 +40,7 @@ par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
 
-db = MySQLdb.connect(read_default_file=par.mysql_config)
+db = par.get_db()
 cursor = db.cursor()
 # local arguments
 exp_key = sys.argv[1]
@@ -59,7 +50,6 @@ outfile = options.outfile
 strike3_ssrcalcwindow = options.ssr3strike
 myorder =options.myorder
 contamination_allow =options.allow_contamination
-par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
 par.eval()
 print par.get_common_filename()
 
@@ -68,16 +58,8 @@ print par.get_common_filename()
 from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
-testrange = myprecursors.build_rangetree()
-
-precursors_to_evaluate = [p for p in myprecursors.precursors 
-                         if p.q1_charge == 2 
-                         and p.modifications == 0
-                         and p.missed_cleavages == 0 
-                         and p.q1 >= min_q1
-                         and p.q1 <= max_q1
-                         ]
-
+myprecursors.build_rangetree()
+precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()
 myprecursors.build_transition_group_lookup()
 

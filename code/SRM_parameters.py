@@ -38,7 +38,9 @@ class SRM_parameters(object):
         self.q3_high    = None
         self.isotopes_up_to = None
 
-        self.mysql_config = None
+        self.mysql_config    = None
+        self.sqlite_database = None
+        self.use_sqlite      = None
 
 
     def set_default_vars(self):
@@ -53,6 +55,8 @@ class SRM_parameters(object):
         if self.max_uis is None: self.max_uis = 0
         if self.peptide_table is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
         if self.mysql_config is None: self.mysql_config = '~/.my.cnf'
+        if self.sqlite_database is None: self.sqlite_database = ''
+        if self.use_sqlite is None: self.use_sqlite = False
         if self.quiet is None: self.quiet = False
 
         if self.bions      is None: self.bions      =  True
@@ -101,6 +105,8 @@ class SRM_parameters(object):
                           help="MySQL table containing the peptides" )
         group.add_option("--transition_table", dest="transition_table", 
                           help="MySQL table containing the transitions" )
+        group.add_option("--sqlite_database", dest="sqlite_database", default='',
+                          help="Use specified sqlite database instead of MySQL database" )
         group.add_option("--mysql_config", dest="mysql_config", 
                           help="Location of mysql config file, defaults to ~/.my.cnf" )
         group.add_option("-q", "--quiet", dest="quiet", 
@@ -129,6 +135,8 @@ class SRM_parameters(object):
         elif self.ppm == 'False': self.ppm = False
         elif self.ppm in [True, False]: pass
         else: 'wrong arg for ppm'; assert False
+
+        if self.sqlite_database != '': self.use_sqlite = True
 
     def read_parameter_file(self, thefile):
         parameter = self
@@ -274,6 +282,14 @@ class SRM_parameters(object):
             self.MMinusH2O  ,
             self.MMinusNH3  ,
             )
+
+    def get_db(self):
+      if self.use_sqlite:
+          import sqlite
+          return sqlite.connect(self.sqlite_database)
+      else:
+          import MySQLdb
+          return MySQLdb.connect(read_default_file=self.mysql_config)
 
 def testcase(testdatabase='srmcollider'):
     par = SRM_parameters()
