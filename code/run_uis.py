@@ -198,7 +198,7 @@ if use_db and swath_mode:
     import Residues
     R = Residues.Residues('mono')
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
+    values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified, ssrcalc"
     q1_low = min_q1; q1_high = max_q1
     query2 = """
     select %(values)s
@@ -258,7 +258,8 @@ for kk, pep in enumerate(self.pepids):
             ssrcalc_low = ssrcalc - par.ssrcalc_window 
             ssrcalc_high = ssrcalc + par.ssrcalc_window 
             precursors = [p for p in allprecursors if p[2] != pep['transition_group'] 
-                         and p[4] > ssrcalc_low and p[4] < ssrcalc_high ]
+                         and p[5] > ssrcalc_low and p[5] < ssrcalc_high ]
+        precursors = tuple(precursors)
     elif not use_db:
         # Use the rangetree, whether it is swath or not
         #correct rounding errors, s.t. we get the same results as before!
