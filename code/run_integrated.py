@@ -48,9 +48,6 @@ Order 5, Average non useable UIS 3.86353977514e-06
 
 import sys 
 import c_integrated, c_rangetree, c_getnonuis
-sys.path.append( '/home/hroest/lib/hlib/' )
-sys.path.append( '/home/hroest/projects' )
-sys.path.append( '/home/hroest/projects/hlib' )
 import collider
 import progress
 
@@ -67,9 +64,9 @@ group.add_option("--insert",
 parser.add_option_group(group)
 parser.add_option_group(group)
 
-#Run the collider
+# Run the collider
 ###########################################################################
-#Parse options
+# Parse options
 mycollider = collider.SRMcollider()
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
@@ -105,67 +102,50 @@ if par.max_uis ==0:
     print "Please change --max_uis option, 0 does not make sense here"
     sys.exit()
 
+# Get the precursors
+###########################################################################
+from precursor import Precursors
+myprecursors = Precursors()
+myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
+
+precursors_to_evaluate = [p for p in myprecursors.precursors 
+                         if p.q1_charge == 2 
+                         and p.modifications == 0
+                         and p.missed_cleavages == 0 
+                         and p.q1 >= min_q1
+                         and p.q1 <= max_q1
+                         ]
+
 import Residues
 R = Residues.Residues('mono')
 isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-q =  """
-select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
-from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
-""" % {'peptide_table' : par.peptide_table, 
-              'lowq1'  : min_q1 - par.q1_window, 
-              'highq1' : max_q1 + par.q1_window,
-               'isotope_correction' : isotope_correction
-      } 
-#print q
-cursor.execute(q)
-
-alltuples =  list(cursor.fetchall() )
-mypepids = [
-            {
-                'sequence'  :  r[0],
-                'transition_group' :r[1],
-                'parent_id' :  r[2],
-                'q1_charge' :  r[3],
-                'q1' :         r[4],
-                'ssrcalc' :    r[5],
-                'isotope_mod': r[8],
-            }
-            for r in alltuples
-    if r[3] == 2  # charge is 2
-    and r[6] == 0 # no modification 
-    and r[7] == 0 # no missed cleavages 
-    and r[4] >= min_q1
-    and r[4] < max_q1
-]
-
-print "building tree with %s Nodes" % len(alltuples)
-if use_sqlite: alltuples = [tuple(t) for t in alltuples]
+alltuples = [ (p.modified_sequence, p.transition_group, p.parent_id, p.q1_charge, p.q1, p.ssrcalc,0,0,p.isotopically_modified) for p in myprecursors.precursors]
 c_integrated.create_tree(tuple(alltuples))
 
-self = mycollider
-self.mysqlnewtime = 0
-self.pepids = mypepids
 MAX_UIS = par.max_uis
-progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
 prepare  = []
-for pep in self.pepids:
-    p_id = pep['parent_id']
-    q1 = pep['q1']
-    ssrcalc = pep['ssrcalc']
+for precursor in precursors_to_evaluate:
+
+    ssrcalc = precursor.ssrcalc
+    q1 = precursor.q1
+    p_id = precursor.parent_id
+
     q3_low, q3_high = par.get_q3range_transitions()
-    #
-    transitions = c_getnonuis.calculate_transitions_ch(
-        ((q1, pep['sequence'], p_id),), [1], q3_low, q3_high)
-    transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+    transitions = precursor.calculate_transitions(q3_low, q3_high)
     nr_transitions = len(transitions)
+
     #correct rounding errors, s.t. we get the same results as before!
     ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
     ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
     try:
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
-            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, pep['transition_group'],  
+            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, precursor.transition_group,  
             min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
-    except ValueError: print "Too many transitions for", pep['sequence']; continue
+    except ValueError: 
+      print "Too many transitions for", precursor.modification
+      continue
+
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (result[order-1], collider.choose(nr_transitions, 
             order), p_id , order, exp_key)  )

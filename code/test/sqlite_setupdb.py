@@ -16,6 +16,9 @@ create table %(table)s(
     ssrcalc DOUBLE,
     isotope_nr TINYINT,
     transition_group INT,
+
+    modifications TINYINT UNSIGNED,
+    missed_cleavages TINYINT UNSIGNED,
     isotopically_modified TINYINT UNSIGNED
 );
 create index testpepkey   on %(table)s (peptide_key);
@@ -34,8 +37,8 @@ for rr in creader:
     # isotopes explicitely but dont do this any more)
     if int(rr[6]) != 0: continue
     query = 'insert into %s' % table + """
-( parent_id , peptide_key, modified_sequence, q1_charge, q1, ssrcalc, isotope_nr, transition_group, isotopically_modified)
-values (%s, %s, '%s', %s, %s, %s, %s, %s, 0)
+( parent_id , peptide_key, modified_sequence, q1_charge, q1, ssrcalc, isotope_nr, transition_group, isotopically_modified, modifications, missed_cleavages)
+values (%s, %s, '%s', %s, %s, %s, %s, %s, 0, 0, 0)
         """ % (rr[0], rr[1], rr[2], rr[3], rr[4], rr[5], rr[6] , rr[7] )
     c.execute(query)
 
