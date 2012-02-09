@@ -99,6 +99,9 @@ if swath_mode:
 ###########################################################################
 # Prepare the collider
 
+import Residues
+R = Residues.Residues('mono')
+
 if use_sqlite:
     import sqlite
     db = sqlite.connect(sqlite_database)
@@ -134,7 +137,7 @@ if options.insert_mysql:
 ###########################################################################
 from precursor import Precursors
 myprecursors = Precursors()
-myprecursors.getFromDB(par, db.cursor(), min_q1, max_q1)
+myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
 testrange = myprecursors.build_rangetree()
 
 precursors_to_evaluate = [p for p in myprecursors.precursors 
@@ -150,79 +153,24 @@ myprecursors.build_transition_group_lookup()
 
 print "analyzing %s peptides" % len(precursors_to_evaluate)
 
-# use the rangetree?
-if not use_db:
-    if True:
-        if swath_mode: this_min = min_q1; this_max = max_q1
-        else: this_min = min_q1 - par.q1_window; this_max = max_q1 + par.q1_window
-        import Residues
-        R = Residues.Residues('mono')
-        isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-        q = """
-        select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr, isotopically_modified
-        from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
-        """ % {'peptide_table' : par.peptide_table, 
-                      'lowq1'  : this_min,
-                      'highq1' : this_max,
-                      'isotope_correction' : isotope_correction
-              }
-        if not par.quiet: print q
-        cursor.execute( q )
-        if not swath_mode:
-            alltuples = tuple(cursor.fetchall() )
-        else:
-            # filter out wrong isotopes
-            result = cursor.fetchall() 
-            new_result = []
-            for r in result:
-              append = False
-              ch = r[3]
-              for iso in range(par.isotopes_up_to+1):
-                if (r[4] + (R.mass_diffC13 * iso)/ch > min_q1 and 
-                    r[4] + (R.mass_diffC13 * iso)/ch < max_q1): append=True
-              if(append): new_result.append(r)
-            alltuples = tuple(new_result)
-    import c_rangetree
-    # parent_id : q1, sequence, trans_group, q1_charge
-    parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3], r[7]) ] 
-            for r in alltuples ]
-    parentid_lookup  = dict(parentid_lookup)
-    print "building tree with %s Nodes" % len(alltuples)
-    if use_sqlite: alltuples = [tuple(t) for t in alltuples]
-    # print [p for p in alltuples if p[1] == 554689]
-    c_rangetree.create_tree(tuple(alltuples))
+# If we dont use the DB, we use the rangetree to query and get our list of
+# precursors that are interfering. In SWATH we dont include a +/- q1_window
+# around our range or precursors because the precursor window is fixed to
+# (min_q1,max_q1) and no other precursors are considered.
+if not use_db and swath_mode: 
+  myprecursors.getFromDB(par, cursor, min_q1, max_q1)
+  testrange = myprecursors.build_rangetree()
+elif not use_db:
+  myprecursors.getFromDB(par, cursor, min_q1 - par.q1_window, max_q1 + par.q1_window)
+  testrange = myprecursors.build_rangetree()
 
-# in SWATH mode, select all precursors that are relevant for the background at
-# once
+# In SWATH mode, select all precursors that are relevant for the background at
+# once. Select all precursors between min_q1 - correction and max_q1 and then
+# only append those to all_swath_precursors that are actually included in the
+# range (min_q1,max_q1) with at least one isotope.
 par.query2_add = ''
 if use_db and swath_mode: 
-    import Residues
-    R = Residues.Residues('mono')
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified, ssrcalc"
-    q1_low = min_q1; q1_high = max_q1
-    query2 = """
-    select %(values)s
-    from %(pep)s
-    where q1 >= %(q1_low)s - %(correction)s and q1 <= %(q1_high)s
-    """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
-           'correction' : isotope_correction,
-           'pep' : par.peptide_table,
-           'values' : values}
-    if not par.quiet: print 'swath ' , query2
-    cursor.execute( query2 )
-    result = cursor.fetchall() 
-    # filter out wrong isotopes
-    new_result = []
-    for r in result:
-      append = False
-      ch = r[3]
-      for iso in range(par.isotopes_up_to+1):
-        if (r[0] + (R.mass_diffC13 * iso)/ch > min_q1 and 
-            r[0] + (R.mass_diffC13 * iso)/ch < max_q1): append=True
-      if(append): new_result.append(r)
-    allprecursors = new_result
-
     temp_precursors = Precursors()
     temp_precursors.getFromDB(par, db.cursor(), min_q1 - isotope_correction, max_q1)
     all_swath_precursors = []
@@ -230,11 +178,7 @@ if use_db and swath_mode:
       if(p.included_in_isotopic_range(min_q1, max_q1, par, R) ): 
         all_swath_precursors.append(p)
 
-
-
-
-
-nr_interfering_prec = [ [] for i in range(7)]
+# nr_interfering_prec = [ [] for i in range(7)]
 
 allintertr = []
 MAX_UIS = par.max_uis

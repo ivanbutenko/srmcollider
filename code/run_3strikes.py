@@ -26,15 +26,6 @@ import collider
 import progress
 from collider import thisthirdstrike
 
-exp_key = -1234
-min_q1 = 450
-max_q1 = 460
-ssrcalcwin = 2.0
-
-#11234556 1047 1205 0.25 hroest.srmPeptides_yeast
-
-
-
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
@@ -50,11 +41,9 @@ group.add_option("--allow_contamination", dest="allow_contamination", default=3,
                   help="Number of locally contaminated transitions to be allowed" )
 parser.add_option_group(group)
 
-
-
-#Run the collider
+# Run the collider
 ###########################################################################
-#Parse options
+# Parse options
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
@@ -62,7 +51,7 @@ par.parse_options(options)
 
 db = MySQLdb.connect(read_default_file=par.mysql_config)
 cursor = db.cursor()
-#local arguments
+# local arguments
 exp_key = sys.argv[1]
 min_q1 = float(sys.argv[2])
 max_q1 = float(sys.argv[3])
@@ -71,19 +60,6 @@ strike3_ssrcalcwindow = options.ssr3strike
 myorder =options.myorder
 contamination_allow =options.allow_contamination
 par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
-
-"""
-
-par.q1_window = 0.7 / 2.0 #UIS paper = 1.2
-par.q3_window = 0.7 / 2.0 #UIS paper = 2.0
-par.ssrcalc_window = 4 / 2.0
-par.ppm = False
-outfile = '/tmp/out'
-strike3_ssrcalcwindow = 0.3
-myorder = 4
-
-"""
-
 par.eval()
 print par.get_common_filename()
 
@@ -91,7 +67,7 @@ print par.get_common_filename()
 ###########################################################################
 from precursor import Precursors
 myprecursors = Precursors()
-myprecursors.getFromDB(par, db.cursor(), min_q1, max_q1)
+myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
 testrange = myprecursors.build_rangetree()
 
 precursors_to_evaluate = [p for p in myprecursors.precursors 

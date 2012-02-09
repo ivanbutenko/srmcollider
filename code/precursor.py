@@ -23,13 +23,31 @@ class Precursor:
     # fake some srm_id for the transitions, so that the returned transitions will be tuples of (q1, id)
     return tuple([ (t[0], i) for i,t in enumerate(transitions)])
 
+  def included_in_isotopic_range(self, range_low, range_high, par, R):
+    for iso in range(par.isotopes_up_to+1):
+      if (self.q1 + (R.mass_diffC13 * iso)/self.q1_charge > range_low and 
+          self.q1 + (R.mass_diffC13 * iso)/self.q1_charge < range_high): return True
+
+  def __repr__(self):
+      print "Precursor object '%s': %s" % (self.modified_sequence, self.q1)
+
+  def to_old_pep(self):
+      return {
+                'mod_sequence'  :    self.modified_sequence,
+                'transition_group' : self.transition_group,
+                #'parent_id' :  r[2],
+                #'q1_charge' :  r[3],
+                'q1' :               self.q1,
+                'ssrcalc' :          self.ssrcalc
+            }
+
 class Precursors:
   """A class that abstracts getting and receiving precursors from the db"""
 
   def __init__(self):
     self.precursors = []
 
-  def getFromDB(self, par, cursor, min_q1, max_q1):
+  def getFromDB(self, par, cursor, lower_q1, upper_q1):
     # Get all precursors from the DB within a window of Q1
     self.precursors = []
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
@@ -37,15 +55,17 @@ class Precursors:
     select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
     from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
     """ % {'peptide_table' : par.peptide_table, 
-                  'lowq1'  : min_q1 - par.q1_window, 
-                  'highq1' : max_q1 + par.q1_window,
+                  'lowq1'  : lower_q1,  # min_q1 - par.q1_window
+                  'highq1' : upper_q1, # max_q1 + par.q1_window,
                   'isotope_correction' : isotope_correction
           } 
     cursor.execute(q)
     for res in cursor.fetchall():
       p = Precursor()
       p.initialize(*res)
-      self.precursors.append(p)
+      # Only include those precursors that are actually have isotopes in the specified range
+      if(p.included_in_isotopic_range(lower_q1, upper_q1, par, R) ): 
+        self.precursors.append(p)
 
   def build_parent_id_lookup(self):
     self.parentid_lookup = dict([ [ p.parent_id, p] for p in self.precursors])
@@ -56,7 +76,7 @@ class Precursors:
   def build_transition_group_lookup(self):
     self.transition_group_lookup = dict([ [ p.transition_group, p] for p in self.precursors])
 
-  def loopup_by_transition_group(self, parent_id):
+  def loopup_by_transition_group(self, transition_group):
     return self.transition_group_lookup[transition_group]
 
   def build_rangetree(self):
@@ -74,7 +94,7 @@ class Precursors:
     c_rangetree.create_tree(tuple(alltuples))
     return c_rangetree
 
-  def get_collisions_per_peptide(self, precursor, transitions, par):
+  def get_collisions_per_peptide_from_rangetree(self, precursor, transitions, par):
     """Get the collisions per peptide, e.g. a dictionary that contains the
     interfered transitions for a given precursor with given transitions.
     """

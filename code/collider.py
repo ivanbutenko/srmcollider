@@ -32,10 +32,40 @@ import DDB
 import Residues
 
 from SRM_parameters import *
+from precursor import Precursor
 
 class SRMcollider(object):
 
+    def _get_all_precursors_obj(self, par, precursor, cursor, 
+         bysequence=False):
+      precursors = []
+      values = "modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified"
+      R = Residues.Residues('mono')
+      pep = precursor.to_old_pep()
+      for res in self._get_all_precursors_sub(par, pep, cursor, values, bysequence):
+        p = Precursor()
+        p.initialize(*res)
+        if(p.included_in_isotopic_range(precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, par, R) ): 
+          precursors.append(p)
+      return precursors
+
     def _get_all_precursors(self, par, pep, cursor, 
+         values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
+         bysequence=False):
+        R = Residues.Residues('mono')
+        result = self._get_all_precursors_sub(par, pep, cursor, values)
+        assert(values[:50] == "q1, modified_sequence, transition_group, q1_charge")
+        new_result = []
+        for r in result:
+          append = False
+          ch = r[3]
+          for iso in range(par.isotopes_up_to+1):
+            if (r[0] + (R.mass_diffC13 * iso)/ch > pep['q1'] - par.q1_window and 
+                r[0] + (R.mass_diffC13 * iso)/ch < pep['q1'] + par.q1_window): append=True
+          if(append): new_result.append(r)
+        return tuple(new_result)
+
+    def _get_all_precursors_sub(self, par, pep, cursor, 
          values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
          bysequence=False):
         vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
@@ -63,21 +93,7 @@ class SRMcollider(object):
         if par.print_query: print query2
         #print query2
         cursor.execute( query2 )
-        # now filter out all the precursors that do not have an isotope that falls in here
-        # -- need to assure that r[0] is the q1 and r[3] the q1_charge
-        # if the mass of the peptide or that of any of its isotopes is within
-        # the window, we will use it.
-        result = cursor.fetchall()
-        assert(values[:50] == "q1, modified_sequence, transition_group, q1_charge")
-        new_result = []
-        for r in result:
-          append = False
-          ch = r[3]
-          for iso in range(par.isotopes_up_to+1):
-            if (r[0] + (R.mass_diffC13 * iso)/ch > pep['q1'] - par.q1_window and 
-                r[0] + (R.mass_diffC13 * iso)/ch < pep['q1'] + par.q1_window): append=True
-          if(append): new_result.append(r)
-        return tuple(new_result)
+        return cursor.fetchall()
 
     # calculates all fragments of the peptide in Python and compares them to
     # the fragments of the precursors
@@ -101,6 +117,7 @@ class SRMcollider(object):
             peptide.charge = c[3]
             if c[4] == Residues.NOISOTOPEMODIFICATION:
               R_used = R
+            # TODO test
             elif c[4] == Residues.N15_ISOTOPEMODIFICATION:
               R_used = RN15
             peptide.create_fragmentation_pattern( R_used, 
@@ -121,6 +138,7 @@ class SRMcollider(object):
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    # not specifically necessary any more because we also have bound checks later
                     #if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
 
@@ -160,6 +178,7 @@ class SRMcollider(object):
     # returns the peptide ids and transitions for a peptide from a SRMAltas
     def _get_unique_pepids_toptransitions(self, par, cursor):
         #TODO we select all peptides that are in the peplink table
+        #TODO test this fxn
         #regardless whether their charge is actually correct
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide.id, m.sequence
@@ -191,6 +210,7 @@ class SRMcollider(object):
         ]
 
     def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
+        # TODO test this fxn
         q3_low, q3_high = par.get_q3range_transitions()
         query1 = """
         select %(values)s
@@ -334,11 +354,17 @@ def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
                 q3 = ( pred + (ch -1)*R.mass_H)/ch
                 if q3 < q3_low or q3 > q3_high: continue
                 yield (q3, q1, 0, peptide_key)
+            # TODO test also b_series ?!
             for pred in b_series:
                 q3 = ( pred + (ch -1)*R.mass_H)/ch
                 if q3 < q3_low or q3 > q3_high: continue
                 yield (q3, q1, 0, peptide_key)
 
+def get_coll_per_peptide_from_precursors_obj_wrapper(self, transitions, precursors_obj, par, precursor,
+  forceNonCpp=False):
+  pep = precursor.to_old_pep()
+  oldstyle_precursors = tuple([(0, p.modified_sequence, p.transition_group, 0, p.isotopically_modified) for p in precursors_obj])
+  return get_coll_per_peptide_from_precursors(self, transitions, oldstyle_precursors, par, pep, forceNonCpp)
 
 ###UIS Code
 from uis_functions import *
