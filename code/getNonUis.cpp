@@ -46,8 +46,6 @@ bool SortIntDoublePairSecond(const std::pair<int,double>& left, const std::pair<
 // Function declarations
 
 // functions to calculate collperpeptide dictionary
-python::dict _getnonuis_wrapper(python::tuple transitions, python::tuple
-        collisions, double q3window, bool ppm);
 python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         python::tuple precursors, double q3_low, double q3_high, double
         q3window, bool ppm);
@@ -79,98 +77,6 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
 // calculate eUIS
 bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
         ssrwindow );
-
-/*
- * Function to calculate the collisions_per_peptide out of a set of 
- * transitions and collisions. It will return a dictionary 
- * where for each key (colliding peptide key) the set of transitions
- * of the query peptide are stored that are interfered with.
- * Transitions are tuples of the form (q3, srm_id), collisions are tuples of the
- * form (q3, q1, srm_id, peptide_key).
- *
- * Input
- * transitions: (q3, srm_id)
- * collisions: (q3, q1, srm_id, peptide_key)
- *
- */
-python::dict _getnonuis_wrapper(python::tuple transitions,
-        python::tuple collisions, double q3window, bool ppm) {
-
-    python::dict collisions_per_peptide;
-    python::tuple clist;
-    python::tuple tlist;
-    python::list tmplist;
-
-    int collision_length = python::extract<int>(collisions.attr("__len__")());
-    int transitions_length = python::extract<int>(transitions.attr("__len__")());
-    int tmplen;
-    long c3, t1, tmplong;
-    bool already_in_list;
-    double t0, q3used = q3window;
-
-    for (int i=0; i<transitions_length; i++) {
-        tlist = python::extract< python::tuple >(transitions[i]);
-
-        //ppm is 10^-6
-        t0 = python::extract< double >(tlist[0]);
-        if(ppm) {q3used = q3window / 1000000.0 * t0; } 
-
-        // go through all (potential) collisions
-        // and store the colliding SRM ids in a dictionary (they can be found at
-        // position 3 and 1 respectively)
-        for (int j=0; j<collision_length; j++) {
-            clist = python::extract< python::tuple >(collisions[j]);
-
-            if(fabs(t0-python::extract< double >(clist[0]) ) <  q3used) {
-
-                c3 = python::extract<long>(clist[3]);
-                t1 = python::extract<long>(tlist[1]);
-
-                if(collisions_per_peptide.has_key(c3)) {
-                    //append to the list in the dictionary
-                    ///unless its already in the list
-                    tmplist = python::extract<python::list>( 
-                            collisions_per_peptide[c3] );
-                    tmplen = python::extract<int>(tmplist.attr("__len__")());
-                    already_in_list = false;
-                    for (int k=0; k<tmplen; k++) {
-                        tmplong = python::extract<long>(tmplist[k]);
-                        if(tmplong == t1) {already_in_list = true;}
-                    }
-                    if(not already_in_list) { tmplist.append(t1); }
-                }
-                else {
-                    //create new list in the dictionary
-                    python::list newlist;
-                    newlist.append(t1);
-                    collisions_per_peptide[c3] = newlist;
-                }
-            }
-        }
-    }
-
-    /*
-     * In Python, this corresponds to the following function
-     *
-
-        collisions_per_peptide = {}
-        q3_window_used = par.q3_window
-        for t in transitions:
-            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-            this_min = q3_window_used
-            for c in collisions:
-                if abs( t[0] - c[0] ) <= q3_window_used:
-                    #gets all collisions
-                    if collisions_per_peptide.has_key(c[3]):
-                        if not t[1] in collisions_per_peptide[c[3]]:
-                            collisions_per_peptide[c[3]].append( t[1] )
-                    else: collisions_per_peptide[c[3]] = [ t[1] ] 
-
-
-    */
-
-    return collisions_per_peptide;
-}
 
 /*
  */
@@ -439,6 +345,8 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
  * Input
  * transitions: (q3, srm_id)
  * collisions: (q3, q1, srm_id, peptide_key)
+ *
+ * TODO only used by tests any more => delete
  *
  */
 python::dict _find_clashes_core_non_unique(python::tuple transitions,
@@ -907,18 +815,34 @@ using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
 {
 
-    def("getnonuis", _getnonuis_wrapper, 
- "Function to calculate the collisions_per_peptide out of a set of \n"
- "transitions and collisions. It will return a dictionary \n"
- "where for each key (colliding peptide key) the set of transitions\n"
- "of the query peptide are stored that are interfered with is held.\n"
- "Transitions are tuples of the form (q3, srm_id), collisions are tuples of the\n"
- "form (q3, q1, srm_id, peptide_key)\n"
- "\n"
- "\n"
- " Signature\n"
- "dict getnonuis(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
- );
+  /* 
+   * Which functions are used where:
+   *  calculate_collisions_per_peptide_other_ion_series - precursor.py  / collider.py
+   *  calculate_collisions_per_peptide  - collider.py (if only b/y series is used)
+   *  calculate_transitions_ch - collider.py / precursor.py to calculate transitions (in Lib)
+   *
+   *  3strikes.py: 
+   *   - get_non_uis  (in Lib)
+   *   - calculate_eUIS
+   *
+   *  run_paola.py: 
+   *   - calculate_transitions_ch  (in Lib)
+   *   - uses c_integrated for minNeeded
+   *
+   *  run_swath.py: 
+   *   - calculate_transitions_ch  (in Lib)
+   *   - calculate_density 
+   * 
+   * 
+   *  cgi-scripts/srmcollider.py
+   *   - calculate_transitions_ch (in Lib) 
+   *   - calculate_collisions_per_peptide_other_ion_series 
+   *   - calculate_collisions_per_peptide  
+   *   - _find_clashes_forall_other_series
+   *   - get_non_uis  (in Lib)
+   *
+   *
+  */
 
     def("calculate_collisions_per_peptide_other_ion_series", _find_clashes_calculate_collperpeptide_other_ion_series, 
             ""); 

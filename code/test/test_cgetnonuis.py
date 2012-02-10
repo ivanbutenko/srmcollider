@@ -18,6 +18,9 @@ except ImportError:
 Module c_getnonuis is not available. Please compile it if you want to use it.
 """, "=" * 75
 
+
+
+### Helper functions
 def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
                                 forceset=False):
     """ Get all combinations that are not UIS 
@@ -27,13 +30,28 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
     """
     import c_getnonuis
     non_uis_list = [{} for i in range(MAX_UIS+1)]
-    collisions_per_peptide = c_getnonuis.getnonuis(
-        transitions, collisions, par.q3_window, par.ppm)
+    collisions_per_peptide = getnonuis(transitions, collisions, par.q3_window, par.ppm)
     for order in range(1,MAX_UIS+1):
         non_uis_list[order] = c_getnonuis.get_non_uis(
             collisions_per_peptide, order)
 
     return non_uis_list
+
+
+def getnonuis(transitions, collisions, q3_window, ppm):
+        collisions_per_peptide = {}
+        q3_window_used = q3_window
+        for t in transitions:
+            if ppm: q3_window_used = q3_window * 10**(-6) * t[0]
+            this_min = q3_window_used
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: collisions_per_peptide[c[3]] = [ t[1] ] 
+        return collisions_per_peptide
 
 class Test_cgetnonuis(unittest.TestCase):
 
@@ -79,7 +97,7 @@ class Test_cgetnonuis(unittest.TestCase):
             q3window = 1.0
             ppm = False
             #
-            result = c_getnonuis.getnonuis( self.transitions, self.collisions, q3window, ppm)
+            result = getnonuis(self.transitions, self.collisions, q3window, ppm)
             self.assertTrue( result[201] == [1,2] )
             self.assertTrue( result[202] == [1,3] )
             self.assertTrue( result[203] == [1,2,3] )
@@ -87,7 +105,7 @@ class Test_cgetnonuis(unittest.TestCase):
             #Test 2
             transitions = test_shared.transitions_def2
             collisions = test_shared.collisions_def2
-            result = c_getnonuis.getnonuis( transitions, collisions, q3window, ppm)
+            result = getnonuis(transitions, collisions, q3window, ppm)
             self.assertTrue( result[201] == [1,2,3] )
             self.assertTrue( result[202] == [2,3,4] )
 
@@ -421,9 +439,8 @@ class Test_cgetnonuis(unittest.TestCase):
 class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     """ Tests the c_getnonuis module over the collider.
 
-    By calling collider.get_non_UIS_from_transitions, we test the two functions
+    By calling collider.get_non_UIS_from_transitions, we test the function
 
-        * c_getnonuis.getnonuis 
         * c_getnonuis.get_non_uis
 
     in tandem.
