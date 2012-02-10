@@ -452,6 +452,86 @@ class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
             self.assertEqual([len(l) for l in newnon_uis[1:]], test_shared.lennonuis4)
             self.assertEqual(newnon_uis, test_shared.refnonuis4)
 
+from precursor import Precursor
+import c_getnonuis
+class Test_three_peptide_example(unittest.TestCase): 
+
+    """
+    The target is YYLLDYR with these transitions and numbers
+
+      (842.4412197, 0), y6+
+      (679.3778897, 1), y5+
+      (566.2938297, 2), y4+
+      (453.2097697, 3), y3+
+      (440.2185450, 4), b3+
+      (553.3026050, 5), b4+
+      (668.3295450, 6), b5+
+      (831.3928750, 7)  b6+ 
+
+    The peptides GGLIVELGDK b5+ ion interferes with the targets b3+ ion which leads to 665: [4]
+
+    The peptides NGTDGGLQVAIDAMR b9+ ion (842.4008) interferes with the targets y6+ ion
+    and also the y11++ ion (565.8035) interferes with the targets y4+ ion which leads to 618: [0, 2].
+
+    """
+    def setUp(self):
+      import sys
+
+      self.acollider = collider.SRMcollider()
+      self.aparamset = collider.testcase()
+      self.EPSILON = 10**-5
+
+      par = collider.SRM_parameters()
+      par.q1_window = 25 / 2.0
+      par.q3_window = 1 / 2.0
+      par.ppm = False
+      par.q3_low = 400
+      par.q3_high = 1400
+
+      par.q3_range = [par.q3_low, par.q3_high]
+      par.set_default_vars()
+      par.eval()
+      self.real_parameters = par
+
+      self.precursor = test_shared.ThreePeptideExample.precursor
+      self.interfering_precursors = test_shared.ThreePeptideExample.interfering_precursors
+      self.oldstyle_precursors = tuple([(p.q1, p.modified_sequence, p.transition_group, p.q1_charge, p.isotopically_modified) for p in self.interfering_precursors])
+
+    def test_find_clashes_forall_other_series(self):
+      """ Test how to calculate the transitions of the target
+        nonunique = c_getnonuis._find_clashes_forall_other_series( 
+            tuple(transitions), tuple(precursors), q3_low, q3_high, 
+            par.q3_window, par.ppm, par, q1 - par.q1_window)
+
+      """
+      par = self.real_parameters
+      q3_low, q3_high = self.real_parameters.get_q3range_transitions()
+      precursor = self.precursor
+      transitions = precursor.calculate_transitions(q3_low, q3_high)
+
+    
+      nonunique = c_getnonuis._find_clashes_forall_other_series( 
+        tuple(transitions), self.oldstyle_precursors, q3_low, q3_high,
+            par.q3_window, par.ppm, par, precursor.q1 - par.q1_window)
+
+      self.assertEqual( len( nonunique ), 3)
+      self.assertEqual( nonunique.keys(), [0,2,4] )
+
+      self.assertTrue( abs(nonunique[0][0][0] - 842.4008) < self.EPSILON )
+      self.assertEqual( nonunique[0][0][4], 'b')
+      self.assertEqual( nonunique[0][0][5], 9)
+      self.assertEqual( nonunique[0][0][-1], 1)
+
+      self.assertTrue( abs(nonunique[2][0][0] - 565.8035) < self.EPSILON )
+      self.assertEqual( nonunique[2][0][4], 'y')
+      self.assertEqual( nonunique[2][0][5], 4)
+      self.assertEqual( nonunique[2][0][-1], 2)
+
+      self.assertTrue( abs(nonunique[4][0][0] - 440.287275) < self.EPSILON )
+      self.assertEqual( nonunique[4][0][4], 'b')
+      self.assertEqual( nonunique[4][0][5], 5)
+      self.assertEqual( nonunique[4][0][-1], 1)
+
 if __name__ == '__main__':
     unittest.main()
 
