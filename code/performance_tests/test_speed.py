@@ -132,7 +132,7 @@ class Test_speed(unittest.TestCase):
 
         oldtime = time.time() - st
         st = time.time()
-        tr_new = c_getnonuis.calculate_transitions(tuple(precursors), self.q3_low, self.q3_high)
+        tr_new = c_getnonuis.calculate_transitions_ch(tuple(precursors), [1,2], self.q3_low, self.q3_high)
         ctime = time.time() - st
 
         tr_new.sort(mysort)

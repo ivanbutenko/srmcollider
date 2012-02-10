@@ -596,6 +596,8 @@ python::dict _find_clashes_forall(python::tuple transitions,
  * Function to calculate the exact interfering transitions for each peptide.
  * It will return a Transitions are tuples of the form (q3, srm_id), precursors
  * are tuples of the form (q1, sequence, peptide_key).
+ *
+ * Used by the web-scripts to report the exact interfering transitions.
  */
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
@@ -961,16 +963,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "dict core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
  );
 
-    def("calculate_transitions", _find_clashes_calculate_clashes, 
- "Function to calculate all transitions of a list of precursor peptides.\n"
- "Precursors are tuples of the form (q1, sequence, peptide_key).\n"
- "It will return a list of tuples that are of the form \n"
- "(q3, q1, 0, peptide_key) \n"
- "\n"
- "\n"
- " Signature\n"
- "list calculate_transitions(tuple precursors, double q3_low, double q3_high ) \n"
- );
     def("calculate_transitions_ch", _find_clashes_calculate_clashes_ch,
  "Function to calculate all transitions of a list of precursor peptides and \n"
  "allows to select the charge states of these precursors.\n"
@@ -982,17 +974,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  " Signature\n"
  "list calculate_transitions_ch(tuple precursors, list charges, double q3_low, double q3_high ) \n"
  );
-
-    def("calculate_transitions_inner", _calculate_clashes_wrapper, 
- "Function to calculate all transitions of a precursor peptide ion of a"
- "defined charge state.  The input is a tuple of the form (q1, sequence,"
- "peptide_key) and the charge state.  It will return a list containing the b"
- "and y fragments."
- "\n"
- "\n"
- " Signature\n"
- "list calculate_transitions_inner(tuple precursor, double charge) \n"
-            "");
 
     def("calculate_charged_mass", calculate_charged_mass, 
  "Calculate the charged mass for a sequence, supplied in a python tuple in the\n"
