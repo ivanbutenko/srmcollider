@@ -58,15 +58,11 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     python::list precursors, double q3_low, double q3_high, double q3window,
     bool ppm) ;
 
-// Function to calculate the exact interfering transitions for each peptide.
-python::dict _find_clashes_forall(python::tuple transitions,
-    python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm);
 // Function to calculate the exact interfering transitions for each peptide for
 // series other than b/y.
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm, python::object par) ;
+    bool ppm, python::object par, double q1_low);
 void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
     const char* sequence, string& curr_ion, python::object par);
 
@@ -442,7 +438,7 @@ python::dict _find_clashes_forall(python::tuple transitions,
  */
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm, python::object par) {
+    bool ppm, python::object par, double q1_low) {
 
     python::dict result, tmpdict;
     python::tuple clist;
@@ -452,11 +448,12 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch;
-    int isotope_nr;
+    int isotope_nr, q1_charge;
 
     long t1, peptide_key;
-    double t0, q1, ssrcalc, q3used = q3window;
+    double t0, q1, ssrcalc, q3used = q3window, q1_used;
     char* sequence;
+    int max_isotopes = python::extract<int>(par.attr("isotopes_up_to"));
 
     double* series = new double[10*256];
     double* tmp_series = new double[256];
@@ -472,8 +469,9 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
         sequence = python::extract<char *>(clist[1]);
         peptide_key = python::extract<long>(clist[2]);
 
-        ssrcalc = python::extract<double>(clist[3]);
-        isotope_nr = python::extract<int>(clist[4]);
+        ssrcalc = python::extract<double>(clist[4]);
+        q1_charge = python::extract<int>(clist[3]);
+        //isotope_nr = python::extract<int>(clist[4]);
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series(sequence, tmp_series,
@@ -496,9 +494,18 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                             _find_clashes_forall_other_series_sub(snumber, ch,
                                     k, sequence, curr_ion, par);
 
+                            // Find the isotope with the least amount of C13
+                            // that is above the specified range (only for
+                            // cosmetics so that we can report whether the hit
+                            // was on a monoisotopic precursor or not)
+                            for(isotope_nr=0;isotope_nr<=max_isotopes;isotope_nr++)
+                            {
+                                q1_used = q1 + (MASS_DIFFC13 * isotope_nr)/q1_charge;
+                                if(q1_used > q1_low) {break;}
+                            }
                             tmplist = python::extract<python::list>(result[t1]);
                             tmplist.append( python::make_tuple(series[k],
-                            q1, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
+                            q1_used, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
                         }
                         else{
                             python::list newlist;
@@ -509,8 +516,17 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                             _find_clashes_forall_other_series_sub(snumber, ch,
                                     k, sequence, curr_ion, par);
 
+                            // Find the isotope with the least amount of C13
+                            // that is above the specified range (only for
+                            // cosmetics so that we can report whether the hit
+                            // was on a monoisotopic precursor or not)
+                            for(isotope_nr=0;isotope_nr<=max_isotopes;isotope_nr++)
+                            {
+                                q1_used = q1 + (MASS_DIFFC13 * isotope_nr)/q1_charge;
+                                if(q1_used > q1_low) {break;}
+                            }
                             tmplist.append( python::make_tuple(series[k],
-                            q1, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
+                            q1_used, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
                             result[t1] = tmplist;
                         }
                     }
@@ -835,7 +851,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
    /*
    * Used by the web-scripts to report the exact interfering transitions.
    */
-   def("_find_clashes_forall", _find_clashes_forall, "");
+   //def("_find_clashes_forall", _find_clashes_forall, "");
    def("_find_clashes_forall_other_series", _find_clashes_forall_other_series, "");
 
    /*
