@@ -138,8 +138,8 @@ class SRMcollider(object):
             for ch in [1,2]:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
-                    # not specifically necessary any more because we also have bound checks later
-                    #if q3 < q3_low or q3 > q3_high: continue
+                    # Bound check is mostly necessary for the tests
+                    if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
 
     # calculates the minimally needed number of transitions for a peptide to be

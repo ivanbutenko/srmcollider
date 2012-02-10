@@ -159,7 +159,7 @@ class Test_speed(unittest.TestCase):
 
         oldtime = time.time() - st
         st = time.time()
-        tr_new = c_getnonuis.calculate_transitions(tuple(precursors), self.q3_low, self.q3_high)
+        tr_new = c_getnonuis.calculate_transitions_ch(tuple(precursors), [1,2], self.q3_low, self.q3_high)
         ctime = time.time() - st
 
         tr_new.sort(mysort)
@@ -275,7 +275,7 @@ class Test_speed(unittest.TestCase):
         myprecursors = ((500, 'PEPTIDE', 1, 1, 0), (400, 'CEPC[160]IDM[147]E', 2, 2, 0))
         st = time.time()
         for i in range(100000):
-            tr_new = c_getnonuis.calculate_transitions(myprecursors, self.q3_low, self.q3_high)
+            tr_new = c_getnonuis.calculate_transitions_ch(myprecursors, [1,2], self.q3_low, self.q3_high)
         ctime = time.time() - st
         st = time.time()
         coll = collider.SRMcollider()
@@ -460,8 +460,8 @@ class Test_speed_integrated(unittest.TestCase):
                 #
                 #new way to calculate the precursors
                 mystart = time.time()
-                transitions = c_getnonuis.calculate_transitions(
-                    ((q1, pep['mod_sequence'], p_id),), q3_low, q3_high)
+                transitions = c_getnonuis.calculate_transitions_ch(
+                    ((q1, pep['mod_sequence'], p_id),), [1,2], q3_low, q3_high)
                 #fake some srm_id for the transitions
                 transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
                 q1_low = q1 - par.q1_window 
@@ -635,8 +635,8 @@ class Test_speed_integrated(unittest.TestCase):
                 #
                 #new way to calculate the precursors
                 mystart = time.time()
-                transitions = c_getnonuis.calculate_transitions(
-                    ((q1, pep['mod_sequence'], p_id),), q3_low, q3_high)
+                transitions = c_getnonuis.calculate_transitions_ch(
+                    ((q1, pep['mod_sequence'], p_id),), [1,2], q3_low, q3_high)
                 nr_transitions = len( transitions )
                 #fake some srm_id for the transitions
                 transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
