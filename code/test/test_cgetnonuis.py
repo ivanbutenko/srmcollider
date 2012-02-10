@@ -10,6 +10,7 @@ sys.path.append( '.')
 import collider
 
 from test_shared import ignoreImportError_rangetree, ignoreImportError_cget
+from test_shared import get_non_UIS_from_transitions, getnonuis
 
 try:
     import c_getnonuis
@@ -17,41 +18,6 @@ except ImportError:
     print "=" * 75, """
 Module c_getnonuis is not available. Please compile it if you want to use it.
 """, "=" * 75
-
-
-
-### Helper functions
-def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS, 
-                                forceset=False):
-    """ Get all combinations that are not UIS 
-    
-    Note that the new version returns a dictionary. To convert it to a set, one 
-    needs to force the function to return a set.
-    """
-    import c_getnonuis
-    non_uis_list = [{} for i in range(MAX_UIS+1)]
-    collisions_per_peptide = getnonuis(transitions, collisions, par.q3_window, par.ppm)
-    for order in range(1,MAX_UIS+1):
-        non_uis_list[order] = c_getnonuis.get_non_uis(
-            collisions_per_peptide, order)
-
-    return non_uis_list
-
-
-def getnonuis(transitions, collisions, q3_window, ppm):
-        collisions_per_peptide = {}
-        q3_window_used = q3_window
-        for t in transitions:
-            if ppm: q3_window_used = q3_window * 10**(-6) * t[0]
-            this_min = q3_window_used
-            for c in collisions:
-                if abs( t[0] - c[0] ) <= q3_window_used:
-                    #gets all collisions
-                    if collisions_per_peptide.has_key(c[3]):
-                        if not t[1] in collisions_per_peptide[c[3]]:
-                            collisions_per_peptide[c[3]].append( t[1] )
-                    else: collisions_per_peptide[c[3]] = [ t[1] ] 
-        return collisions_per_peptide
 
 class Test_cgetnonuis(unittest.TestCase):
 
