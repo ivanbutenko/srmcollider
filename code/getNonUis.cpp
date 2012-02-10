@@ -901,6 +901,278 @@ python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, dou
     return result;
 }
 
+python::list thirdstrike_sort_getC(python::list myN, python::list py_ssrcalcvalues, double
+        ssrwindow) {
+
+    python::list result;
+    int M = python::extract<int>(myN.attr("__len__")());
+
+    int k, i;
+    unsigned int m, n, o;
+    int* index = new int[M];
+    int* sort_idx = new int[M];
+    int* N = new int[M];
+    bool* discarded_indices = new bool[M];
+    double* myssr = new double[M];
+    std::vector<std::vector<int> > all_nonuis;
+
+    //check whether allocation was successfull
+    if (! (sort_idx && N && discarded_indices && myssr)) 
+    {
+        PyErr_SetString(PyExc_ValueError, "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return result; 
+    }
+
+    for(int k=0;k<M;k++) index[k] = 0;
+    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
+    int sumlen = 0;
+    for(int k=0;k<M;k++) sumlen += N[k];
+    for(int k=0;k<M;k++) discarded_indices[k] = false;
+
+    //allocate and check whether allocation was successfull
+    double **c_ssrcalcvalues = (double **) malloc(M * sizeof(double *));
+    if (!c_ssrcalcvalues) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return result; }
+
+    //allocate and check whether allocation was successfull
+    c_ssrcalcvalues[0] = (double *) malloc(sumlen * sizeof(double));
+    if (!c_ssrcalcvalues[0]) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Memory allocation failed. Sorry.");
+        python::throw_error_already_set();
+        return result; }
+
+    //calculate start position for each array in allocated memory and then fill 
+    for(i = 1; i < M; i++)  
+        c_ssrcalcvalues[i] = c_ssrcalcvalues[i-1] + N[i-1];
+    python::list tmplist;
+    double max_elem = 0;
+    for(k = 0; k < M; k++) {
+        tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
+        for(i = 0; i < N[k]; i++) {
+            c_ssrcalcvalues[k][i] = python::extract<double>(tmplist[i]); 
+            if (c_ssrcalcvalues[k][i] > max_elem) {max_elem = c_ssrcalcvalues[k][i];}
+        }
+    }
+
+
+    //# check whether there are any empty ssrcalcvalues
+    int cnt =0;
+    for(k=0; k < M; k++) {
+      if(N[k] == 0)
+      {
+        discarded_indices[k] = true;
+        cnt++;
+      }
+    }
+    if(cnt==M) {return result;}
+
+    cnt =0;
+    while(true) {
+
+      cnt++;
+        for(k=0; k < M; k++) {
+          if(!discarded_indices[k])
+          {
+            myssr[k] = c_ssrcalcvalues[k][ index[k] ];
+          }
+        }
+
+        // find the pivot element
+        double smin = max_elem;
+        int piv_i = -1;
+        for(k=0; k < M; k++) 
+        {
+          if(!discarded_indices[k])
+            if(myssr[k] <= smin) {
+              smin = myssr[k];
+              piv_i = k;
+            }
+        }
+
+
+          /*
+          if (cnt ==12) 
+        {
+            cout << " myssr " << k << endl;
+        for(k=0; k < M; k++) {
+          cout << " " << myssr[k] ;
+        }
+        cout << endl;
+        }
+          */
+
+        //# we need to sort by we also need to have a map back to retrieve the original!
+        // store them in a pair with the index, sort, retrieve values and index
+        std::vector< std::pair<int,double> > with_index;
+        for(k=0; k < M; k++) {
+          with_index.push_back(std::make_pair(k,myssr[k]));
+        }
+        std::stable_sort(with_index.begin(), with_index.end(), SortIntDoublePairSecond);
+        for(k=0; k < M; k++) {
+          sort_idx[k] = with_index[k].first;
+          myssr[k] = with_index[k].second;
+        }
+
+          /*
+          if (cnt ==12) 
+        {
+            cout << " sort _idx  " << k << endl;
+        for(k=0; k < M; k++) {
+          cout << " " << sort_idx[k] ;
+        }
+        cout << endl;
+        }
+            
+          */
+
+
+
+        //# now find all N different combinations that are not UIS. Since they are
+        //# sorted we only need to consider elements that have a higher index.
+        for(k=0; k < M; k++) {
+          if(discarded_indices[sort_idx[k]]) continue;
+
+          //if (cnt ==12) cout << "all " << k << endl;
+
+          std::vector<int> nonuis;
+          nonuis.push_back(sort_idx[k]);
+
+          for(i=k+1; i < M; i++) {
+              if(!(fabs(myssr[k] - myssr[i]) > ssrwindow))
+              {
+                if(discarded_indices[sort_idx[i]]) continue;
+                  nonuis.push_back(sort_idx[i]);
+              }
+          }
+
+          /*
+          if(cnt==12)
+            {
+            for(n=0; n< nonuis.size(); n++)
+              cout << ":  "<< nonuis[n];
+            cout << endl;
+            }
+          */
+
+          // nonuis is equal to backsorted
+          std::sort(nonuis.begin(), nonuis.end());
+          //backsorted = [sort_idx[n] for n in nonuis]
+          //backsorted.sort()
+          //
+          // here we have to figure out whether we want to append it (e.g. if it is not yet present)
+          bool is_present = false;
+          bool this_not_present = true;
+          for(m=0; m<all_nonuis.size(); m++)
+          {
+            this_not_present = false;
+            for(n=0; n<all_nonuis[m].size() and n < nonuis.size(); n++)
+            {
+              //for(o=0; o<nonuis.size(); o++)
+              
+                if(nonuis[n] != all_nonuis[m][n])
+                {
+                  this_not_present = true; break;
+                }
+              
+            }
+            if(all_nonuis[m].size() != nonuis.size()) {this_not_present = true;}
+            //cout << " compared " << m << endl;
+            if(!this_not_present) {
+              is_present = true; 
+            /* if(cnt==12)
+            {cout << " it is already present! " << k << " / ";
+            for(n=0; n<all_nonuis[m].size(); n++)
+            {
+              cout << " " << all_nonuis[m][n];
+            }
+            cout << endl;
+            
+            } */
+              break;
+            }
+          }
+
+            /* if(cnt==12)
+            {cout  << " cnt 12 " << is_present << " nonuis ";
+              for(o=0; o<nonuis.size(); o++)
+              {
+                cout << nonuis[o] << " ";
+              }
+              cout << endl;
+
+
+            } */
+
+          if(!is_present)
+          {
+            all_nonuis.push_back(nonuis);
+            
+             //if(discarded_indices[k]) {cout << " index is discarded!! ";};
+            /*
+            cout << cnt << ". appending " << k << " /";
+              for(o=0; o<nonuis.size(); o++)
+              {
+                cout << nonuis[o] << " ";
+              }
+              cout << "  myssr ";
+            for(o=0; o < M; o++) 
+            {cout << myssr[o] << " "; }
+              cout << "  index ";
+            for(o=0; o < M; o++) 
+            {cout << index[o] << " "; }
+                cout << endl;
+            */
+
+
+              }
+
+          
+          //all_nonuis[ tuple(backsorted) ] = 0
+
+        }
+
+        //# Advance the pivot element
+        index[piv_i] += 1;
+        if(index[piv_i] >= N[piv_i])
+        {
+          //cout << "wanted to advance " << piv_i << endl;
+            discarded_indices[ piv_i ] = true;
+            //#print "wanted to advance", piv_i, "had to append to discarded ", discarded_indices
+            int dcount = 0;
+            while(dcount < M && discarded_indices[dcount]) dcount++;
+            if(dcount >= M)
+                break;
+        }
+
+    }
+
+    free((void *)c_ssrcalcvalues);
+
+    delete [] index;
+    delete [] sort_idx;
+    delete [] N;
+    delete [] discarded_indices;
+    delete [] myssr;
+
+    //  convert to python datastructure
+    for(m=0; m<all_nonuis.size(); m++)
+    {
+      python::list tmplist;
+      for(n=0; n<all_nonuis[m].size(); n++)
+      {
+        tmplist.append(all_nonuis[m][n]);
+      }
+      result.append(tmplist);
+    }
+
+    return result;
+}
+
 using namespace python;
 BOOST_PYTHON_MODULE(c_getnonuis)
 {
