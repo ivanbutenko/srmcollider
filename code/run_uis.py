@@ -60,8 +60,6 @@ group.add_option("--swath_mode", action='store_true', dest="swath_mode", default
                   help="SWATH mode enabled (use fixed window)")
 group.add_option("--use_db", action='store_true', dest="use_db", default=False,
                   help="Use db instead of rangetree")
-#group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
-#                  help="Only a dry run, do not start processing (but create experiment)")
 group.add_option("--restable", dest="restable", default='srmcollider.result_srmuis', type="str",
                   help="MySQL result table" + " - Defaults to result_srmuis") 
 group.add_option("--insert",
@@ -80,7 +78,7 @@ par.parse_options(options)
 par.eval()
 
 if len(sys.argv) < 4: 
-    print "wrong number of arguments"
+    raise Exception("Wrong number of arguments (provide at least experiment_key startQ1 endQ1")
     sys.exit()
 
 #local arguments
@@ -94,7 +92,7 @@ restable = options.restable
 ########
 # Sanity check for SWATH : the provided window needs to be the SWATH window
 if swath_mode:
-    if not par.q1_window >= max_q1 - min_q1:
+    if not par.q1_window*2 >= max_q1 - min_q1:
         raise Exception("Your Q1 window needs to be at least as large as the min/max q1 you chose.")
         sys.exit()
 
@@ -125,18 +123,13 @@ if options.insert_mysql:
     exp_key = db.insert_id()
     print "Inserted into mysql db with id ", exp_key
 
-
 # Get the precursors
 ###########################################################################
 from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
-testrange = myprecursors.build_rangetree()
 precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()
-myprecursors.build_transition_group_lookup()
-
-print "analyzing %s peptides" % len(precursors_to_evaluate)
 
 # If we dont use the DB, we use the rangetree to query and get our list of
 # precursors that are interfering. In SWATH we dont include a +/- q1_window
@@ -146,7 +139,7 @@ if not use_db and swath_mode:
   myprecursors.getFromDB(par, cursor, min_q1, max_q1)
   testrange = myprecursors.build_rangetree()
 elif not use_db:
-  myprecursors.getFromDB(par, cursor, min_q1 - par.q1_window, max_q1 + par.q1_window)
+  #myprecursors.getFromDB(par, cursor, min_q1 - par.q1_window, max_q1 + par.q1_window)
   testrange = myprecursors.build_rangetree()
 
 # In SWATH mode, select all precursors that are relevant for the background at
@@ -154,7 +147,7 @@ elif not use_db:
 # only append those to all_swath_precursors that are actually included in the
 # range (min_q1,max_q1) with at least one isotope.
 par.query2_add = ''
-if use_db and swath_mode: 
+if swath_mode and use_db: 
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
     temp_precursors = Precursors()
     temp_precursors.getFromDB(par, db.cursor(), min_q1 - isotope_correction, max_q1)
@@ -163,12 +156,11 @@ if use_db and swath_mode:
       if(p.included_in_isotopic_range(min_q1, max_q1, par, R) ): 
         all_swath_precursors.append(p)
 
-# nr_interfering_prec = [ [] for i in range(7)]
-
 allintertr = []
 MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
 prepare  = []
+print "analyzing %s peptides" % len(precursors_to_evaluate)
 for precursor in precursors_to_evaluate:
 
     q3_low, q3_high = par.get_q3range_transitions()
@@ -191,7 +183,10 @@ for precursor in precursors_to_evaluate:
                 transitions, precursors_obj, par, precursor)
     elif not use_db:
         # Use the rangetree, whether it is swath or not
-        collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, transitions, par)
+        if swath_mode:
+          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, min_q1, max_q1, transitions, par)
+        else:
+          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, transitions, par)
 
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 
@@ -221,7 +216,8 @@ if count_avg_transitions:
 # cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
 #                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 
-for order in range(1,6):
+print "Analyzed %s peptides" % len(precursors_to_evaluate)
+for order in range(1,MAX_UIS+1):
     sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
     nr_peptides = len([p for p in prepare if p[3] == order])
     if not par.quiet: print sum_all *1.0/ nr_peptides

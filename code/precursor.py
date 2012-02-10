@@ -103,14 +103,12 @@ class Precursors:
     c_rangetree.create_tree(tuple(alltuples))
     return c_rangetree
 
-  def get_collisions_per_peptide_from_rangetree(self, precursor, transitions, par):
+  def get_collisions_per_peptide_from_rangetree(self, precursor, q1_low, q1_high, transitions, par):
     """Get the collisions per peptide, e.g. a dictionary that contains the
     interfered transitions for a given precursor with given transitions.
     """
     import c_rangetree
     q3_low, q3_high = par.get_q3range_transitions()
-    q1_low  = precursor.q1 - par.q1_window 
-    q1_high = precursor.q1 + par.q1_window
     #correct rounding errors, s.t. we get the same results as before!
     ssrcalc_low  = precursor.ssrcalc - par.ssrcalc_window + 0.001
     ssrcalc_high = precursor.ssrcalc + par.ssrcalc_window - 0.001
@@ -118,9 +116,9 @@ class Precursors:
 
     # Get the precursor ids of the interfering precursors from the rangetree
     precursor_ids = c_rangetree.query_tree(
-        precursor.q1 - par.q1_window,
+        q1_low, #precursor.q1 - par.q1_window,
         ssrcalc_low, 
-        precursor.q1 + par.q1_window,
+        q1_high, #precursor.q1 + par.q1_window,
         ssrcalc_high,
         par.isotopes_up_to, isotope_correction)  
 
@@ -133,6 +131,4 @@ class Precursors:
     globalprecursors = tuple([(0, p.modified_sequence, p.transition_group, 0, p.isotopically_modified) for p in globalprecursors])
     return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
         transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm, par)
-
-
 
