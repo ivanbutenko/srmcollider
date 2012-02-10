@@ -112,9 +112,9 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
     bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
-    // go through all (potential) collisions
-    // and store the colliding SRM ids in a dictionary (they can be found at
-    // position 3 and 1 respectively)
+    // go through all (potential) interfering precursors and store the
+    // colliding SRM ids in a dictionary (they can be found at position 3 and 1
+    // respectively).
     for (j=0; j<precursor_length; j++) {
         clist = python::extract< python::object >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
@@ -831,8 +831,16 @@ BOOST_PYTHON_MODULE(c_getnonuis)
             
             );
    def("calculate_density", _find_clashes_calculate_colldensity, "");
+
+   /*
+   * Used by the web-scripts to report the exact interfering transitions.
+   */
    def("_find_clashes_forall", _find_clashes_forall, "");
    def("_find_clashes_forall_other_series", _find_clashes_forall_other_series, "");
+
+   /*
+   * Used by to calculate eUIs
+   */
    def ("calculate_eUIS", calculate_eUIS);
 
 }

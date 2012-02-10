@@ -1,10 +1,30 @@
 import Residues
 import c_getnonuis
+import DDB
+
 R = Residues.Residues('mono')
 class Precursor:
 
-  def __init__(self):
-      pass
+  def __init__(self,
+      modified_sequence     = None,
+      transition_group      = None,
+      parent_id             = None,
+      q1_charge             = None,
+      q1                    = None,
+      ssrcalc               = None,
+      modifications         = None,
+      missed_cleavages      = None,
+      isotopically_modified = None):
+
+    self.modified_sequence      = modified_sequence      
+    self.transition_group       = transition_group       
+    self.parent_id              = parent_id              
+    self.q1_charge              = q1_charge              
+    self.q1                     = q1                     
+    self.ssrcalc                = ssrcalc                
+    self.modifications          = modifications          
+    self.missed_cleavages       = missed_cleavages       
+    self.isotopically_modified  = isotopically_modified  
 
   def initialize(self, modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified):
     self.modified_sequence      = modified_sequence      
@@ -29,7 +49,7 @@ class Precursor:
           self.q1 + (R.mass_diffC13 * iso)/self.q1_charge < range_high): return True
 
   def __repr__(self):
-      print "Precursor object '%s': %s" % (self.modified_sequence, self.q1)
+      return "Precursor object '%s': %s with transition_gr %s and parent_id %s" % (self.modified_sequence, self.q1, self.transition_group, self.parent_id)
 
   def to_old_pep(self):
       return {
@@ -40,6 +60,12 @@ class Precursor:
                 'q1' :               self.q1,
                 'ssrcalc' :          self.ssrcalc
             }
+
+  def to_peptide(self):
+    peptide = DDB.Peptide()
+    peptide.set_sequence(self.modified_sequence)
+    peptide.charge = self.q1_charge
+    return peptide
 
 class Precursors:
   """A class that abstracts getting and receiving precursors from the db"""
@@ -85,7 +111,7 @@ class Precursors:
   def build_transition_group_lookup(self):
     self.transition_group_lookup = dict([ [ p.transition_group, p] for p in self.precursors])
 
-  def loopup_by_transition_group(self, transition_group):
+  def lookup_by_transition_group(self, transition_group):
     return self.transition_group_lookup[transition_group]
 
   def build_rangetree(self):

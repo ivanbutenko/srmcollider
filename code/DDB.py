@@ -87,6 +87,13 @@ class Peptide:
             if aa == '*': pos.append( i - 1 - len( pos ) )
         return pos
 
+    def get_maximal_charge(self):
+        """ Count the number of amino acids that can hold a charge: R (Arg), H
+        (His) or K (Lys) and add 1 for the N-terminus"""
+        return self.sequence.count('R') + \
+               self.sequence.count('H') + \
+               self.sequence.count('K') + 1
+
     def create_fragmentation_pattern(self, R, bions=True, yions=True,
              aions=False, aMinusNH3=False, 
              bMinusH2O=False, bMinusNH3=False, bPlusH2O=False,
@@ -162,7 +169,8 @@ class Peptide:
         self.mass += R.mass_OH + R.mass_H 
 
         self.molecular_weight = self.mass
-        self.charged_mass = (self.mass + self.charge * R.mass_H) / self.charge
+        if self.charge > 0:
+          self.charged_mass = (self.mass + self.charge * R.mass_H) / self.charge
         del self.mass
 
     def missed_cleavages(self):

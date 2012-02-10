@@ -98,17 +98,19 @@ class SRMcollider(object):
     # calculates all fragments of the peptide in Python and compares them to
     # the fragments of the precursors
     def _get_all_collisions_calculate_new(self, par, pep, cursor, 
-      values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified"):
+      values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
+                                          forceFragmentChargeCheck=False):
         R = Residues.Residues('mono')
         RN15 = Residues.Residues('mono')
         RN15.recalculate_monisotopic_data_for_N15()
         q3_low, q3_high = par.get_q3range_collisions()
         return self._get_all_collisions_calculate_sub(
             self._get_all_precursors(par, pep, cursor, values=values), 
-            par, R, q3_low, q3_high, RN15)
+            par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
 
-    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high, RN15=None):
+    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high, 
+        RN15=None, forceFragmentChargeCheck=False):
         for c in precursors:
             q1 = c[0]
             peptide_key = c[2]
@@ -135,7 +137,10 @@ class SRMcollider(object):
                 zions      =  par.zions    ,
                 MMinusH2O  =  par.MMinusH2O,
                 MMinusNH3  =  par.MMinusNH3)
-            for ch in [1,2]:
+            charges_to_hold = [1,2]
+            if(forceFragmentChargeCheck and peptide.get_maximal_charge() == 2):
+                charges_to_hold = [1]
+            for ch in charges_to_hold:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
                     # Bound check is mostly necessary for the tests
@@ -235,11 +240,11 @@ class SRMcollider(object):
         return cursor.fetchall()
 
 def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep, 
-        forceNonCpp=False):
+        forceNonCpp=False, forceFragmentChargeCheck=False):
     q3_low, q3_high = par.get_q3range_transitions()
     try: 
         #try to use C++ libraries
-        if forceNonCpp: import somedummymodulethatwillneverexist
+        if forceNonCpp or forceFragmentChargeCheck: import somedummymodulethatwillneverexist
         import c_getnonuis
         return c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
             transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
@@ -249,7 +254,7 @@ def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep
         RN15 = Residues.Residues('mono')
         RN15.recalculate_monisotopic_data_for_N15()
         collisions = self._get_all_collisions_calculate_sub(precursors,
-            par, R, q3_low, q3_high, RN15)
+            par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
     collisions = list(collisions)
     collisions_per_peptide = {}
@@ -266,19 +271,17 @@ def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep
     return collisions_per_peptide 
 
 def get_coll_per_peptide(self, transitions, par, pep, cursor,
-        do_not_calculate=False, forceNonCpp=False):
+        do_not_calculate=False, forceNonCpp=False, forceFragmentChargeCheck=False):
     if do_not_calculate:
         assert False # not supported any more
     else:
         try: 
             #try to use C++ libraries, really fast 50ms or less
-            if forceNonCpp: import somedummymodulethatwillneverexist
+            if forceNonCpp or forceFragmentChargeCheck: import somedummymodulethatwillneverexist
             return _get_coll_per_peptide_sub(self, transitions, par, pep, cursor)
         except ImportError:
-            # second-fastest = 522 
-            # if we dont have any C++ code compiled, calculate fragments 
-            collisions = list(self._get_all_collisions_calculate_new(
-                par, pep, cursor))
+            collisions = list(self._get_all_collisions_calculate_new(par, pep, cursor,
+                forceFragmentChargeCheck=forceFragmentChargeCheck))
     collisions_per_peptide = {}
     q3_window_used = par.q3_window
     for t in transitions:
@@ -361,10 +364,12 @@ def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
                 yield (q3, q1, 0, peptide_key)
 
 def get_coll_per_peptide_from_precursors_obj_wrapper(self, transitions, precursors_obj, par, precursor,
-  forceNonCpp=False):
+  forceNonCpp=False, forceFragmentChargeCheck=False):
   pep = precursor.to_old_pep()
   oldstyle_precursors = tuple([(0, p.modified_sequence, p.transition_group, 0, p.isotopically_modified) for p in precursors_obj])
-  return get_coll_per_peptide_from_precursors(self, transitions, oldstyle_precursors, par, pep, forceNonCpp)
+  print "wrapper here"
+  return get_coll_per_peptide_from_precursors(self, transitions, 
+    oldstyle_precursors, par, pep, forceNonCpp, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
 ###UIS Code
 from uis_functions import *
