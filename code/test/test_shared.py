@@ -1,6 +1,8 @@
 #
 # vim:set fdm=marker:
 
+SQLITE_DATABASE_LOCATION = '/tmp/srmcollider_testdb'
+
 def ignoreImportError_rangetree(f):
     def new(*args):
         try:
@@ -294,8 +296,6 @@ pep1_bseries = [49.534205032000003, 114.055500032,
 peptide2 = (400, 'CEPC[160]IDM[147]E',2,2)
 
 from test_shared_large import *
-
-
 #########################
 #########################
 #########################
@@ -411,6 +411,8 @@ def get_non_UIS_from_transitions(transitions, collisions, par, MAX_UIS,
         #old way of doing it
         return get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS)
 
+import sys
+sys.path.extend(['..'])
 import uis_functions
 def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
     """ Get all combinations that are not UIS """

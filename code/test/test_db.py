@@ -424,7 +424,7 @@ class Test_collider_sqlite(unittest.TestCase):
 
         try:
             #the database file must exist and the databases must be created
-            self.db = sqlite.connect('/tmp/testdb')
+            self.db = sqlite.connect(test_shared.SQLITE_DATABASE_LOCATION)
             cursor = self.db.cursor()
             cursor.execute("select count(*) from srmPeptides_test")
             #print cursor.fetchall()
@@ -437,12 +437,15 @@ class Test_collider_sqlite(unittest.TestCase):
             print "=" * 75
             self.database_available = False
 
+    def tearDown(self):
+      self.db.close()
+
     def test_1(self):
 
         if not self.database_available: return
         verbose = False
         par = collider.testcase(testdatabase=test_database)
-        par.query2_add = ' and isotope_nr = 0 ' # still necessary, old style tables
+        #par.query2_add = ' and isotope_nr = 0 ' # still necessary, old style tables
         par.quiet = True
         par.transition_table = 'srmTransitions_test'
         par.peptide_table = 'srmPeptides_test'

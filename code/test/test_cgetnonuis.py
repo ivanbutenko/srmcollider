@@ -118,13 +118,13 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertTrue( abs(result[3] - 0.6) < 10**(-3) )
 
     def test_calculate_transitions_regular(self):
-            trans = c_getnonuis.calculate_transitions( (self.pep1,), 300, 1500)
+            trans = c_getnonuis.calculate_transitions_ch( (self.pep1,), [1,2], 300, 1500)
             self.assertEqual( len(trans), 10)
             for calc, ref in zip(trans, self.transitions_12_between300_1500):
                 self.assertTrue(abs(calc[0] - ref) < 1e-3)
 
     def test_calculate_transitions_modifcation(self):
-            trans = c_getnonuis.calculate_transitions( (self.pep2,), 300, 1500)
+            trans = c_getnonuis.calculate_transitions_ch( (self.pep2,), [1,2], 300, 1500)
             #TODO check
             self.assertTrue(abs(trans[0][0]) - 909.333 < 1e-3)
             self.assertTrue(abs(trans[1][0]) - 780.290 < 1e-3)
@@ -152,7 +152,8 @@ class Test_cgetnonuis(unittest.TestCase):
     def test_calculate_transitions_inner(self):
             mypep = self.pep1
 
-            transitions = c_getnonuis.calculate_transitions_inner(mypep, 2)
+            transitions = c_getnonuis.calculate_transitions_ch( (mypep,), [2] , 0, 5000)
+            transitions = [t[0] for t in transitions]
             self.assertEqual( len(transitions), 12)
             self.assertEqual( len(transitions), 2*len(mypep[1]) - 2 )
 

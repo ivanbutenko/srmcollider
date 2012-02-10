@@ -1,5 +1,6 @@
 import sqlite
-conn = sqlite.connect('/tmp/testdb')
+import test_shared
+conn = sqlite.connect(test_shared.SQLITE_DATABASE_LOCATION)
 c = conn.cursor()
 
 table = 'srmPeptides_test'
@@ -69,21 +70,7 @@ values (%s, %s, %s, %s, '%s', %s)
     )
 
 conn.commit()
-
-
-
 c.close()
-
-
-
-
-
-
-
-
-
-
-
 
 exit()
 

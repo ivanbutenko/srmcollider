@@ -42,22 +42,22 @@ class SRM_parameters(object):
         self.sqlite_database = None
         self.use_sqlite      = None
 
-
     def set_default_vars(self):
         # set the default values if they are not yet set
-        if self.q1_window is None: self.q1_window = 1
-        if self.q3_window is None: self.q3_window = 1
-        if self.ssrcalc_window is None: self.ssrcalc_window = 9999
-        if self.ppm is None: self.ppm = False
-        if self.isotopes_up_to is None: self.isotopes_up_to = 3
-        if self.q3_low is None: self.q3_low = 400
-        if self.q3_high is None: self.q3_high = 1400
-        if self.max_uis is None: self.max_uis = 0
-        if self.peptide_table is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
-        if self.mysql_config is None: self.mysql_config = '~/.my.cnf'
+
+        if self.q1_window       is None: self.q1_window = 1
+        if self.q3_window       is None: self.q3_window = 1
+        if self.ssrcalc_window  is None: self.ssrcalc_window = 9999
+        if self.ppm             is None: self.ppm = False
+        if self.isotopes_up_to  is None: self.isotopes_up_to = 3
+        if self.q3_low          is None: self.q3_low = 400
+        if self.q3_high         is None: self.q3_high = 1400
+        if self.max_uis         is None: self.max_uis = 0
+        if self.peptide_table   is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
+        if self.mysql_config    is None: self.mysql_config = '~/.my.cnf'
         if self.sqlite_database is None: self.sqlite_database = ''
-        if self.use_sqlite is None: self.use_sqlite = False
-        if self.quiet is None: self.quiet = False
+        if self.use_sqlite      is None: self.use_sqlite = False
+        if self.quiet           is None: self.quiet = False
 
         if self.bions      is None: self.bions      =  True
         if self.yions      is None: self.yions      =  True
