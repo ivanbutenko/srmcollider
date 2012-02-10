@@ -58,10 +58,6 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     python::list precursors, double q3_low, double q3_high, double q3window,
     bool ppm) ;
 
-// calculate closest collision in q3 space for each transition
-python::dict _find_clashes_core_non_unique(python::tuple transitions,
-        python::tuple collisions, double q3window, bool ppm);
-
 // Function to calculate the exact interfering transitions for each peptide.
 python::dict _find_clashes_forall(python::tuple transitions,
     python::tuple precursors, double q3_low, double q3_high, double q3window,
@@ -333,69 +329,6 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     delete [] tmptrans;
     delete [] tmpq3used;
     return result;
-}
-
-/* 
- * Function to calculate the closest collision in q3-space for each transition.
- * Transitions are tuples of the form (q3, srm_id), collisions are tuples of
- * the form (q3, q1, srm_id, peptide_key).
- * It will return a dictionary that contains for each srm_id the distance to
- * the closest hit.
- *
- * Input
- * transitions: (q3, srm_id)
- * collisions: (q3, q1, srm_id, peptide_key)
- *
- * TODO only used by tests any more => delete
- *
- */
-python::dict _find_clashes_core_non_unique(python::tuple transitions,
-        python::tuple collisions, double q3window, bool ppm) {
-
-    python::dict non_unique;
-    python::tuple clist;
-    python::tuple tlist;
-
-    int collision_length = python::extract<int>(collisions.attr("__len__")());
-    int transitions_length = python::extract<int>(transitions.attr("__len__")());
-    long t1 ;
-    double t0, c0, q3used = q3window, this_min;
-
-    for (int i=0; i<transitions_length; i++) {
-        tlist = python::extract< python::tuple >(transitions[i]);
-
-        //ppm is 10^-6
-        t0 = python::extract< double >(tlist[0]);
-        if(ppm) {q3used = q3window / 1000000.0 * t0; } 
-        this_min = q3used;
-
-        // go through all (potential) collisions
-        // and store closest collision in Q3 as a dictionary entry
-        for (int j=0; j<collision_length; j++) {
-            clist = python::extract< python::tuple >(collisions[j]);
-            c0 = python::extract< double >(clist[0]);
-
-            if(fabs(t0-c0) < this_min) {
-
-                t1 = python::extract<long>(tlist[1]);
-                this_min = fabs(t0-c0);
-                non_unique[t1] = this_min;
-            }
-        }
-    }
-
-    /*
-     * In Python, this corresponds to the following function
-     *
-            for t in transitions:
-                if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-                this_min = q3_window_used
-                for c in collisions:
-                    if abs( t[0] - c[0] ) <= this_min:
-                        non_unique[ t[1] ] = t[0] - c[0]
-            */
-
-    return non_unique;
 }
 
 /*
@@ -874,18 +807,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "list get_non_uis(dict collisions_per_peptide, int order)\n"
  );
 
-
-    def("core_non_unique", _find_clashes_core_non_unique, 
- "Function to calculate the closest collision in q3-space for each transition.\n"
- "Transitions are tuples of the form (q3, srm_id), collisions are tuples of\n"
- "the form (q3, q1, srm_id, peptide_key).\n"
- "It will return a dictionary that contains for each srm_id the distance to\n"
- "the closest hit.\n"
- "\n"
- "\n"
- " Signature\n"
- "dict core_non_unique(tuple transitions, tuple collisions, double q3window, bool ppm)\n"
- );
 
     def("calculate_transitions_ch", _find_clashes_calculate_clashes_ch,
  "Function to calculate all transitions of a list of precursor peptides and \n"

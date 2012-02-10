@@ -121,20 +121,6 @@ class Test_cgetnonuis(unittest.TestCase):
             res = set( res.keys() )
             self.assertEqual( res, test_shared.refnonuis2_sorted[order] )
 
-    def test_core_non_unique1(self):
-            #collisions
-            #q3, q1, srm_id, peptide_key
-            #transitions
-            #q3, srm_id
-            #
-            q3window = 1.0
-            ppm = False
-            result = c_getnonuis.core_non_unique( self.transitions, self.collisions, q3window, ppm)
-            #
-            self.assertTrue( abs(result[1] - 0.4) < 10**(-3) )
-            self.assertTrue( abs(result[2] - 0.6) < 10**(-3) )
-            self.assertTrue( abs(result[3] - 0.6) < 10**(-3) )
-
     def test_calculate_transitions_regular(self):
             trans = c_getnonuis.calculate_transitions_ch( (self.pep1,), [1,2], 300, 1500)
             self.assertEqual( len(trans), 10)
