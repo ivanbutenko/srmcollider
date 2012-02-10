@@ -50,8 +50,8 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         python::tuple precursors, double q3_low, double q3_high, double
         q3window, bool ppm);
 python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
-        python::tuple transitions, python::tuple precursors, double q3_low,
-        double q3_high, double q3window, bool ppm, python::object par);
+        python::tuple transitions, python::list precursors, python::object par, 
+        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck);
 
 // calculate the number of collisions for each transition
 python::list _find_clashes_calculate_colldensity(python::tuple transitions,
@@ -61,8 +61,8 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
 // Function to calculate the exact interfering transitions for each peptide for
 // series other than b/y.
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
-    python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm, python::object par, double q1_low);
+    python::list precursors, python::object par, double q3_low, double q3_high, double q3window,
+    bool ppm, double q1_low, bool forceChargeCheck);
 void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
     const char* sequence, string& curr_ion, python::object par);
 
@@ -73,11 +73,11 @@ bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
 /*
  */
 python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
-        python::tuple transitions, python::tuple precursors, double q3_low,
-        double q3_high, double q3window, bool ppm, python::object par) {
+        python::tuple transitions, python::list precursors, python::object par, 
+        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck) {
 
     python::dict collisions_per_peptide, tmpdict;
-    python::object clist;
+    python::object precursor;
     python::tuple tlist;
     python::list tmplist;
 
@@ -112,9 +112,9 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     // colliding SRM ids in a dictionary (they can be found at position 3 and 1
     // respectively).
     for (j=0; j<precursor_length; j++) {
-        clist = python::extract< python::object >(precursors[j]);
-        sequence = python::extract<char *>(clist[1]);
-        isotope_modification = python::extract<int>(clist[4]);
+        precursor = python::extract< python::object >(precursors[j]);
+        sequence = python::extract<char *>(precursor.attr("modified_sequence"));
+        isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
@@ -122,6 +122,9 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
                   bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
                   yMinusNH3, zions, MMinusH2O, MMinusNH3, isotope_modification);
 
+            if(forceChargeCheck && ch == 2 && 
+              precursor.attr("to_peptide")().attr("get_maximal_charge")() == 2)
+            { continue;}
             for (i=0; i<transitions_length; i++) {
                 tlist = python::extract< python::tuple >(transitions[i]);
                 //ppm is 10^-6
@@ -150,7 +153,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
         //is negligible.
         if (listmembers>0) {
-            peptide_key = python::extract< long >(clist[2]);
+            peptide_key = python::extract<long>(precursor.attr("transition_group"));
             tmplist = tmpdict.keys();
             tmplist.sort();
             collisions_per_peptide[peptide_key] = tmplist;
@@ -335,11 +338,11 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
  * Used by the web-scripts to report the exact interfering transitions.
  */
 python::dict _find_clashes_forall_other_series(python::tuple transitions,
-    python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm, python::object par, double q1_low) {
+    python::list precursors, python::object par, double q3_low, double q3_high, double q3window,
+    bool ppm, double q1_low, bool forceChargeCheck) {
 
     python::dict result, tmpdict;
-    python::tuple clist;
+    python::object precursor;
     python::tuple tlist;
     python::list tmplist;
 
@@ -362,19 +365,21 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     // and store the colliding SRM ids in a dictionary (they can be found at
     // position 3 and 1 respectively)
     for (j=0; j<precursor_length; j++) {
-        clist = python::extract< python::tuple >(precursors[j]);
-        q1 = python::extract<double>(clist[0]);
-        sequence = python::extract<char *>(clist[1]);
-        peptide_key = python::extract<long>(clist[2]);
+        precursor = python::extract< python::object >(precursors[j]);
+        q1 = python::extract<double>(precursor.attr("q1"));
+        sequence = python::extract<char *>(precursor.attr("modified_sequence"));
+        peptide_key = python::extract<long>(precursor.attr("transition_group"));
 
-        ssrcalc = python::extract<double>(clist[4]);
-        q1_charge = python::extract<int>(clist[3]);
-        //isotope_nr = python::extract<int>(clist[4]);
+        ssrcalc = python::extract<double>(precursor.attr("ssrcalc"));
+        q1_charge = python::extract<int>(precursor.attr("q1_charge"));
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series(sequence, tmp_series,
                     series, ch, par);
 
+            if(forceChargeCheck && ch == 2 && 
+              precursor.attr("to_peptide")().attr("get_maximal_charge")() == 2)
+            { continue;}
             for (i=0; i<transitions_length; i++) {
                 tlist = python::extract< python::tuple >(transitions[i]);
                 //ppm is 10^-6
@@ -403,7 +408,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                             }
                             tmplist = python::extract<python::list>(result[t1]);
                             tmplist.append( python::make_tuple(series[k],
-                            q1_used, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
+                            q1_used, 0, peptide_key, curr_ion, snumber, precursor.attr("modified_sequence"), ssrcalc, isotope_nr, ch));
                         }
                         else{
                             python::list newlist;
@@ -424,7 +429,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                                 if(q1_used > q1_low) {break;}
                             }
                             tmplist.append( python::make_tuple(series[k],
-                            q1_used, 0, peptide_key, curr_ion, snumber, clist[1], ssrcalc, isotope_nr, ch));
+                            q1_used, 0, peptide_key, curr_ion, snumber, precursor.attr("modified_sequence"), ssrcalc, isotope_nr, ch));
                             result[t1] = tmplist;
                         }
                     }

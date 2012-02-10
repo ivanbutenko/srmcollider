@@ -187,6 +187,31 @@ class Peptide:
         for q in re.finditer( '([A-Z]\[\d*\]|[A-Z])', seq):
             yield q.group(0)
 
+    def get_fragment_objects(self, fragments, series, charge, R, q3_low, q3_high):
+
+            ch = charge
+            scount = 0
+            for pred in fragments:
+                scount += 1
+                q3 = ( pred + (ch -1)*R.mass_H)/ch
+                if q3 < q3_low or q3 > q3_high: continue
+                yield Fragment(q3, series + str(scount), ch )
+
+class Fragment():
+
+    def __init__(self, q3=None, annotation=None, charge=None): 
+        self.q3             = q3
+        self.annotation     = annotation
+        self.charge         = charge
+
+    def __repr__(self):
+        return "Fragment: %s (%s) %s+" %(round(self.q3, 2), self.annotation, self.charge)
+
+    @property
+    def pQ3(self):
+        return round(self.q3, 2)
+
+
 def test_fragmentation():
     import Residues
     R = Residues.Residues('mono')
