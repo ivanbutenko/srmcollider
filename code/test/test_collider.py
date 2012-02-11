@@ -1,7 +1,9 @@
-import unittest
 """
 This file tests the functionality of the collider.py module. 
 """
+from nose.tools import nottest
+import unittest
+
 
 import sys
 sys.path.extend(['.', '..', '../external/', 'external/'])
@@ -37,78 +39,76 @@ def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unso
             collider.get_non_uis(pepc, non_uis_list[i], i)
     return non_uis_list
 
-class Test_collider_function(unittest.TestCase): 
+class Test_collider_large_tests(unittest.TestCase): 
 
     def setUp(self):
         self.transitions = transitions_def1
         self.collisions  = collisions_def1
-        class Minimal: pass
-        self.par = Minimal()
-        self.par.q3_window = 4.0
-        self.par.ppm = False
+
         self.MAX_UIS = 5
         self.q3_high = 1500
         self.q3_low = 300
 
-        self.par.bions      = True
-        self.par.yions      = True
-        self.par.aions      = False
-        self.par.aMinusNH3  = False
-        self.par.bMinusH2O  = False
-        self.par.bMinusNH3  = False
-        self.par.bPlusH2O   = False
-        self.par.yMinusH2O  = False
-        self.par.yMinusNH3  = False
-        self.par.cions      = False
-        self.par.xions      = False
-        self.par.zions      = False
-        self.par.MMinusH2O      = False
-        self.par.MMinusNH3      = False
-
-
-        def returnrange(): return self.q3_high, self.q3_low
-        self.par.get_q3range_collisions = returnrange
-
-        import sys
         self.R = Residues('mono')
 
         self.acollider = collider.SRMcollider()
         self.aparamset = collider.testcase()
+        self.par = test_shared.get_default_setup_parameters()
+        self.par.q3_window = 4.0
 
+    def test_calculate_collisions_1(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
 
-        par = collider.SRM_parameters()
-        par.q1_window = 1 / 2.0
-        par.q3_window = 1 / 2.0
-        par.ssrcalc_window = 10 / 2.0
-        par.ppm = False
-        par.isotopes_up_to = 3
-        par.q3_low = 400
-        par.q3_high = 1400
-        par.max_uis = 5
-        par.peptide_table = 'srmPeptides_test'
-        par.mysql_config = '~/.my.cnf'
-        par.sqlite_database = test_shared.SQLITE_DATABASE_LOCATION
-        par.use_sqlite = True
-        par.quiet = False
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in transitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: 
+                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
 
-        par.bions      =  True
-        par.yions      =  True
-        par.aions      =  False
-        par.aMinusNH3  =  False
-        par.bMinusH2O  =  False
-        par.bMinusNH3  =  False
-        par.bPlusH2O   =  False
-        par.yMinusH2O  =  False
-        par.yMinusNH3  =  False
-        par.cions      =  False
-        par.xions      =  False
-        par.zions      =  False
-        par.MMinusH2O  =  False
-        par.MMinusNH3  =  False
-        par.q3_range = [par.q3_low, par.q3_high]
-        par.set_default_vars()
-        par.eval()
-        self.real_parameters = par
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
+
+    def test_calculate_collisions_2(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = test_shared.runprecursors2
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
+        collisions_per_peptide = {}
+        q3_window_used = par.q3_window
+        for t in transitions:
+            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+            for c in collisions:
+                if abs( t[0] - c[0] ) <= q3_window_used:
+                    #gets all collisions
+                    if collisions_per_peptide.has_key(c[3]):
+                        if not t[1] in collisions_per_peptide[c[3]]:
+                            collisions_per_peptide[c[3]].append( t[1] )
+                    else: 
+                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
+
+        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
 
     def test_getMinNeededTransitions_1(self):
         pep = test_shared.runpep1
@@ -155,6 +155,23 @@ class Test_collider_function(unittest.TestCase):
                 collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 6)
+
+class Test_collider_function(unittest.TestCase): 
+
+    def setUp(self):
+        self.transitions = transitions_def1
+        self.collisions  = collisions_def1
+
+        self.MAX_UIS = 5
+        self.q3_high = 1500
+        self.q3_low = 300
+
+        self.R = Residues('mono')
+
+        self.acollider = collider.SRMcollider()
+        self.aparamset = collider.testcase()
+        self.par = test_shared.get_default_setup_parameters()
+        self.par.q3_window = 4.0
 
     def test_getMinNeededTransitions_unit(self):
         par = self.par
@@ -232,60 +249,6 @@ class Test_collider_function(unittest.TestCase):
         srm_ids = [t[1] for t in self.transitions]
         rr = collider.get_uis(srm_ids, non_uis_list[2], 2)
         self.assertEqual(len(rr), 1)
-
-    def test_calculate_collisions_1(self):
-        pep = test_shared.runpep1
-        transitions = test_shared.runtransitions1
-        precursors = test_shared.runprecursors1
-        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-        par = self.par
-        q3_high = self.q3_high
-        q3_low = self.q3_low
-        R = self.R
-
-        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
-        collisions_per_peptide = {}
-        q3_window_used = par.q3_window
-        for t in transitions:
-            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-            for c in collisions:
-                if abs( t[0] - c[0] ) <= q3_window_used:
-                    #gets all collisions
-                    if collisions_per_peptide.has_key(c[3]):
-                        if not t[1] in collisions_per_peptide[c[3]]:
-                            collisions_per_peptide[c[3]].append( t[1] )
-                    else: 
-                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
-
-        self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
-
-    def test_calculate_collisions_2(self):
-        pep = test_shared.runpep2
-        transitions = test_shared.runtransitions2
-        precursors = test_shared.runprecursors2
-        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-        par = self.par
-        q3_high = self.q3_high
-        q3_low = self.q3_low
-        R = self.R
-
-        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
-                collider.SRMcollider(), precursors, par, R, q3_low, q3_high))
-        collisions_per_peptide = {}
-        q3_window_used = par.q3_window
-        for t in transitions:
-            if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
-            for c in collisions:
-                if abs( t[0] - c[0] ) <= q3_window_used:
-                    #gets all collisions
-                    if collisions_per_peptide.has_key(c[3]):
-                        if not t[1] in collisions_per_peptide[c[3]]:
-                            collisions_per_peptide[c[3]].append( t[1] )
-                    else: 
-                        collisions_per_peptide[c[3]] = [ t[1] ] ; 
-
-        self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
 
     def test_get_uis_extra1(self):
 
@@ -404,23 +367,9 @@ class Test_three_peptide_example(unittest.TestCase):
       self.acollider = collider.SRMcollider()
       self.aparamset = collider.testcase()
 
-      par = collider.SRM_parameters()
-      par.q1_window = 1 / 2.0
-      par.q3_window = 1 / 2.0
-      par.ppm = False
-      par.q3_low = 400
-      par.q3_high = 1400
-
-      par.q3_range = [par.q3_low, par.q3_high]
-      par.set_default_vars()
-      par.eval()
-      self.real_parameters = par
-
-      self.precursor = Precursor(modified_sequence='YYLLDYR', q1=503.256187374, transition_group = 34, parent_id = 69, isotopically_modified=0)
-      self.interfering_precursors = [
-        Precursor(modified_sequence='GGLIVELGDK', q1=500.787837374, transition_group = 665, parent_id = 1331, isotopically_modified=0),
-        Precursor(modified_sequence='NGTDGGLQVAIDAMR', q1=506.58461326, transition_group = 618, parent_id = 1238, isotopically_modified=0),
-        ]
+      self.real_parameters = test_shared.get_default_setup_parameters()
+      self.precursor = test_shared.ThreePeptideExample.precursor
+      self.interfering_precursors = test_shared.ThreePeptideExample.interfering_precursors
 
     def test_transitions(self):
       """ Test how to calculate the transitions of the target
@@ -428,12 +377,7 @@ class Test_three_peptide_example(unittest.TestCase):
       q3_low, q3_high = self.real_parameters.get_q3range_transitions()
       precursor = self.precursor
       transitions = precursor.calculate_transitions(q3_low, q3_high)
-      self.assertEqual(transitions, (
-          (842.44121971600021, 0), 
-          (679.37788971600014, 1), 
-          (566.29382971600012, 2), (453.2097697160001, 3), (440.21854503200007, 4), 
-          (553.30260503200009, 5), (668.32954503200006, 6), (831.39287503200012, 7))
-      )
+      self.assertEqual(transitions, test_shared.ThreePeptideExample.expected_transitions)
 
     def test_collisions_per_peptide(self):
       """ Test to calculate the collisions per peptide.
@@ -442,8 +386,8 @@ class Test_three_peptide_example(unittest.TestCase):
       precursor = self.precursor
       transitions = precursor.calculate_transitions(q3_low, q3_high)
 
-      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(self.acollider, 
-              transitions, self.interfering_precursors, self.real_parameters, precursor)
+      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(self.acollider, transitions, 
+        self.interfering_precursors, self.real_parameters, None, False, False)
       self.assertEqual(collisions_per_peptide, {665: [4], 618: [0, 2]})
 
     def test_collisions_per_peptide_forced_fragment_check(self):
@@ -456,7 +400,13 @@ class Test_three_peptide_example(unittest.TestCase):
       transitions = precursor.calculate_transitions(q3_low, q3_high)
 
       collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(self.acollider, 
-              transitions, self.interfering_precursors, self.real_parameters, precursor, forceFragmentChargeCheck=True)
+              transitions, self.interfering_precursors, self.real_parameters, precursor, forceNonCpp=True, 
+               forceFragmentChargeCheck=True)
+      self.assertEqual(collisions_per_peptide, {665: [4], 618: [0]})
+
+      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(self.acollider, 
+              transitions, self.interfering_precursors, self.real_parameters, precursor, forceNonCpp=False, 
+               forceFragmentChargeCheck=True)
       self.assertEqual(collisions_per_peptide, {665: [4], 618: [0]})
 
     def test_min_needed_transitions(self):
@@ -465,8 +415,8 @@ class Test_three_peptide_example(unittest.TestCase):
       precursor = self.precursor
       transitions = precursor.calculate_transitions(q3_low, q3_high)
 
-      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(self.acollider, 
-              transitions, self.interfering_precursors, self.real_parameters, precursor)
+      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(self.acollider, transitions, 
+        self.interfering_precursors, self.real_parameters, None, False, False)
 
       # We need at least 2 transitions to see this peptide because the first transition is interfered with 
       self.real_parameters.max_uis = 10

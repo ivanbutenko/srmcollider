@@ -49,7 +49,7 @@ class Precursor:
           self.q1 + (R.mass_diffC13 * iso)/self.q1_charge < range_high): return True
 
   def __repr__(self):
-      return "Precursor object '%s': %s with transition_gr %s and parent_id %s" % (self.modified_sequence, self.q1, self.transition_group, self.parent_id)
+      return "Precursor object '%s': %s (%s+) with transition_gr %s and parent_id %s" % (self.modified_sequence, self.q1, self.q1_charge, self.transition_group, self.parent_id)
 
   def to_old_pep(self):
       return {
@@ -129,7 +129,8 @@ class Precursors:
     c_rangetree.create_tree(tuple(alltuples))
     return c_rangetree
 
-  def get_collisions_per_peptide_from_rangetree(self, precursor, q1_low, q1_high, transitions, par):
+  def get_collisions_per_peptide_from_rangetree(self, precursor, q1_low, q1_high,
+    transitions, par, ForceChargeCheck=False):
     """Get the collisions per peptide, e.g. a dictionary that contains the
     interfered transitions for a given precursor with given transitions.
     """
@@ -148,13 +149,11 @@ class Precursors:
         ssrcalc_high,
         par.isotopes_up_to, isotope_correction)  
 
-    # Now deselect the myself (the precursor passed as argument) and reformat
+    # Now deselect the myself (the precursor passed as argument) and everything
+    # that is in my transitions group, e.g. considered to be the same peptide
     globalprecursors = [self.lookup_by_parent_id(myid[0]) for myid in precursor_ids
       #dont select myself 
       if self.lookup_by_parent_id(myid[0]).transition_group != precursor.transition_group]
-
-    # expected precursor tuple parent_id : xxx, sequence, trans_group, xxxx, isotope modification
-    globalprecursors = tuple([(0, p.modified_sequence, p.transition_group, 0, p.isotopically_modified) for p in globalprecursors])
     return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-        transitions, globalprecursors, q3_low, q3_high, par.q3_window, par.ppm, par)
+        transitions, globalprecursors, par, q3_low, q3_high, par.q3_window, par.ppm, ForceChargeCheck)
 

@@ -153,6 +153,8 @@ class Test_cgetnonuis(unittest.TestCase):
             precursors = ( 
                 (449.72058221399999, 'SYVAWDR', 11498839L, 2),
             )
+            #precursors = [Precursor(modified_sequence='SYVAWDR', q1=449.720582, q1_charge=2, transition_group = 11498839L, isotopically_modified=0) ]
+
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
                 transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm)
@@ -252,12 +254,11 @@ class Test_cgetnonuis(unittest.TestCase):
             q3_high = self.q3_high
             q3_low = self.q3_low
 
-            precursors = ( 
-                (449.72058221399999, 'SYVAWDR', 11498839L, 2, 0),
-            )
+            precursors = [Precursor(modified_sequence='SYVAWDR',
+                transition_group=11498839L, isotopically_modified=0)] 
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+                transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, False)
             #
 
             self.assertEqual(collisions_per_peptide,
@@ -266,14 +267,14 @@ class Test_cgetnonuis(unittest.TestCase):
     def test_calculate_calculate_collisions_per_peptide_1_other(self):
             pep = test_shared.runpep1
             transitions = test_shared.runtransitions1
-            precursors = test_shared.runprecursors1
+            precursors = test_shared.runprecursors_obj1
             par = self.par
             q3_high = self.q3_high
             q3_low = self.q3_low
 
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+                transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, False)
             for key in collisions_per_peptide:
                 self.assertEqual(collisions_per_peptide[key], test_shared.collpepresult1[key])
             self.assertEqual(len(collisions_per_peptide), len(test_shared.collpepresult1))
@@ -282,14 +283,14 @@ class Test_cgetnonuis(unittest.TestCase):
     def test_calculate_calculate_collisions_per_peptide_2_other(self):
             pep = test_shared.runpep2
             transitions = test_shared.runtransitions2
-            precursors = test_shared.runprecursors2
+            precursors = test_shared.runprecursors_obj2
             par = self.par
             q3_high = self.q3_high
             q3_low = self.q3_low
 
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+                transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, False)
             for key in collisions_per_peptide:
                 self.assertEqual(collisions_per_peptide[key], test_shared.collpepresult2[key])
             self.assertEqual(len(collisions_per_peptide), len(test_shared.collpepresult2))
@@ -327,12 +328,11 @@ class Test_cgetnonuis(unittest.TestCase):
             # there is an a4-NH3 393.21384 - 17 = 376.21384 close to transition 11
             # there is an x2 316.12575                      close to transition 9  
             # there is an z3 459.19925                      close to transition 2
-            precursors = ( 
-                (449.72058221399999, 'SYVAWDR', 11498839L, 2, 0),
-            )
+            precursors = [Precursor(modified_sequence='SYVAWDR',
+                transition_group=11498839L, isotopically_modified=0)] 
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+                transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, False)
             #
 
             self.assertEqual(collisions_per_peptide,
@@ -367,12 +367,11 @@ class Test_cgetnonuis(unittest.TestCase):
             q3_high = self.q3_high
             q3_low = self.q3_low
 
-            precursors = ( 
-                (449.72058221399999, 'SYVAWDR', 11498839L, 2, 0),
-            )
+            precursors = [Precursor(modified_sequence='SYVAWDR',
+                transition_group=11498839L, isotopically_modified=0)] 
             transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
             collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-                transitions, tuple(precursors), q3_low, q3_high, par.q3_window, par.ppm, par)
+                transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, False)
             #
 
             self.assertEqual(collisions_per_peptide,
@@ -511,8 +510,8 @@ class Test_three_peptide_example(unittest.TestCase):
 
     
       nonunique = c_getnonuis._find_clashes_forall_other_series( 
-        tuple(transitions), self.oldstyle_precursors, q3_low, q3_high,
-            par.q3_window, par.ppm, par, precursor.q1 - par.q1_window)
+        tuple(transitions), self.interfering_precursors, par, q3_low, q3_high,
+            par.q3_window, par.ppm, precursor.q1 - par.q1_window, False)
 
       self.assertEqual( len( nonunique ), 3)
       self.assertEqual( nonunique.keys(), [0,2,4] )

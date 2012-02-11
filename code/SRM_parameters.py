@@ -42,6 +42,11 @@ class SRM_parameters(object):
         self.sqlite_database = None
         self.use_sqlite      = None
 
+        self.experiment_type = ''
+
+    def __repr__(self):
+        return "SRMParameters: " + self.experiment_type
+
     def set_default_vars(self):
         # set the default values if they are not yet set
 

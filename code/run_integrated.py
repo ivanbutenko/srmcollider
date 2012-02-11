@@ -33,7 +33,7 @@ precursor.
 
 Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
 
-python run_uis.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/testdb 
+python run_integrated.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb 
 analyzing 905 peptides
 [------------------------------------------------------------>] 100%  9828.8 peptides/sec (eta 0s)
 It took 0s
@@ -47,7 +47,7 @@ Order 5, Average non useable UIS 3.86353977514e-06
 """
 
 import sys 
-import c_integrated, c_rangetree, c_getnonuis
+import c_integrated
 import collider
 import progress
 

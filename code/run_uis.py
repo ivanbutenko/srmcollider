@@ -33,7 +33,7 @@ precursor.
 
 Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
 
-$ python run_uis.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/testdb 
+python run_uis.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb 
 [------------------------------------------------------------>] 100%  9519.7 peptides/sec (eta 0s)
 It took 0s
 Analyzed 905 peptides
@@ -42,6 +42,16 @@ Order 2, Average non useable UIS 0.00377300709314
 Order 3, Average non useable UIS 0.000427182046582
 Order 4, Average non useable UIS 4.72421355715e-05
 Order 5, Average non useable UIS 3.86353977514e-06
+
+python run_uis.py 123456789 500 525 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=25 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb --swath_mode
+[------------------------------------------------------------>] 100%  4886.1 peptides/sec (eta 0s)
+It took 0s
+Analyzed 39 peptides
+Order 1, Average non useable UIS 0.478557767019
+Order 2, Average non useable UIS 0.0377468685161
+Order 3, Average non useable UIS 0.00329392829393
+Order 4, Average non useable UIS 0.0002035002035
+Order 5, Average non useable UIS 0.0
 
 """
 
@@ -130,6 +140,7 @@ myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
 precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()
+myprecursors.build_transition_group_lookup()
 
 # If we dont use the DB, we use the rangetree to query and get our list of
 # precursors that are interfering. In SWATH we dont include a +/- q1_window
@@ -168,8 +179,8 @@ for precursor in precursors_to_evaluate:
     nr_transitions = len(transitions)
 
     if use_db and not swath_mode:
-        precursors_obj = mycollider._get_all_precursors_obj(par, precursor, cursor)
-        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(mycollider, 
+        precursors_obj = mycollider._get_all_precursors(par, precursor, cursor)
+        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider, 
                 transitions, precursors_obj, par, precursor)
     elif use_db and swath_mode:
         if par.ssrcalc_window > 1000:
@@ -179,14 +190,17 @@ for precursor in precursors_to_evaluate:
             ssrcalc_high = precursor.ssrcalc + par.ssrcalc_window 
             precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group
                          and p.ssrcalc > ssrcalc_low and p.ssrcalc < ssrcalc_high ]
-        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(mycollider, 
+        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider, 
                 transitions, precursors_obj, par, precursor)
     elif not use_db:
         # Use the rangetree, whether it is swath or not
         if swath_mode:
-          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, min_q1, max_q1, transitions, par)
+          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
+              precursor, min_q1, max_q1, transitions, par)
         else:
-          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, transitions, par)
+          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
+              precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
+              transitions, par)
 
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 

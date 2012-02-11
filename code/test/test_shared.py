@@ -1,6 +1,8 @@
 #
 # vim:set fdm=marker:
 
+import sys
+sys.path.extend( ['..', '../external'])
 SQLITE_DATABASE_LOCATION = '/tmp/srmcollider_testdb'
 
 def ignoreImportError_rangetree(f):
@@ -20,6 +22,21 @@ def ignoreImportError_cget(f):
     return new
 
 
+
+from precursor import Precursor
+class ThreePeptideExample():
+
+    precursor = Precursor(modified_sequence='YYLLDYR', q1=503.256187374, q1_charge=2, transition_group = 34, parent_id = 69, isotopically_modified=0, ssrcalc = 25)
+    interfering_precursors = [
+      Precursor(modified_sequence='GGLIVELGDK', q1=500.787837374, q1_charge=2, transition_group = 665, parent_id = 1331, isotopically_modified=0, ssrcalc = 25),
+      Precursor(modified_sequence='NGTDGGLQVAIDAMR', q1=506.58461326, q1_charge=3, transition_group = 618, parent_id = 1238, isotopically_modified=0, ssrcalc = 25)
+    ]
+
+    expected_transitions = (
+          (842.44121971600021, 0), 
+          (679.37788971600014, 1), 
+          (566.29382971600012, 2), (453.2097697160001, 3), (440.21854503200007, 4), 
+          (553.30260503200009, 5), (668.32954503200006, 6), (831.39287503200012, 7) )
 
 #{{{
 #collisions
@@ -72,8 +89,8 @@ transitions_def2_unsorted = ( (500.0,1),
                 (800,4), 
                 (700,3), 
               )
-#peptide 201 is shares transitions 1-3 and 
-#peptide 202 is shares transitions 2-4
+#peptide 201 shares transitions 1-3 and 
+#peptide 202 shares transitions 2-4
 collisions_def2 = (  (500.4,400.0,101,201),
                 (600.6,400.0,102,201), 
                 (700.6,401.0,103,201),
@@ -120,9 +137,9 @@ transitions_def3 = ( (500.0,1),
                 (900,5), 
                 (1000,6), 
               )
-#peptide 201 is shares transitions 1-3 and 
-#peptide 202 is shares transitions 2-4
-#peptide 203 is shares transitions 1-6
+#peptide 201 shares transitions 1-3 and 
+#peptide 202 shares transitions 2-4
+#peptide 203 hares transitions 1-6
 collisions_def3 = (  (500.4,400.0,101,201),
                 (600.6,400.0,102,201), 
                 (700.6,401.0,103,201),
@@ -203,9 +220,9 @@ transitions_def4 = ( (500.0,1),
                 (900,5), 
                 (1000,6), 
               )
-#peptide 201 is shares transitions 1-3 and 
-#peptide 202 is shares transitions 2-4
-#peptide 203 is shares transitions 4-6
+#peptide 201 shares transitions 1-3 and 
+#peptide 202 shares transitions 2-4
+#peptide 203 shares transitions 4-6
 collisions_def4 = (  (500.4,400.0,101,201),
                 (600.6,400.0,102,201), 
                 (700.6,401.0,103,201),
@@ -296,6 +313,56 @@ pep1_bseries = [49.534205032000003, 114.055500032,
 peptide2 = (400, 'CEPC[160]IDM[147]E',2,2)
 
 from test_shared_large import *
+
+
+
+runprecursors_obj1 = []
+for p in runprecursors1:
+    runprecursors_obj1.append(Precursor(
+    modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
+
+runprecursors_obj2 = []
+for p in runprecursors2:
+    runprecursors_obj2.append(Precursor(
+    modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
+
+
+from SRM_parameters import SRM_parameters
+def get_default_setup_parameters():
+        par = SRM_parameters()
+        par.q1_window = 1 / 2.0
+        par.q3_window = 1 / 2.0
+        par.ssrcalc_window = 10 / 2.0
+        par.ppm = False
+        par.isotopes_up_to = 3
+        par.q3_low = 400
+        par.q3_high = 1400
+        par.max_uis = 5
+        par.peptide_table = 'srmPeptides_test'
+        par.mysql_config = '~/.my.cnf'
+        par.sqlite_database = SQLITE_DATABASE_LOCATION
+        par.use_sqlite = True
+        par.quiet = False
+
+        par.bions      =  True
+        par.yions      =  True
+        par.aions      =  False
+        par.aMinusNH3  =  False
+        par.bMinusH2O  =  False
+        par.bMinusNH3  =  False
+        par.bPlusH2O   =  False
+        par.yMinusH2O  =  False
+        par.yMinusNH3  =  False
+        par.cions      =  False
+        par.xions      =  False
+        par.zions      =  False
+        par.MMinusH2O  =  False
+        par.MMinusNH3  =  False
+        par.q3_range = [par.q3_low, par.q3_high]
+        par.set_default_vars()
+        par.eval()
+        return par
+
 #########################
 #########################
 #########################

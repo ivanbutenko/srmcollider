@@ -1,9 +1,10 @@
-import unittest
 """
 This file tests the functionality of the c_integrated module. 
 """
 
+import unittest
 import sys
+from nose.tools import nottest
 sys.path.append( '..')
 sys.path.append( '../external')
 import collider
@@ -25,7 +26,6 @@ If you compiled it, please check the linking and compile errors.
 class Test_cintegrated(unittest.TestCase): 
 
     def setUp(self):
-        #print "setup integrated"
         self.transitions = transitions_def1
         self.collisions  = collisions_def1
         class Minimal: pass

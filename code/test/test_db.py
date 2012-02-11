@@ -1,9 +1,10 @@
-import random
-import unittest
 """
 This file tests the interoperability with the MySQL / SQLite databases.
 """
 
+from nose.tools import nottest
+import random
+import unittest
 import sys
 sys.path.append( '..')
 sys.path.append( '../external')
@@ -59,28 +60,25 @@ def find_clashes_small(self, mycollider, cursor, par, pepids):
         mycollider.total_count = 0
         MAX_UIS = 5
         for kk, pep in enumerate(pepids):
-            p_id = pep['parent_id']
-            q1 = pep['q1']
-            ssrcalc = pep['ssrcalc']
+            precursor = Precursor(parent_id=pep['parent_id'], q1=pep['q1'], 
+                ssrcalc=pep['ssrcalc'], modified_sequence = pep['mod_sequence'], 
+                transition_group = pep['transition_group'])
+
             q3_low, q3_high = par.get_q3range_transitions()
-            #
-            transitions = collider.calculate_transitions_ch(
-                ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
-            #fake some srm_id for the transitions
-            transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+            transitions = precursor.calculate_transitions(q3_low, q3_high)
             nr_transitions = len(transitions)
-            #
+
             ### if use_db and not swath_mode:
-            precursors = mycollider._get_all_precursors(par, pep, cursor)
+            precursors = mycollider._get_all_precursors(par, precursor, cursor)
             collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider,
-                    transitions, precursors, par, pep, forceNonCpp=False)
-            collisions_per_peptide_python = collider.get_coll_per_peptide_from_precursors(mycollider,
-                    transitions, precursors, par, pep, forceNonCpp=True)
+                    transitions, precursors, par, precursor, forceNonCpp=False)
+            collisions_per_peptide_python = collider.get_coll_per_peptide_from_precursors_obj_wrapper(mycollider,
+                    transitions, precursors, par, precursor, forceNonCpp=True)
             self.assertEqual(collisions_per_peptide, collisions_per_peptide_python)
             non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
             # 
             # here we count how many are locally clean, e.g. look at UIS of order 1
-            mycollider.allpeps[ p_id ] = 1.0 - len(non_uis_list[1]) * 1.0  / nr_transitions
+            mycollider.allpeps[precursor.parent_id] = 1.0 - len(non_uis_list[1]) * 1.0  / nr_transitions
             mycollider.non_unique_count += len(non_uis_list[1])
             mycollider.total_count += nr_transitions
 

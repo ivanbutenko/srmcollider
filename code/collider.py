@@ -36,7 +36,7 @@ from precursor import Precursor
 
 class SRMcollider(object):
 
-    def _get_all_precursors_obj(self, par, precursor, cursor, 
+    def _get_all_precursors(self, par, precursor, cursor, 
          bysequence=False):
       precursors = []
       values = "modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified"
@@ -49,7 +49,7 @@ class SRMcollider(object):
           precursors.append(p)
       return precursors
 
-    def _get_all_precursors(self, par, pep, cursor, 
+    def _get_all_precursors_old_list(self, par, pep, cursor, 
          values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
          bysequence=False):
         R = Residues.Residues('mono')
@@ -244,10 +244,10 @@ def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep
     q3_low, q3_high = par.get_q3range_transitions()
     try: 
         #try to use C++ libraries
-        if forceNonCpp or forceFragmentChargeCheck: import somedummymodulethatwillneverexist
+        if forceNonCpp: import somedummymodulethatwillneverexist
         import c_getnonuis
         return c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
+            transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceFragmentChargeCheck)
     except ImportError:
         # if we dont have any C++ code compiled, calculate fragments 
         R = Residues.Residues('mono')
@@ -367,7 +367,6 @@ def get_coll_per_peptide_from_precursors_obj_wrapper(self, transitions, precurso
   forceNonCpp=False, forceFragmentChargeCheck=False):
   pep = precursor.to_old_pep()
   oldstyle_precursors = tuple([(0, p.modified_sequence, p.transition_group, 0, p.isotopically_modified) for p in precursors_obj])
-  print "wrapper here"
   return get_coll_per_peptide_from_precursors(self, transitions, 
     oldstyle_precursors, par, pep, forceNonCpp, forceFragmentChargeCheck=forceFragmentChargeCheck)
 

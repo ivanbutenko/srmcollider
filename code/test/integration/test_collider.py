@@ -107,8 +107,8 @@ class Test_integration_run_uis(unittest.TestCase):
       transitions = precursor.calculate_transitions(q3_low, q3_high)
       nr_transitions = len(transitions)
 
-      precursors_obj = self.acollider._get_all_precursors_obj(par, precursor, cursor)
-      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(self.acollider, 
+      precursors_obj = self.acollider._get_all_precursors(par, precursor, cursor)
+      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(self.acollider, 
                 transitions, precursors_obj, par, precursor)
       non_uis_list = collider.get_nonuis_list(collisions_per_peptide, par.max_uis)
 
@@ -198,7 +198,7 @@ class Test_integration_run_uis(unittest.TestCase):
           ssrcalc_high = precursor.ssrcalc + par.ssrcalc_window 
           precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group
                        and p.ssrcalc > ssrcalc_low and p.ssrcalc < ssrcalc_high ]
-      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors_obj_wrapper(self.acollider, 
+      collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(self.acollider, 
               transitions, precursors_obj, par, precursor)
 
 
