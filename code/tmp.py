@@ -1486,6 +1486,18 @@ for fr in ['MEM', 'N80', 'N60', 'NSol', 'PE' ]:
                     xlabel = '', ylabel = '', tmp_csv='/tmp/gcsv.csv', keep_data = True)
 
 
+
+"""
+Correspodning GNUPLOT script
+1 set terminal postscript color enhanced solid
+2 set border 31 linewidth .3
+3 set xlabel ""
+4 set ylabel ""
+5 set output "/home/hroest/srm_clashes/results/manndata/r200lbmwplot_PE_15.eps"
+6 plot "/tmp/gcsv.csv" notitle with boxes lt -1 lw 2
+"""
+
+
 width = 0.21
 latex = ''
 for fr in ['MEM', 'N80', 'N60', 'NSol', 'PE' ]:
