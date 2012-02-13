@@ -322,6 +322,13 @@ FIELDS TERMINATED BY ' '
 LINES TERMINATED BY '\n'
 
 
+create table hroest.tmp_seqs (sequence varchar(255) );
+LOAD DATA LOCAL INFILE
+'/tmp/sequences3456'
+INTO TABLE hroest.tmp_seqs 
+FIELDS TERMINATED BY ' '
+LINES TERMINATED BY '\n'
+
 
 
 
@@ -458,4 +465,59 @@ select * from  tmp_tppsearch_analysis_2 limit 10;
 
 
 
+create temporary table hroest.ruthspeps (sequence varchar(255) );
+LOAD DATA LOCAL INFILE
+'/home/hroest/data/ruthspeptides'
+INTO TABLE hroest.ruthspeps 
+FIELDS TERMINATED BY ' '
+LINES TERMINATED BY '\n';
 
+select count(*) from hroest.ruthspeps;
+select count(distinct gene_key) 
+from hroest.ruthspeps
+inner join ddb.peptide on peptide.sequence = ruthspeps.sequence 
+inner join ddb.protPepLink l on l.peptide_key = peptide.id
+inner join ddb.geneProtLink ll on l.protein_key = ll.protein_key
+where experiment_key = 3130;
+
+# peptides
+#3995 in human
+#1558 in mouse
+
+#proteins 
+# 1312 in human
+# 842 in mouse
+
+
+
+
+drop table hroest.tca_peps ;
+create temporary table hroest.tca_peps (sequence varchar(255) );
+LOAD DATA LOCAL INFILE
+'/home/hroest/data/tca_peptides.csv'
+INTO TABLE hroest.tca_peps 
+FIELDS TERMINATED BY ' '
+LINES TERMINATED BY '\n';
+
+
+drop table hroest.tca_peps_u ;
+create temporary table hroest.tca_peps_u as 
+select distinct sequence from hroest.tca_peps;
+select * from hroest.tca_peps_u ;
+
+
+
+select u.sequence, o.genome_occurence from hroest.tca_peps_u  u 
+inner join ddb.peptide p on u.sequence = p.sequence 
+inner join ddb.peptideOrganism o on o.peptide_key = p.id
+where experiment_key = 3131
+and genome_occurence = 1
+;
+
+
+
+select p.sequence, o.genome_occurence from ddb.peptide p 
+inner join ddb.peptideOrganism o on o.peptide_key = p.id
+where experiment_key = 3131
+and sequence = 'SLVPNIPFQMLLR'
+;

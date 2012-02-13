@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
 # vim:set fdm=marker:
-# {{{ Main: Run the collider
 import MySQLdb
 import time
 import sys 
@@ -13,7 +12,7 @@ import collider
 import hlib
 import copy
 
-#Run the collider
+# {{{ Main: Run the collider
 ###########################################################################
 par = collider.SRM_parameters()
 par.q1_window = 1600 / 2.0 #UIS paper = 1.2 => we do 0.7 and 1.0
@@ -1265,42 +1264,12 @@ into outfile '/home/hroest/data/allbackground_nossrcalc_1Da1Da.csv'
 
 }}}
 
-
-#load from file
-mycollider = collider.SRMcollider()
-directory = '/home/hroest/srm_clashes/results/pedro/'
-mycollider.load_from_file( par, directory)
-
-#print results
-mycollider.print_unique_histogram(par)
-mycollider.print_cumm_unique(par)
-mycollider.print_q3min(par)
-mycollider.print_q3min_ppm(par)
-mycollider.print_stats()
-mycollider.print_cumm_unique_all(par, db.cursor() )
-
-
-
-#pepids = mycollider._get_unique_pepids(par, cursor, ignore_genomeoccurence=True)
-pepids = mycollider._get_unique_pepids_toptransitions(par, cursor)
-
-mycollider.find_clashes(db, par, pepids=pepids, toptrans=True, use_per_transition=False )
-mycollider.find_clashes_small(db, par, pepids=pepids, UIS_only=False)
-
-reload( collider )
-mycollider = collider.SRMcollider()
-mycollider.find_clashes_toptrans_3strike(db, par) #, pepids=pepids, 
-                                         #use_per_transition=False )
-
-#mycollider.store_in_file(par)
-
 {{{ SWATH workflow
 
 
 reload( collider )
 mycollider = collider.SRMcollider()
 mycollider.find_clashes(db, par, exp_key = None)
-
 
 
 db = MySQLdb.connect(read_default_file="~/.my.cnf")
@@ -1356,9 +1325,6 @@ limit 10;
    exp_key int
    )
    alter table hroest.result_srmcompare add index(exp_key, parent_key);
-
-
-
 
 
 
@@ -1479,7 +1445,9 @@ for r in cursor.fetchall(): s += '%s;' % r[0]
 
 #for key in [246, 256, 258, 270, 271]:
 #for key in [245, 250, 252, 268, 269]:
-for key in [589]:
+#for key in [589]:
+#for key in [607, 610, 611]:
+for key in [620,622,624,628,630]:
     s = ''
     tmp = cursor.execute(
     """
@@ -1501,7 +1469,9 @@ for key in [589]:
 
 #for key in [246, 256, 258, 270, 271]:
 #for key in [245, 250, 252, 268, 269]:
-for key in [590]:
+#for key in [590]:
+#for key in [ 608, 609, 612]:
+for key in [621,623,625,629,631]:
     s = ''
     tmp = cursor.execute(
     """
@@ -1546,7 +1516,6 @@ group by exp_key;
 
 }}}
 
-
 create table tmp_notinrangetree as 
 select distinct parent_key from result_srmuis
 where exp_key = 103 and parent_key not in
@@ -1557,8 +1526,6 @@ limit 1
 create temporary table tmp123 as
 select parent_key from  result_srmuis where exp_key = 102;
 alter table tmp123 add index(parent_key)
-
-
 
 {{{ srmuis filler workflow
 
@@ -2073,4 +2040,68 @@ for myc in range(10):
 
 }}}
 ###########################################################################
+
+select pr.sequence_key,sequence,rank,label,q1,q3,q1_charge,q3_charge
+from protein pr inner join protPepLink ln on ln.protein_key = pr.id
+inner join peptide pe on ln.peptide_key = pe.id 
+inner join mrmAssay a on a.peptide_key = pe.id 
+inner join transition on mrmAssay_key = a.id 
+where pr.experiment_key = 3373 
+and repl_by = 0 
+and q1_charge = 2 
+and label = 'none' 
+#and rank = 3
+and sequence = 'LPSTSGSEGVPFR'  
+#limit 1
+;
+
+
+
+create temporary table all_assays as 
+select pr.sequence_key,sequence,rank,label,q1,q3,q1_charge,q3_charge
+#select count(distinct sequence_key) 
+from protein pr inner join protPepLink ln on ln.protein_key = pr.id
+inner join peptide pe on ln.peptide_key = pe.id 
+inner join mrmAssay a on a.peptide_key = pe.id 
+inner join transition on mrmAssay_key = a.id 
+where pr.experiment_key = 3373  # master
+# where pr.experiment_key = 1358  # ncbi genome
+and repl_by = 0 
+and q1_charge = 2 
+and label = 'none' 
+#and rank = 3
+#and sequence = 'LPSTSGSEGVPFR'  
+#limit 1
+;
+
+alter table all_assays add index(sequence);
+
+
+# 3446 peptides 
+select count(distinct peptide.sequence) from ddb.peptide 
+inner join all_assays on all_assays.sequence = peptide.sequence
+and rank = 3
+where experiment_key = 1389 ;
+
+# 1578 proteins out of 1905
+select count(distinct ln.protein_key) from ddb.peptide 
+inner join all_assays on all_assays.sequence = peptide.sequence
+inner join protPepLink ln on ln.peptide_key = peptide.id
+and rank = 3
+where experiment_key = 1389 ;
+
+
+# 18026 coordinates 
+select count(*) from 
+(
+select count(*) from ddb.peptide 
+inner join all_assays on all_assays.sequence = peptide.sequence
+where experiment_key = 1389 
+and rank < 100
+#and peptide.sequence = 'MNPLIQSLTEGQLR'
+group by peptide.sequence, rank
+) t
+;
+
+
 

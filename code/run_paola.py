@@ -33,7 +33,7 @@ if par.max_uis ==0:
     sys.exit()
 
 
-use_randomized_transitions = False
+use_randomized_transitions = True
 use_above_precursor = False
 
 
@@ -129,27 +129,31 @@ self.total_time = end - start
 
 
 
-#calculate for precursor, peptide and protein the min nr transitions necessary
-#to measure them without ambiguity
-#create a new hroest.experiment
-common_filename = par.get_common_filename()
-query = """
-insert into hroest.experiment  (name, short_description,
-description, comment1, comment2, comment3, super_experiment_key, ddb_experiment_key)
-VALUES (
-    'paola 1Da/1Da', '%s', '%s', '%s', '%s', '%s', 3, 0
-)
-""" %( common_filename + '_' + cmadd, 
-      par.experiment_type, par.peptide_table, par.transition_table, 
-     'using new MRMAtlas_qtrap_final_no_pyroGlu')
-cursor.execute(query)
+## #calculate for precursor, peptide and protein the min nr transitions necessary
+## #to measure them without ambiguity
+## #create a new hroest.experiment
+## common_filename = par.get_common_filename()
+## query = """
+## insert into hroest.experiment  (name, short_description,
+## description, comment1, comment2, comment3, super_experiment_key, ddb_experiment_key)
+## VALUES (
+##     'paola 1Da/1Da', '%s', '%s', '%s', '%s', '%s', 3, 0
+## )
+## """ %( common_filename + '_' + cmadd, 
+##       par.experiment_type, par.peptide_table, par.transition_table, 
+##      'using new MRMAtlas_qtrap_final_no_pyroGlu')
+## cursor.execute(query)
+## myid = db.insert_id()
+
+cursor.execute("insert into hroest.result_randomexp (dummy) values (0)")
 myid = db.insert_id()
+
 
 prepare = [ [p[0], p[1], myid]  for p in mycollider.min_transitions]
 #save our result ("the min nr transitions per precursor") linked with 
 #our new experiment key
 cursor.executemany(
-""" insert into hroest.result_srmpaola (parent_key, min_transitions, exp_key) 
+""" insert into hroest.result_randomtransitions (parent_key, min_transitions, exp_key) 
     VALUES (%s,%s,%s) """, prepare
 )
 
