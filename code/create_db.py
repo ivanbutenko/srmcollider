@@ -64,14 +64,16 @@ group.add_option("--sqlite_database", dest="sqlite_database", default='',
                   help="Use specified sqlite database instead of MySQL database" )
 group.add_option("--mysql_config", dest="mysql_config", default='~/.my.cnf',
                   help="Location of mysql config (.my.cnf) file" )
-group.add_option("--mass_cutoff", dest="mass_cutoff", default='1500',
-                  help="M/Z cutoff above which precursors will not be included in the database (default 1500)" )
+group.add_option("--mass_cutoff", dest="mass_cutoff", default='5000',
+                  help="M/Z cutoff above which precursors will not be included in the database (default 5000)" )
 group.add_option("--max_nr_modifications", dest="max_nr_modifications", default='3',
                   help="Maximal number of modifications per peptide (default 3)" )
 group.add_option("--oxidize_methionines", dest="oxidize_methionines", default=False, action="store_true",
                   help="Oxidize Methionines")
 group.add_option("--deamidate_asparagine", dest="deamidate_asparagine", default=False, action="store_true",
                   help="Deamindate asparagines")
+group.add_option("--doN15", dest="doN15", default=False, action="store_true",
+                  help="Modify all proteins with heavy Nitrogen (N15).")
 parser.add_option_group(group)
 
 options, args = parser.parse_args(sys.argv[1:])
@@ -85,6 +87,7 @@ mass_cutoff = int(options.mass_cutoff)
 modify_cysteins = True
 oxidize_methionines = options.oxidize_methionines 
 deamidate_asparagine = options.deamidate_asparagine 
+doN15 = options.doN15 
 max_nr_modifications = int(options.max_nr_modifications)
 # Input file and db
 if tsv_file != '': use_tsv = True
@@ -119,15 +122,20 @@ def get_peptide_from_table(t, row):
 
 def insert_peptide_in_db(self, db, peptide_table, transition_group):
     c = db.cursor()
+    isotope_modification = Residues.NOISOTOPEMODIFICATION
+    if doN15:
+        isotope_modification = Residues.N15_ISOTOPEMODIFICATION
     #insert peptide into db
-    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, isotope_nr, transition_group"
-    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s)" % (
+    vals = "peptide_key, q1_charge, q1, ssrcalc, modified_sequence, modifications, missed_cleavages, isotopically_modified, transition_group"
+    q = "insert into %s (%s) VALUES (%s,%s,%s,%s,'%s', %s, %s, %s, %s)" % (
         peptide_table,
         vals, 
         self.id, self.charge, 
         self.charged_mass, self.ssr_calc, 
         self.get_modified_sequence(),
-        0, #we only have the 0th isotope (0 C13 atoms)
+        self.modifications, 
+        self.missed_cleavages(),
+        isotope_modification,
         transition_group
     )
     c.execute(q)
@@ -171,15 +179,12 @@ def get_all_modified_peptides(peptide, oxidize_methionines, deamidate_asparagine
 
 
 residues = Residues.Residues('mono')
-
-#human go from parent_id = 1 to parent_id = 1177958
-#R.recalculate_monisotopic_data_for_N15()
+if doN15:
+    residues.recalculate_monisotopic_data_for_N15()
 
 ###################################
 # A) store the transitions
 ###################################
-
-
 
 # where to store the peptides (in MySQL or sqlite)
 if use_sqlite:
@@ -194,7 +199,9 @@ if use_sqlite:
         q1_charge TINYINT,
         q1 DOUBLE,
         ssrcalc DOUBLE,
-        isotope_nr TINYINT,
+        modifications TINYINT UNSIGNED,
+        missed_cleavages TINYINT UNSIGNED,
+        isotopically_modified TINYINT UNSIGNED,
         transition_group INT
     );
     create index %(table)spepkey   on %(table)s (peptide_key);
@@ -214,7 +221,9 @@ else:
         q1_charge TINYINT,
         q1 DOUBLE,
         ssrcalc DOUBLE,
-        isotope_nr TINYINT,
+        modifications TINYINT UNSIGNED,
+        missed_cleavages TINYINT UNSIGNED,
+        isotopically_modified TINYINT UNSIGNED,
         transition_group INT
     );
     """ % { 'table' : peptide_table} )
@@ -252,6 +261,7 @@ for id, line in enumerate(reader):
         # calculate charged mass and insert peptide into db
         peptide.create_fragmentation_pattern(residues)
         if peptide.charged_mass > mass_cutoff: continue
+        peptide.modifications = 0
         insert_peptide_in_db(peptide, db, peptide_table,
                                       transition_group=transition_group)
     #

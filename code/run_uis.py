@@ -30,9 +30,32 @@ This program will process all peptides of a given proteome and compare it to
 the background in that proteome. It will output the number of UIS and the
 number of total combinations for each order up to the specified limit for each
 precursor.
+
+Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
+
+python run_uis.py 123456789 400 1500 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb 
+[------------------------------------------------------------>] 100%  9519.7 peptides/sec (eta 0s)
+It took 0s
+Analyzed 905 peptides
+Order 1, Average non useable UIS 0.055404336098
+Order 2, Average non useable UIS 0.00377300709314
+Order 3, Average non useable UIS 0.000427182046582
+Order 4, Average non useable UIS 4.72421355715e-05
+Order 5, Average non useable UIS 3.86353977514e-06
+
+python run_uis.py 123456789 500 525 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=25 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb --swath_mode
+[------------------------------------------------------------>] 100%  4886.1 peptides/sec (eta 0s)
+It took 0s
+Analyzed 39 peptides
+Order 1, Average non useable UIS 0.478557767019
+Order 2, Average non useable UIS 0.0377468685161
+Order 3, Average non useable UIS 0.00329392829393
+Order 4, Average non useable UIS 0.0002035002035
+Order 5, Average non useable UIS 0.0
+
 """
 
-import MySQLdb, time, sys 
+import sys 
 import collider
 import progress
 
@@ -42,40 +65,30 @@ count_avg_transitions = False
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
-group = OptionGroup(parser, "Run uis Options",
-                    "None yet")
+group = OptionGroup(parser, "Run uis Options")
 group.add_option("--swath_mode", action='store_true', dest="swath_mode", default=False,
                   help="SWATH mode enabled (use fixed window)")
 group.add_option("--use_db", action='store_true', dest="use_db", default=False,
                   help="Use db instead of rangetree")
-group.add_option("--dry_run", action='store_true', dest="dry_run", default=False,
-                  help="Only a dry run, do not start processing (but create experiment)")
 group.add_option("--restable", dest="restable", default='srmcollider.result_srmuis', type="str",
-                  help="MySQL result table" + 
-                  "Defaults to result_srmuis") 
-group.add_option("--sqlite_database", dest="sqlite_database", default='',
-                  help="Use specified sqlite database instead of MySQL database" )
+                  help="MySQL result table" + " - Defaults to result_srmuis") 
 group.add_option("--insert",
                   action="store_true", dest="insert_mysql", default=False,
                   help="Insert into mysql experiments table")
 parser.add_option_group(group)
 
-#Run the collider
+# Run the collider
 ###########################################################################
-#Parse options
+# Parse options
 mycollider = collider.SRMcollider()
 par = collider.SRM_parameters()
 par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
-par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 par.eval()
-if not par.quiet: print par.get_common_filename()
-if not par.quiet: print "only b y ", par.do_b_y_only()
-if not par.quiet: print par.aions
 
 if len(sys.argv) < 4: 
-    print "wrong number of arguments"
+    raise Exception("Wrong number of arguments (provide at least experiment_key startQ1 endQ1")
     sys.exit()
 
 #local arguments
@@ -85,19 +98,21 @@ max_q1 = float(sys.argv[3])
 use_db = options.use_db
 swath_mode = options.swath_mode
 restable = options.restable
-sqlite_database = options.sqlite_database
-if sqlite_database != '': use_sqlite = True
-else: use_sqlite = False
 
-if use_sqlite:
-    import sqlite
-    db = sqlite.connect(sqlite_database)
-    cursor = db.cursor()
-else:
-    db = MySQLdb.connect(read_default_file=par.mysql_config)
-    cursor = db.cursor()
+########
+# Sanity check for SWATH : the provided window needs to be the SWATH window
+if swath_mode:
+    if not par.q1_window*2 >= max_q1 - min_q1:
+        raise Exception("Your Q1 window needs to be at least as large as the min/max q1 you chose.")
+        sys.exit()
 
-if not par.quiet: print 'isotopes' , par.isotopes_up_to
+###########################################################################
+# Prepare the collider
+
+import Residues
+R = Residues.Residues('mono')
+db = par.get_db()
+cursor = db.cursor()
 
 if options.insert_mysql:
     common_filename = par.get_common_filename()
@@ -118,177 +133,75 @@ if options.insert_mysql:
     exp_key = db.insert_id()
     print "Inserted into mysql db with id ", exp_key
 
-start = time.time()
-q = """
-select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages
-from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
-""" % {'peptide_table' : par.peptide_table, 
-              'lowq1'  : min_q1 - par.q1_window, 
-              'highq1' : max_q1 + par.q1_window,
-      }
-if not par.quiet: print q
-cursor.execute( q )
-alltuples =  list(cursor.fetchall() )
+# Get the precursors
+###########################################################################
+from precursor import Precursors
+myprecursors = Precursors()
+myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
+precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
+myprecursors.build_parent_id_lookup()
+myprecursors.build_transition_group_lookup()
 
-mypepids = [
-            {
-                'mod_sequence'  :  r[0],
-                'transition_group' :r[1],
-                'parent_id' :  r[2],
-                'q1_charge' :  r[3],
-                'q1' :         r[4],
-                'ssrcalc' :    r[5],
-            }
-            for r in alltuples
-    if r[3] == 2  # charge is 2
-    and r[6] == 0 # no modification 
-    and r[7] == 0 # no missed cleavages 
-    and r[4] >= min_q1
-    and r[4] < max_q1
-]
+# If we dont use the DB, we use the rangetree to query and get our list of
+# precursors that are interfering. In SWATH we dont include a +/- q1_window
+# around our range or precursors because the precursor window is fixed to
+# (min_q1,max_q1) and no other precursors are considered.
+if not use_db and swath_mode: 
+  myprecursors.getFromDB(par, cursor, min_q1, max_q1)
+  testrange = myprecursors.build_rangetree()
+elif not use_db:
+  #myprecursors.getFromDB(par, cursor, min_q1 - par.q1_window, max_q1 + par.q1_window)
+  testrange = myprecursors.build_rangetree()
 
-print "analyzing %s peptides" % len(mypepids)
-
-# use the rangetree?
-if not use_db:
-    if True:
-        if swath_mode: this_min = min_q1; this_max = max_q1
-        else: this_min = min_q1 - par.q1_window; this_max = max_q1 + par.q1_window
-        import Residues
-        R = Residues.Residues('mono')
-        isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-        q = """
-        select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, 0 as isotope_nr
-        from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
-        """ % {'peptide_table' : par.peptide_table, 
-                      'lowq1'  : this_min,
-                      'highq1' : this_max,
-                      'isotope_correction' : isotope_correction
-              }
-        if not par.quiet: print q
-        cursor.execute( q )
-        if not swath_mode:
-            alltuples = tuple(cursor.fetchall() )
-        else:
-            # filter out wrong isotopes
-            result = cursor.fetchall() 
-            new_result = []
-            for r in result:
-              append = False
-              ch = r[3]
-              for iso in range(par.isotopes_up_to+1):
-                if (r[4] + (R.mass_diffC13 * iso)/ch > min_q1 and 
-                    r[4] + (R.mass_diffC13 * iso)/ch < max_q1): append=True
-              if(append): new_result.append(r)
-            alltuples = tuple(new_result)
-    import c_rangetree
-    parentid_lookup = [ [ r[2], (r[4], r[0], r[1], r[3]) ] 
-            for r in alltuples ]
-    parentid_lookup  = dict(parentid_lookup)
-    print "building tree with %s Nodes" % len(alltuples)
-    if use_sqlite: alltuples = [tuple(t) for t in alltuples]
-    # print [p for p in alltuples if p[1] == 554689]
-    c_rangetree.create_tree(tuple(alltuples))
-
-# in SWATH mode, select all precursors that are relevant for the background at
-# once
+# In SWATH mode, select all precursors that are relevant for the background at
+# once. Select all precursors between min_q1 - correction and max_q1 and then
+# only append those to all_swath_precursors that are actually included in the
+# range (min_q1,max_q1) with at least one isotope.
 par.query2_add = ''
-if use_db and swath_mode: 
-    import Residues
-    R = Residues.Residues('mono')
+if swath_mode and use_db: 
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    values="q1, modified_sequence, transition_group, q1_charge, ssrcalc"
-    q1_low = min_q1; q1_high = max_q1
-    query2 = """
-    select %(values)s
-    from %(pep)s
-    where q1 >= %(q1_low)s - %(correction)s and q1 <= %(q1_high)s
-    """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
-           'correction' : isotope_correction,
-           'pep' : par.peptide_table,
-           'values' : values}
-    if not par.quiet: print 'swath ' , query2
-    cursor.execute( query2 )
-    result = cursor.fetchall() 
-    # filter out wrong isotopes
-    new_result = []
-    for r in result:
-      append = False
-      ch = r[3]
-      for iso in range(par.isotopes_up_to+1):
-        if (r[0] + (R.mass_diffC13 * iso)/ch > min_q1 and 
-            r[0] + (R.mass_diffC13 * iso)/ch < max_q1): append=True
-      if(append): new_result.append(r)
-    allprecursors = new_result
+    temp_precursors = Precursors()
+    temp_precursors.getFromDB(par, db.cursor(), min_q1 - isotope_correction, max_q1)
+    all_swath_precursors = []
+    for p in temp_precursors.precursors:
+      if(p.included_in_isotopic_range(min_q1, max_q1, par, R) ): 
+        all_swath_precursors.append(p)
 
 allintertr = []
-self = mycollider
-self.mysqlnewtime = 0
-self.pepids = mypepids
 MAX_UIS = par.max_uis
-progressm = progress.ProgressMeter(total=len(self.pepids), unit='peptides')
+progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
 prepare  = []
-for kk, pep in enumerate(self.pepids):
-    p_id = pep['parent_id']
-    q1 = pep['q1']
-    ssrcalc = pep['ssrcalc']
+print "analyzing %s peptides" % len(precursors_to_evaluate)
+for precursor in precursors_to_evaluate:
+
     q3_low, q3_high = par.get_q3range_transitions()
-    #
-    transitions = collider.calculate_transitions_ch(
-        ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
-    #fake some srm_id for the transitions
-    transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+    transitions = precursor.calculate_transitions(q3_low, q3_high)
     nr_transitions = len(transitions)
-    #
-    # in SWATH mode, we have a fixed window independent of q1
-    # in regular mode, we have to account for the isotope correction
-    import Residues
-    R = Residues.Residues('mono')
-    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    if swath_mode: q1_low = min_q1; q1_high = max_q1; q1_low -= isotope_correction
-    else: q1_low = q1 - par.q1_window -isotope_correction ; q1_high = q1 + par.q1_window
-    #
+
     if use_db and not swath_mode:
-        precursors = self._get_all_precursors(par, pep, cursor)
+        precursors_obj = mycollider._get_all_precursors(par, precursor, cursor)
+        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider, 
+                transitions, precursors_obj, par, precursor)
     elif use_db and swath_mode:
         if par.ssrcalc_window > 1000:
-            precursors = [p for p in allprecursors if p[2] != pep['transition_group'] ]
+            precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group]
         else:
-            ssrcalc_low = ssrcalc - par.ssrcalc_window 
-            ssrcalc_high = ssrcalc + par.ssrcalc_window 
-            precursors = [p for p in allprecursors if p[2] != pep['transition_group'] 
-                         and p[4] > ssrcalc_low and p[4] < ssrcalc_high ]
+            ssrcalc_low =  precursor.ssrcalc - par.ssrcalc_window 
+            ssrcalc_high = precursor.ssrcalc + par.ssrcalc_window 
+            precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group
+                         and p.ssrcalc > ssrcalc_low and p.ssrcalc < ssrcalc_high ]
+        collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider, 
+                transitions, precursors_obj, par, precursor)
     elif not use_db:
         # Use the rangetree, whether it is swath or not
-        #correct rounding errors, s.t. we get the same results as before!
-        ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
-        ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-        precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
-                                                     q1_high,  ssrcalc_high )  )
         if swath_mode:
-            precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                                #dont select myself 
-                               if parentid_lookup[myid[0]][2]  != pep['transition_group']])
+          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
+              precursor, min_q1, max_q1, transitions, par)
         else:
-            precursors = []
-            # filter out wrong isotopes
-            for myid in precursor_ids:
-              append = False
-              r = parentid_lookup[myid[0]]
-              ch = r[3]
-              for iso in range(par.isotopes_up_to+1):
-                if (r[0] + (R.mass_diffC13 * iso)/ch > q1 - par.q1_window and 
-                    r[0] + (R.mass_diffC13 * iso)/ch < q1 + par.q1_window): append=True
-              if(append and r[2]  != pep['transition_group']): precursors.append(r)
+          collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
+              precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
+              transitions, par)
 
-    import c_getnonuis
-    precursors = tuple(precursors)
-    if par.do_b_y_only():
-      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-    else:
-      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 
     ## Lets count the number of peptides that interfere
@@ -302,7 +215,7 @@ for kk, pep in enumerate(self.pepids):
     #
     for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
         prepare.append( (len(non_uis_list[order]), collider.choose(nr_transitions, 
-            order), p_id , order, exp_key) )
+            order), precursor.parent_id , order, exp_key) )
     progressm.update(1)
 
 if count_avg_transitions:
@@ -317,7 +230,8 @@ if count_avg_transitions:
 # cursor.executemany('insert into %s' % restable + ' (non_useable_UIS, total_UIS, \
 #                   parent_key, uisorder, exp_key) values (%s,%s,%s,%s,%s)' , prepare)
 
-for order in range(1,6):
+print "Analyzed %s peptides" % len(precursors_to_evaluate)
+for order in range(1,MAX_UIS+1):
     sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
     nr_peptides = len([p for p in prepare if p[3] == order])
     if not par.quiet: print sum_all *1.0/ nr_peptides

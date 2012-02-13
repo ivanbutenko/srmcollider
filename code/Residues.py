@@ -1,6 +1,13 @@
 
 import string
 
+# Isotope Modification
+# 0 means no modification
+# 1 means N15 (heavy nitrogen)
+NOISOTOPEMODIFICATION = 0
+N15_ISOTOPEMODIFICATION = 1
+
+
 class Residues:
 
     # http://www.sisweb.com/referenc/source/exactmaa.htm
@@ -151,8 +158,9 @@ class Residues:
     mass_CAM = 2* mass_C + 4*mass_H + mass_O + mass_N #CH2-CONH2
 
     mass_C13 = monoisotopic_elements['C13']
+    mass_N15 = monoisotopic_elements['N15']
     mass_diffC13 = mass_C13 - mass_C
-    mass_diffN15 = mass_C13 - mass_C
+    mass_diffN15 = mass_N15 - mass_N
 
     average_data = { 
         # Key on abbreviation, give name, molecular weight (in daltons).
@@ -406,6 +414,10 @@ class Residues:
         #
         self.monoisotopic_data['C[160]'] = ( 'Modified cystein', 
              self.monoisotopic_data['C'][1] + self.mass_CAM - self.mass_H)
+        self.monoisotopic_data['N[115]'] = ( 'Modified asparagine', 
+             self.monoisotopic_data['N'][1] - self.mass_N15 - self.mass_H + self.mass_O) 
+        self.monoisotopic_data['M[147]'] = ( 'Modified methionine', 
+             self.monoisotopic_data['M'][1] + self.mass_O)
         #
         self.monoisotopic_data['c'] = ( 'Modified cystein', 
              self.monoisotopic_data['C'][1] + self.mass_CAM - self.mass_H)

@@ -1,6 +1,7 @@
 
 === Installation ===
 
+==== Linux ====
 The SRMCollider is tested on an Ubuntu 10.04 system and all auxiliary programs
 should be easily installable using the package manager apt-get. In principal, a
 minimal installation should only require Python 2.4 or higher and a MySQL
@@ -28,7 +29,36 @@ cp build/lib.*/* .
 After that, you should run the tests:
 cd test; python test_independent.py
 
+==== Windows ====
+Installing the SRMCollider on Windows is is possible for experienced users
+sinceyou need many additional programs. Compiling the C++ extensions might be a
+bit harder but the basic functionality should be accessible using the
+Python-only version. To complete a successful install on Windows, you will have
+to do the following:
 
+Install Python 2.x (e.g. 2.7) from http://www.python.org/getit/
+Install MySQL from http://dev.mysql.com/downloads/mysql/
+Install MySQLdb from http://www.lfd.uci.edu/~gohlke/pythonlibs/ - search for
+    MySQL-python-1.2.3.win32-py2.6.exe 
+
+this should be sufficient for an minimal install on Windows. However it will
+not enable you to compile the C++ extensions. There are several examples out
+there on how to do it, e.g. http://docs.python.org/extending/windows.html but
+be aware that the SRMCollider relies on the following libraries:
+
+* Python headers
+* Boost.Python
+* CGAL
+
+There some soltions that rely on MinGW or VC++, see here for example:
+http://stackoverflow.com/questions/101061/building-python-c-extension-modules-for-windows
+but you then still need to install the above libraries.
+
+=== Testing after install ===
+
+After the install, you can test the success with 
+$ python test/test_independent.py
+which will test all functions that do not rely on databse access.
 
 === Useage ===
 
@@ -121,4 +151,14 @@ Changing the constraints for Q1/Q3/RT can be easily done using the --q1_window,
 --q3_window and --ssrcalc_window parameters
 
 
+
+=== Testing ===
+
+The easiest way to test which functions are enabled and which ones are not is by running the tests:
+
+$ nosetests test --with-coverage
+$ nosetests performance_tests
+
+To just test one function, one could do this
+$ nosetests test/test_collider.py:Test_collider_function.test_getMinNeededTransitions_1
 

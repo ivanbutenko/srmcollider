@@ -118,6 +118,7 @@ parser.add_option_group(group)
 parameters = collider.SRM_parameters()
 parameters.parse_cmdl_args(parser, default_mysql=default_mysql)
 options, args = parser.parse_args(sys.argv[1:])
+parameters.parse_options(options)
 
 #local arguments
 safetytransitions = options.safetytransitions
@@ -129,18 +130,11 @@ use_experimental_height = False
 if options.exp_resultfile != '': use_experimental_height = True
 
 par = parameters
-par.__dict__.update( options.__dict__ )
-par.q3_range = [options.q3_low, options.q3_high]
-par.q1_window /= 2.0
-par.q3_window /= 2.0
-par.ssrcalc_window /= 2.0
-if par.ppm == 'True': par.ppm = True
-elif par.ppm == 'False': par.ppm = False
-elif par.ppm in [True, False]: pass
-else: 'wrong arg for ppm'; assert False
-
-parameters.peptide_table = peptide_table
 parameters.dontdo2p2f = False
+parameters.peptide_table = peptide_table
+if not options.peptide_table is None:
+    parameters.peptide_table = options.peptide_table
+parameters.print_query = False
 parameters.eval()
 
 if par.max_uis == 0:
@@ -152,9 +146,10 @@ if par.max_uis == 0:
 try:
     import c_getnonuis
     use_cpp = True
-except ImportError: use_cpp = False
+except ImportError: 
+    use_cpp = False
 
-db = MySQLdb.connect(read_default_file=options.mysql_config)
+db = MySQLdb.connect(read_default_file=par.mysql_config)
 cursor = db.cursor()
 try:
     cursor.execute("desc %s" % parameters.peptide_table)
@@ -188,7 +183,10 @@ def parse_srmatlas_file(csvfile):
         def get_peaks(self):
             return self.peaks
 
-    r = csv.reader( open(csvfile, 'rU') , delimiter='\t') 
+    myfile = open(csvfile, 'rU') 
+    dialect = csv.Sniffer().sniff(myfile.read(1024))
+    myfile.seek(0)
+    r = csv.reader(myfile, dialect)
     header = r.next()
     # We know the header
     headerdict = {}
@@ -211,7 +209,8 @@ def parse_srmatlas_file(csvfile):
         lines = specdict[key]
         s = Spectrum()
         s.name        = key
-        s.sequence    = lines[0][headerdict['ModifiedSequence']].replace( 'C[160]', 'C')
+        s.sequence    = lines[0][headerdict['ModifiedSequence']].replace( 'C[160]', 'C').replace('C[+57]', 'C')
+        s.modified_sequence    = lines[0][headerdict['ModifiedSequence']].replace('C[+57]', 'C[160]')
         s.precursorMZ = float(lines[0][headerdict['PrecursorMz']])
         s.protein = lines[0][headerdict['protein_name']]
         for peak in lines:
@@ -241,7 +240,10 @@ def parse_mprophet_methodfile(csvfile):
         def get_peaks(self):
             return self.peaks
 
-    r = csv.reader( open(csvfile, 'rU') , delimiter='\t') 
+    myfile = open(csvfile, 'rU') 
+    dialect = csv.Sniffer().sniff(myfile.read(1024))
+    myfile.seek(0)
+    r = csv.reader( myfile, dialect)
     header = r.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
     specdict = {}
@@ -256,6 +258,7 @@ def parse_mprophet_methodfile(csvfile):
         s = Spectrum()
         s.name        = key
         s.sequence    = lines[0][headerdict['PeptideSequence']]
+        s.modified_sequence    = lines[0][headerdict['ModifiedSequence']].replace('C[+57]', 'C[160]')
         s.precursorMZ = float(lines[0][headerdict['PrecursorMz']])
         try: s.protein = lines[0][headerdict['protein_name']]
         except Exception: pass
@@ -281,7 +284,11 @@ def parse_mprophet_resultfile(library, infile, threshold):
     # the column "target_trs" should contain y7_1 typeNr_charge
     exp_peptides = {}
     libdict = dict([ (s.name.replace('/', '.'), s) for s in library ] )
-    experimental_infile = csv.reader( open(infile, 'rU') , delimiter='\t') 
+    myfile = open(infile, 'rU') 
+    dialect = csv.Sniffer().sniff(myfile.read(1024))
+    myfile.seek(0)
+    experimental_infile = csv.reader(myfile, dialect)
+
     header = experimental_infile.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
     headerdict['target_height']
@@ -428,26 +435,26 @@ for counter,spectrum in enumerate(library):
     try: ssrcalc = pepmap[spectrum.sequence]
     except KeyError: ssrcalc = 25
     pep = {
-        'mod_sequence' :   spectrum.name.split('/')[0],
+        'mod_sequence' :   spectrum.modified_sequence, #name.split('/')[0],
         'parent_id' :  -1,
         'q1' :         spectrum.precursorMZ,
         'q1_charge' :  spectrum.name.split('/')[1],
         'ssrcalc' :    ssrcalc,
-        'peptide_key' :-1,
+        'transition_group' :-1,
     }
     transitions = [ (p.peak, i) for i,p in enumerate(peaks)]
     if use_experimental_height: transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
     # some bug in mProphet
-    pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]')
+    pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]').replace('C[+57]', 'C[160]')
     #
     # Get all interfering precursors (all but the one of the current peptide)
-    # If we dont use C++, we need to get the peptide_key correct
+    # If we dont use C++, we need to get the transition_group correct
     precursors = mycollider._get_all_precursors(par, pep, cursor)
     if not use_cpp: 
         own_peptide = [p for p in precursors if p[1] == pep['mod_sequence'] ]
-        if len(own_peptide) > 0: pep['peptide_key'] = own_peptide[0][2]
+        if len(own_peptide) > 0: pep['transition_group'] = own_peptide[0][2]
     precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
     R = Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
@@ -464,10 +471,12 @@ for counter,spectrum in enumerate(library):
             sys.exit()
 
     if not use_experimental_height and use_cpp:
+        # We dont have experimental height data and use C++ code
         import c_integrated
         min_needed = c_integrated.getMinNeededTransitions(tuple(transitions), tuple(precursors), 
-            par.max_uis, par.q3_window, par.ppm)
+            par.max_uis, par.q3_window, par.ppm, par)
     elif not use_experimental_height:
+        # We dont have experimental height data and cannot use C++ code
         collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
             transitions, par, pep, cursor)
         min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
@@ -518,7 +527,10 @@ if not use_experimental_height:
         if spectrum.min_needed == -1: continue
         peptides[spectrum.sequence].append( spectrum.min_needed )
         proteins[spectrum.protein].append( spectrum.min_needed )
-        mycollider.perprecursor[ spectrum.min_needed ] += 1
+        try:
+          mycollider.perprecursor[ spectrum.min_needed ] += 1
+        except IndexError:
+            sys.exit( "Error, increase --max_uis to at least %s" % spectrum.min_needed )
 
     for k,v in proteins.iteritems():
         if len(v) == 0: continue
@@ -599,7 +611,7 @@ else:
 
 # here we write to the outfile
 # {{{
-f = open(outfile, 'w')
+f = open(outfile + '_transitions.csv', 'w')
 w = csv.writer(f)
 for spectrum in library:
     peaks = spectrum.get_peaks()
@@ -609,6 +621,12 @@ for spectrum in library:
         if not options.csv and not options.srmatlas_tsv:
             w.writerow( [spectrum.precursorMZ, p.peak, p.peak_annotation, spectrum.name])
         else: w.writerow(p.mprophetline)
+
+f.close()
+f = open(outfile + '_peptides.csv', 'w')
+w = csv.writer(f)
+for spectrum in library:
+    w.writerow( [spectrum.min_needed, spectrum.name])
 
 f.close()
 print "Wrote transition list into file ", outfile

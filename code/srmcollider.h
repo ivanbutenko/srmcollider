@@ -27,6 +27,9 @@ using namespace std;
 #define COMBINT uint32_t
 #define COMBLIMIT 32
 
+#define NOISOTOPEMODIFICATION 0
+#define N15_ISOTOPEMODIFICATION 1
+
 // Boost.Python headers
 #include <boost/python.hpp>
 #include <boost/python/module.hpp>

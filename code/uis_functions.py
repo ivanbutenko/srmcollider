@@ -36,45 +36,11 @@ def get_uis(srm_ids, non_uis, order):
     result = [r for r in result if not r in non_uis]
     return result
 
-def permutations(iterable, r=None):
-    #use itertools in 2.6
-    #see
-    #http://svn.python.org/view/python/trunk/Modules/itertoolsmodule.c?view=markup&pathrev=81889
-    import itertools
-    try:
-        return itertools.permutations( iterable, r)
-    except:
-        return _permutations( iterable, r)
-
-def _permutations(iterable, r=None):
-    # permutations('ABCD', 2) --> AB AC AD BA BC BD CA CB CD DA DB DC
-    # permutations(range(3)) --> 012 021 102 120 201 210
-    #print iterable, r
-    pool = tuple(iterable)
-    n = len(pool)
-    if r is None: r = n 
-    else: r=r
-    indices = range(n)
-    cycles = range(n, n-r, -1)
-    yield tuple(pool[i] for i in indices[:r])
-    while n:
-        for i in reversed(range(r)):
-            cycles[i] -= 1
-            if cycles[i] == 0:
-                indices[i:] = indices[i+1:] + indices[i:i+1]
-                cycles[i] = n - i
-            else:
-                j = cycles[i]
-                indices[i], indices[-j] = indices[-j], indices[i]
-                yield tuple(pool[i] for i in indices[:r])
-                break
-        else:
-            return
-
 def _combinations(N, M):
     """All index combinations of M elements drawn without replacement
      from a set of N elements.
     Order of elements does NOT matter."""
+    # TODO test
     index = range( M )
     while index[0] <= N-M:
         yield index[:]
@@ -89,12 +55,13 @@ def _combinations(N, M):
             k = j + 1
             while k < M: index[k] = index[k-1] + 1; k += 1; 
 
-def combinations(iterable, r):
+def combinations(iterable, r, force_non_native=False):
     """ All combinations of size r of the given iterable set. 
     Order of elements does NOT matter.
     """
     try:
         import itertools
+        if force_non_native: import itertools_dummy_module
         return itertools.combinations( iterable , r) 
     except:
         #we are before python 2.6

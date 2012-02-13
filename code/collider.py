@@ -27,18 +27,46 @@
 """
 
 import sys, os, time
-import numpy
 import progress
-import gnuplot
 import DDB
+import Residues
 
 from SRM_parameters import *
+from precursor import Precursor
 
 class SRMcollider(object):
 
-    def _get_all_precursors(self, par, pep, cursor, 
-         # this seems to be somewhat faster, around 30% and can handle all isotopes
-         values="q1, modified_sequence, transition_group, q1_charge", 
+    def _get_all_precursors(self, par, precursor, cursor, 
+         bysequence=False):
+      precursors = []
+      values = "modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified"
+      R = Residues.Residues('mono')
+      pep = precursor.to_old_pep()
+      for res in self._get_all_precursors_sub(par, pep, cursor, values, bysequence):
+        p = Precursor()
+        p.initialize(*res)
+        if(p.included_in_isotopic_range(precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, par, R) ): 
+          precursors.append(p)
+      return precursors
+
+    def _get_all_precursors_old_list(self, par, pep, cursor, 
+         values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
+         bysequence=False):
+        R = Residues.Residues('mono')
+        result = self._get_all_precursors_sub(par, pep, cursor, values)
+        assert(values[:50] == "q1, modified_sequence, transition_group, q1_charge")
+        new_result = []
+        for r in result:
+          append = False
+          ch = r[3]
+          for iso in range(par.isotopes_up_to+1):
+            if (r[0] + (R.mass_diffC13 * iso)/ch > pep['q1'] - par.q1_window and 
+                r[0] + (R.mass_diffC13 * iso)/ch < pep['q1'] + par.q1_window): append=True
+          if(append): new_result.append(r)
+        return tuple(new_result)
+
+    def _get_all_precursors_sub(self, par, pep, cursor, 
+         values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
          bysequence=False):
         vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
                 'transition_group' : pep['transition_group'], 'q1_window' : par.q1_window,
@@ -49,8 +77,8 @@ class SRMcollider(object):
         else: selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
         vdict['selectby'] = selectby
         #
-        # calculate how much lower we need to select to get all potential isotopes: lower_winow - nr_isotopes/2
-        import Residues
+        # calculate how much lower we need to select to get all potential isotopes:
+        #  to get all isotopes = lower_winow - nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
         R = Residues.Residues('mono')
         vdict['isotope_correction'] = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
         query2 = """
@@ -65,41 +93,36 @@ class SRMcollider(object):
         if par.print_query: print query2
         #print query2
         cursor.execute( query2 )
-        # now filter out all the precursors that do not have an isotope that falls in here
-        # -- need to assure that r[0] is the q1 and r[3] the q1_charge
-        # if the mass of the peptide or that of any of its isotopes is within
-        # the window, we will use it.
-        result = cursor.fetchall()
-        assert(values[:45] == "q1, modified_sequence, transition_group, q1_charge")
-        new_result = []
-        for r in result:
-          append = False
-          ch = r[3]
-          for iso in range(par.isotopes_up_to+1):
-            if (r[0] + (R.mass_diffC13 * iso)/ch > pep['q1'] - par.q1_window and 
-                r[0] + (R.mass_diffC13 * iso)/ch < pep['q1'] + par.q1_window): append=True
-          if(append): new_result.append(r)
-        return tuple(new_result)
+        return cursor.fetchall()
 
     # calculates all fragments of the peptide in Python and compares them to
     # the fragments of the precursors
     def _get_all_collisions_calculate_new(self, par, pep, cursor, 
-      values="q1, modified_sequence, peptide_key, q1_charge, transition_group"):
-        import Residues
+      values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
+                                          forceFragmentChargeCheck=False):
         R = Residues.Residues('mono')
+        RN15 = Residues.Residues('mono')
+        RN15.recalculate_monisotopic_data_for_N15()
         q3_low, q3_high = par.get_q3range_collisions()
         return self._get_all_collisions_calculate_sub(
             self._get_all_precursors(par, pep, cursor, values=values), 
-            par, R, q3_low, q3_high)
+            par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
-    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high):
+
+    def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high, 
+        RN15=None, forceFragmentChargeCheck=False):
         for c in precursors:
             q1 = c[0]
             peptide_key = c[2]
             peptide = DDB.Peptide()
             peptide.set_sequence(c[1])
             peptide.charge = c[3]
-            peptide.create_fragmentation_pattern( R, 
+            if c[4] == Residues.NOISOTOPEMODIFICATION:
+              R_used = R
+            # TODO test
+            elif c[4] == Residues.N15_ISOTOPEMODIFICATION:
+              R_used = RN15
+            peptide.create_fragmentation_pattern( R_used, 
                 aions      =  par.aions    ,
                 aMinusNH3  =  par.aMinusNH3,
                 bions      =  par.bions    ,
@@ -114,9 +137,13 @@ class SRMcollider(object):
                 zions      =  par.zions    ,
                 MMinusH2O  =  par.MMinusH2O,
                 MMinusNH3  =  par.MMinusNH3)
-            for ch in [1,2]:
+            charges_to_hold = [1,2]
+            if(forceFragmentChargeCheck and peptide.get_maximal_charge() == 2):
+                charges_to_hold = [1]
+            for ch in charges_to_hold:
                 for pred in peptide.allseries:
                     q3 = ( pred + (ch -1)*R.mass_H)/ch
+                    # Bound check is mostly necessary for the tests
                     if q3 < q3_low or q3 > q3_high: continue
                     yield (q3, q1, 0, peptide_key)
 
@@ -156,6 +183,7 @@ class SRMcollider(object):
     # returns the peptide ids and transitions for a peptide from a SRMAltas
     def _get_unique_pepids_toptransitions(self, par, cursor):
         #TODO we select all peptides that are in the peplink table
+        #TODO test this fxn
         #regardless whether their charge is actually correct
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide.id, m.sequence
@@ -187,6 +215,7 @@ class SRMcollider(object):
         ]
 
     def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
+        # TODO test this fxn
         q3_low, q3_high = par.get_q3range_transitions()
         query1 = """
         select %(values)s
@@ -210,20 +239,49 @@ class SRMcollider(object):
         cursor.execute( query1 )
         return cursor.fetchall()
 
+def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep, 
+        forceNonCpp=False, forceFragmentChargeCheck=False):
+    q3_low, q3_high = par.get_q3range_transitions()
+    try: 
+        #try to use C++ libraries
+        if forceNonCpp: import somedummymodulethatwillneverexist
+        import c_getnonuis
+        return c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
+            transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceFragmentChargeCheck)
+    except ImportError:
+        # if we dont have any C++ code compiled, calculate fragments 
+        R = Residues.Residues('mono')
+        RN15 = Residues.Residues('mono')
+        RN15.recalculate_monisotopic_data_for_N15()
+        collisions = self._get_all_collisions_calculate_sub(precursors,
+            par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
+
+    collisions = list(collisions)
+    collisions_per_peptide = {}
+    q3_window_used = par.q3_window
+    for t in transitions:
+        if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+        for c in collisions:
+            if abs( t[0] - c[0] ) <= q3_window_used:
+                #gets all collisions
+                if collisions_per_peptide.has_key(c[3]):
+                    if not t[1] in collisions_per_peptide[c[3]]:
+                        collisions_per_peptide[c[3]].append( t[1] )
+                else: collisions_per_peptide[c[3]] = [ t[1] ] 
+    return collisions_per_peptide 
+
 def get_coll_per_peptide(self, transitions, par, pep, cursor,
-        do_not_calculate=False, forceNonCpp=False):
+        do_not_calculate=False, forceNonCpp=False, forceFragmentChargeCheck=False):
     if do_not_calculate:
         assert False # not supported any more
     else:
         try: 
             #try to use C++ libraries, really fast 50ms or less
-            if forceNonCpp: import somedummymodulethatwillneverexist
+            if forceNonCpp or forceFragmentChargeCheck: import somedummymodulethatwillneverexist
             return _get_coll_per_peptide_sub(self, transitions, par, pep, cursor)
         except ImportError:
-            # second-fastest = 522 
-            # if we dont have any C++ code compiled, calculate fragments 
-            collisions = list(self._get_all_collisions_calculate_new(
-                par, pep, cursor))
+            collisions = list(self._get_all_collisions_calculate_new(par, pep, cursor,
+                forceFragmentChargeCheck=forceFragmentChargeCheck))
     collisions_per_peptide = {}
     q3_window_used = par.q3_window
     for t in transitions:
@@ -283,7 +341,6 @@ def calculate_transitions_ch(peptides, charges, q3_low, q3_high):
             peptides, charges, q3_low, q3_high))
 
 def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
-    import Residues
     import DDB 
     R = Residues.Residues('mono')
     for p in peptides:
@@ -300,13 +357,93 @@ def _calculate_transitions_ch(peptides, charges, q3_low, q3_high):
                 q3 = ( pred + (ch -1)*R.mass_H)/ch
                 if q3 < q3_low or q3 > q3_high: continue
                 yield (q3, q1, 0, peptide_key)
+            # TODO test also b_series ?!
             for pred in b_series:
                 q3 = ( pred + (ch -1)*R.mass_H)/ch
                 if q3 < q3_low or q3 > q3_high: continue
                 yield (q3, q1, 0, peptide_key)
 
+def get_coll_per_peptide_from_precursors_obj_wrapper(self, transitions, precursors_obj, par, precursor,
+  forceNonCpp=False, forceFragmentChargeCheck=False):
+  pep = precursor.to_old_pep()
+  oldstyle_precursors = tuple([(0, p.modified_sequence, p.transition_group, 0, p.isotopically_modified) for p in precursors_obj])
+  return get_coll_per_peptide_from_precursors(self, transitions, 
+    oldstyle_precursors, par, pep, forceNonCpp, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
 ###UIS Code
 from uis_functions import *
 from uis_functions import _combinationsDiffLen
+
+# Input: a list of ssrcalcvalues in the for each transition one row (one array)
+#           N = [len(v) for v in ssrcalcvalues]
+#           strike3_ssrcalcwindow = window of ssrcalc
+#
+# Output a dictionary whose keys are all the "forbidden" tuples, e.g. tuples of
+# transitions that are interfering and can thus not be used for an eUIS.
+def thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow, verbose=False):
+    if verbose: print "Started Python function thisthirdstrike"
+    M = len(ssrcalcvalues)
+    index = [0 for i in range(M)]
+    myssr = [0 for i in range(M)]
+    discarded_indices = []
+    all_nonuis = {}
+    # check whether there are any empty ssrcalcvalues
+    for k in range(M):
+        if len(ssrcalcvalues[k]) == 0:
+            discarded_indices.append(k)
+            if verbose: print "Python discard index " , k
+    if len(discarded_indices) == M: return {}
+
+    # in each iteration we we either advance one or add one to discarded
+    # thus we do this at most sum(N) + len(N) times which is bounded by
+    # c*k + c
+    while True:
+        myssr = [-1 for i in range(M)]
+        for k in range(M):
+            if k in discarded_indices: continue
+            myssr[k] = ssrcalcvalues[k][ index[k] ]
+
+        # find the pivot element (the smallest element that is not yet in a discarded group)
+        tmin = max(myssr); piv_i = -1
+        for k in range(M):
+            if k in discarded_indices: continue
+            if myssr[k] <= tmin:
+                tmin=myssr[k]
+                piv_i = k
+
+        # we need to sort by we also need to have a map back to retrieve the original!
+        # sorting is O(c log(c) )
+        myssr_unsorted = myssr[ : ]
+        with_in = [ (a,b) for a,b in enumerate(myssr) ]
+        with_in.sort( lambda x,y: cmp(x[1],y[1]))
+        sort_idx = [x[0] for x in with_in]
+        myssr.sort()
+        #if index == [0, 0, 1, 0, 1, 19]: print index, piv_i, tmin, "== ", myssr, sort_idx
+
+        # now find all N different combinations that are not UIS. Since they are
+        # sorted we only need to consider elements that have a higher index.
+        # all against all is O( c^2 )
+        for k in range(M):
+          # or myssr[k] == -1 would also work here
+          if sort_idx[k] in discarded_indices: continue 
+          nonuis = [k]
+          for m in range(k+1,M):
+              if not sort_idx[m] in discarded_indices and not m == k and not (abs(myssr[k] - myssr[m]) > strike3_ssrcalcwindow):
+                  nonuis.append(m)
+          backsorted = [sort_idx[n] for n in nonuis]
+          backsorted.sort()
+          if not tuple(backsorted) in all_nonuis and verbose: 
+              print k, "added tuple ", tuple(backsorted), " myssr ", myssr_unsorted #, "index ", index
+          all_nonuis[ tuple(backsorted) ] = 0
+                    
+        # Advance the pivot element
+        index[piv_i] += 1
+        if(index[piv_i] >= len(ssrcalcvalues[piv_i])):
+            discarded_indices.append(piv_i)
+            if verbose: print "wanted to advance", piv_i, "had to append to discarded ", discarded_indices
+            if len(discarded_indices) == len(ssrcalcvalues): 
+                # break out of loop
+                break
+    return all_nonuis
+
 

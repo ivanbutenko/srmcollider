@@ -38,22 +38,31 @@ class SRM_parameters(object):
         self.q3_high    = None
         self.isotopes_up_to = None
 
-        self.mysql_config = None
+        self.mysql_config    = None
+        self.sqlite_database = None
+        self.use_sqlite      = None
 
+        self.experiment_type = ''
+
+    def __repr__(self):
+        return "SRMParameters: " + self.experiment_type
 
     def set_default_vars(self):
         # set the default values if they are not yet set
-        if self.q1_window is None: self.q1_window = 1
-        if self.q3_window is None: self.q3_window = 1
-        if self.ssrcalc_window is None: self.ssrcalc_window = 9999
-        if self.ppm is None: self.ppm = False
-        if self.isotopes_up_to is None: self.isotopes_up_to = 3
-        if self.q3_low is None: self.q3_low = 400
-        if self.q3_high is None: self.q3_high = 1400
-        if self.max_uis is None: self.max_uis = 0
-        if self.peptide_table is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
-        if self.mysql_config is None: self.mysql_config = '~/.my.cnf'
-        if self.quiet is None: self.quiet = False
+
+        if self.q1_window       is None: self.q1_window = 1
+        if self.q3_window       is None: self.q3_window = 1
+        if self.ssrcalc_window  is None: self.ssrcalc_window = 9999
+        if self.ppm             is None: self.ppm = False
+        if self.isotopes_up_to  is None: self.isotopes_up_to = 3
+        if self.q3_low          is None: self.q3_low = 400
+        if self.q3_high         is None: self.q3_high = 1400
+        if self.max_uis         is None: self.max_uis = 0
+        if self.peptide_table   is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
+        if self.mysql_config    is None: self.mysql_config = '~/.my.cnf'
+        if self.sqlite_database is None: self.sqlite_database = ''
+        if self.use_sqlite      is None: self.use_sqlite = False
+        if self.quiet           is None: self.quiet = False
 
         if self.bions      is None: self.bions      =  True
         if self.yions      is None: self.yions      =  True
@@ -101,6 +110,8 @@ class SRM_parameters(object):
                           help="MySQL table containing the peptides" )
         group.add_option("--transition_table", dest="transition_table", 
                           help="MySQL table containing the transitions" )
+        group.add_option("--sqlite_database", dest="sqlite_database", default='',
+                          help="Use specified sqlite database instead of MySQL database" )
         group.add_option("--mysql_config", dest="mysql_config", 
                           help="Location of mysql config file, defaults to ~/.my.cnf" )
         group.add_option("-q", "--quiet", dest="quiet", 
@@ -130,6 +141,8 @@ class SRM_parameters(object):
         elif self.ppm in [True, False]: pass
         else: 'wrong arg for ppm'; assert False
 
+        if self.sqlite_database != '': self.use_sqlite = True
+
     def read_parameter_file(self, thefile):
         parameter = self
         execfile(thefile)
@@ -139,19 +152,17 @@ class SRM_parameters(object):
         #query1 will get all interesting transitions
         #query2 will get all colliding transitions
         self.query_add = "and isotope_nr = 0 "
-        self.query1_add = "and isotope_nr = 0"
         self.query2_add = ""
         self.ppm_string = "Th"
         if self.do_1vs :
             self.query_add += "and q1_charge = 2 "
-            self.query1_add = self.do_1_only
         if self.do_vs1 : 
             self.query2_add += self.do_1_only
         elif self.dontdo2p2f:
-            self.query2_add += "and not (q1_charge = 2 and q3_charge = 2) "
+            assert False
         #
         # is default since isotopes are not in the database any more
-        self.query2_add += " and isotope_nr = 0 " 
+        self.query2_add += " " 
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
@@ -244,6 +255,47 @@ class SRM_parameters(object):
     @property
     def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
 
+    def print_ionseries(self):
+        print """
+            self.bions      =  %s
+            self.yions      =  %s
+            self.aions      =  %s
+            self.aMinusNH3  =  %s
+            self.bMinusH2O  =  %s
+            self.bMinusNH3  =  %s
+            self.bPlusH2O   =  %s
+            self.yMinusH2O  =  %s
+            self.yMinusNH3  =  %s
+            self.cions      =  %s
+            self.xions      =  %s
+            self.zions      =  %s
+            self.MMinusH2O  =  %s
+            self.MMinusNH3  =  %s
+        """ % (
+            self.bions      ,
+            self.yions      ,
+            self.aions      ,
+            self.aMinusNH3  ,
+            self.bMinusH2O  ,
+            self.bMinusNH3  ,
+            self.bPlusH2O   ,
+            self.yMinusH2O  ,
+            self.yMinusNH3  ,
+            self.cions      ,
+            self.xions      ,
+            self.zions      ,
+            self.MMinusH2O  ,
+            self.MMinusNH3  ,
+            )
+
+    def get_db(self):
+      if self.use_sqlite:
+          import sqlite
+          return sqlite.connect(self.sqlite_database)
+      else:
+          import MySQLdb
+          return MySQLdb.connect(read_default_file=self.mysql_config)
+
 def testcase(testdatabase='srmcollider'):
     par = SRM_parameters()
     par.q1_window = 0.7 / 2
@@ -260,6 +312,9 @@ def testcase(testdatabase='srmcollider'):
     par.q3_range = [400, 1200]
     par.ssrcalc_window = 2.0 / 2
     par.do_1_only = "and q1_charge = 2 and q3_charge = 1"
+    par.bions      =  True
+    par.yions      =  True
+    par.isotopes_up_to = 0
     #
     par.eval()
     return par

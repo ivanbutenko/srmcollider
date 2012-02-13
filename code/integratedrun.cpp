@@ -49,14 +49,14 @@
 void create_tree(python::tuple pepids);
 //minimally needed number of transitions to get a UIS (ordered transitions)
 int min_needed(python::tuple transitions, python::tuple precursors,
-    int max_uis, double q3window, bool ppm );
+    int max_uis, double q3window, bool ppm, python::object par);
 
 //return the number of non UIS present given the transitions and a query window
 //in Q1 and SSRCalc
 // using magic gives a speedup of around 2fold
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
-        bool ppm, int max_nr_isotopes, double isotope_correction);
+        bool ppm, int max_nr_isotopes, double isotope_correction, python::object par);
 python::list wrap_all(python::tuple transitions, double a, double b, double c,
         double d, long thispeptide_key, int max_uis, double q3window, bool ppm);
 
@@ -65,6 +65,7 @@ struct Precursor{
   long peptide_key;
   long parent_id;
   int q1_charge;
+  int isotope_modification;
 };
 
 struct Transition{
@@ -85,7 +86,7 @@ void create_tree(python::tuple pepids) {
 
     python::tuple tlist;
     std::vector<Key> InputList;
-    int i, q1_charge;
+    int i, q1_charge, isotope_modification;
     long parent_id, peptide_key;
     double ssrcalc, q1;
     char* sequence;
@@ -101,8 +102,9 @@ void create_tree(python::tuple pepids) {
 
         q1 = python::extract<double>(tlist[4]);
         ssrcalc = python::extract<double>(tlist[5]);
+        isotope_modification = python::extract<double>(tlist[8]);
 
-        struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge};
+        struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
         InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
 
         /*
@@ -126,7 +128,7 @@ void create_tree(python::tuple pepids) {
  * loop occurs, thus there is one bit we cannot use.
 */
 int min_needed(python::tuple transitions, python::tuple precursors,
-    int max_uis, double q3window, bool ppm )   {
+    int max_uis, double q3window, bool ppm, python::object par)   {
 
     //use the defined COMBINT (default 32bit int) and some magic to do this :-)
     COMBINT one;
@@ -142,8 +144,23 @@ int min_needed(python::tuple transitions, python::tuple precursors,
     Transition transition;
     std::vector<Key> OutputList;
 
-    double* b_series = new double[256];
-    double* y_series = new double[256];
+    double* series = new double[1024];
+    double* tmp_series = new double[1024];
+
+    bool aions      =  python::extract<bool>(par.attr("aions"));
+    bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    bool bions      =  python::extract<bool>(par.attr("bions"));
+    bool bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    bool bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    bool bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    bool cions      =  python::extract<bool>(par.attr("cions"));
+    bool xions      =  python::extract<bool>(par.attr("xions"));
+    bool yions      =  python::extract<bool>(par.attr("yions"));
+    bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    bool zions      =  python::extract<bool>(par.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
@@ -174,10 +191,14 @@ int min_needed(python::tuple transitions, python::tuple precursors,
     //
     int maxoverlap = 0;
     for (j=0; j<precursor_length; j++) {
+      // TODO do N15
         clist = python::extract< python::tuple >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+            fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
+                aions, aMinusNH3, bions, bMinusH2O,
+                bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
+                yMinusNH3, zions, MMinusH2O, MMinusNH3);
             for(int i = 0; i != transitions_length; i++) {
                 //ppm is 10^-6
                 transition = mytransitions[i];
@@ -185,8 +206,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
                 if(ppm) {q3used = q3window / 1000000.0 * q3; } 
                     // go through all fragments of this precursor
                     for (k=0; k<fragcount; k++) {
-                        if(fabs(q3-y_series[k]) < q3used || 
-                           fabs(q3-b_series[k]) < q3used) {
+                        if(fabs(q3-series[k]) < q3used ) {
                             //left bitshift == 2^i
                             one = 1;
                             currenttmp |= one << i;
@@ -204,8 +224,11 @@ int min_needed(python::tuple transitions, python::tuple precursors,
             currenttmp = 0;
         }
     }
-    //we have counted from 0 to N-1  but now want the number of transitions
-    return ++maxoverlap;
+
+    //we have counted from 0 to N-1, but now want the number of transitions
+    ++maxoverlap;
+    if(maxoverlap > transitions_length) {return -1;}
+    return maxoverlap;
 }
 
 /*
@@ -230,7 +253,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 */
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
-        bool ppm, int max_nr_isotopes, double isotope_correction)   {
+        bool ppm, int max_nr_isotopes, double isotope_correction, python::object par)   {
 
     //use the defined COMBINT (default 32bit int) and some magic to do this :-)
     COMBINT one;
@@ -251,6 +274,21 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
 
     int iso;
     double q1_low = a; double q1_high = c;
+
+    bool aions      =  python::extract<bool>(par.attr("aions"));
+    bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    bool bions      =  python::extract<bool>(par.attr("bions"));
+    bool bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    bool bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    bool bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    bool cions      =  python::extract<bool>(par.attr("cions"));
+    bool xions      =  python::extract<bool>(par.attr("xions"));
+    bool yions      =  python::extract<bool>(par.attr("yions"));
+    bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    bool zions      =  python::extract<bool>(par.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     //Check whether we have more transitions than we have bits in our number
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
@@ -280,6 +318,9 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     Interval win(Interval(K::Point_2(a-isotope_correction,b),K::Point_2(c,d)));
     Range_tree_2->window_query(win, std::back_inserter(OutputList));
     std::vector<Key>::iterator current=OutputList.begin();
+
+    double* series = new double[1024];
+    double* tmp_series = new double[1024];
 
     // Go through all (potential) collisions we just extracted from the rangetree
     //
@@ -311,28 +352,31 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
             precursor =  current->second;
             sequence = precursor.sequence;
             for (ch=1; ch<=2; ch++) {
-                //this takes about 30% of the time spent
-                fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
 
-                //for(std::vector<int>::size_type i = 0; i != transitions_length; i++) {
-                for(int i = 0; i != transitions_length; i++) {
-                    //ppm is 10^-6
+                fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
+                  aions, aMinusNH3, bions, bMinusH2O,
+                  bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
+                  yMinusNH3, zions, MMinusH2O, MMinusNH3, current->second.isotope_modification);
+
+                for (i=0; i<transitions_length; i++) {
                     transition = mytransitions[i];
                     q3 = transition.q3;
+                    //ppm is 10^-6
                     if(ppm) {q3used = q3window / 1000000.0 * q3; } 
+
                         // go through all fragments of this precursor
                         for (k=0; k<fragcount; k++) {
-                            if(fabs(q3-y_series[k]) < q3used || 
-                               fabs(q3-b_series[k]) < q3used) {
 
+                            if(fabs(q3-series[k]) < q3used ) {
+                            
                                 //left bitshift == 2^i
                                 one = 1;
                                 currenttmp |= one << i;
                             }
                         }
-                    } //loop over all transitions
+                } //loop over all transitions
+            }
 
-                }
 
             //Store current combination
             if ( currenttmp ) {
