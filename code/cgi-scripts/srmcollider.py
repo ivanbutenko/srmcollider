@@ -81,15 +81,6 @@ c = db.cursor()
 cursor = c
 R = Residues('mono')
 
-class Peak():
-    def __init__(self, t=None): 
-        if not t is None: 
-            self.transition = t
-    @property
-    def pQ3(self):
-        return round(self.transition[0], 2)
-
-
 def get_ssrcalc_values(seqs, input_sequences, default_ssrcalc):
     import os, csv
     ssr_query = """
@@ -137,7 +128,8 @@ def unique_values(seq):
             checked.append(e)
     return checked
 
-def print_collding_peptides(collisions_per_peptide, precdic, ii, peaks):
+def print_collding_peptides(collisions_per_peptide, precdic, ii, fragments):
+
     coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
 
     print """
@@ -150,7 +142,6 @@ def print_collding_peptides(collisions_per_peptide, precdic, ii, peaks):
     def sortpep_by_ssr(x,y):
         if len(x[1]) != len(y[1]): return -cmp( len(x[1]), len(y[1]) )
         #by SSRCalc
-        # return cmp( precdic[x[0]][4], precdic[y[0]][4]) 
         return cmp( precdic[x[0]].ssrcalc, precdic[y[0]].ssrcalc) 
     def sortpep_by_q1(x,y):
         #by difference in q1
@@ -170,7 +161,7 @@ def print_collding_peptides(collisions_per_peptide, precdic, ii, peaks):
         print precursor.modified_sequence
         print "</td><td>"
         for t in c[1]:
-            print peaks[t].annotation
+            print fragments[t].annotation
         print ' <br />'
         print "</td></tr>"
     print "</table>"
@@ -322,50 +313,20 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
         peptide.set_sequence(s)
         peptide.charge = 2
         peptide.create_fragmentation_pattern(R)
-        b_series = peptide.b_series
-        y_series = peptide.y_series
-        peaks = []
 
-
-        fragments = list(
-            peptide.get_fragment_objects(reversed(peptide.y_series), 'y', 1, R, q3_low, q3_high))
+        #
+        # Step 2 : calculate b/y ion series of the target and get the transitions
+        #
+        fragments = list(peptide.get_fragment_objects(reversed(peptide.y_series),
+            'y', 1, R, q3_low, q3_high))
         fragments.reverse()
-        fragments.extend(list( peptide.get_fragment_objects(peptide.b_series, 'b', 1, R, q3_low, q3_high)))
-        for fcount, f in enumerate(fragments):
+        fragments.extend(list( peptide.get_fragment_objects(peptide.b_series, 
+            'b', 1, R, q3_low, q3_high)))
+        for fcount, f in enumerate(fragments): 
             f.fragment_count = fcount
 
-        #
-        # Step 2 : calculate b/y ion series of the target
-        #
-        pcount = 0
-        for ch in [1]:
-            scount = 0
-            for pred in y_series:
-                scount += 1
-                q3 = ( pred + (ch -1)*R.mass_H)/ch
-                if q3 < q3_low or q3 > q3_high: continue
-                p = Peak( [q3, pcount] ) 
-                p.annotation = 'y' + str(len(y_series) + 1 - scount) 
-                p.charge = ch
-                pcount += 1
-                peaks.append( p )
-            scount = 0
-            for pred in b_series:
-                scount += 1
-                q3 = ( pred + (ch -1)*R.mass_H)/ch
-                if q3 < q3_low or q3 > q3_high: continue
-                p = Peak( [q3, pcount] ) 
-                p.annotation = 'b' + str(scount)
-                p.charge = ch
-                pcount += 1
-                peaks.append( p )
-
-        q1 = peptide.charged_mass 
-        transitions = c_getnonuis.calculate_transitions_ch(
-            ((q1, s, 1),), [1], q3_low, q3_high)
-        transitions = [ (p[0], i) for i,p in enumerate(transitions)]
-        nr_transitions = len( transitions )
-        if nr_transitions == 0: continue #no transitions in this window
+        transitions = [ (f.q3, f.fragment_count) for f in fragments]
+        if len( transitions ) == 0: continue # no transitions in this window
 
         #
         # Step 3 : find all potentially interfering precursors
@@ -374,9 +335,9 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
         from precursor import Precursor
         precursor = Precursor(
             modified_sequence = s, parent_id = -1,
-            q1 = q1, q1_charge = 2, 
+            q1 = peptide.charged_mass, q1_charge = 2, 
             ssrcalc = ssrcalc, transition_group = -1)
-        precursors_obj = mycollider. _get_all_precursors_obj(
+        precursors_obj = mycollider. _get_all_precursors(
             par, precursor, cursor, bysequence=True)
         precursor_obj_dic = dict( [ (p.transition_group, p) for p in precursors_obj] )
 
@@ -394,15 +355,14 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
 
         nonunique = c_getnonuis._find_clashes_forall_other_series( 
             tuple(transitions), precursors_obj, par, q3_low, q3_high,
-            par.q3_window, par.ppm, q1 - par.q1_window, chargeCheck)
+            par.q3_window, par.ppm, peptide.charged_mass - par.q1_window, chargeCheck)
 
         non_uis = []
         if uis > 0:
             wuis.writerow([s])
 
-            srm_ids = [peak.transition[1] for peak in peaks]
             srm_ids = [f.fragment_count for f in fragments]
-            srm_lookup = [ (peak.transition[1] , peak) for peak in peaks]
+            srm_lookup = [ (fragment.fragment_count, fragment) for fragment in fragments]
             srm_lookup = dict(srm_lookup) 
             for order in range(1,uis+1): 
                 non_uis = c_getnonuis.get_non_uis(collisions_per_peptide, order)
@@ -415,7 +375,7 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
                         tmp = [ srm_lookup[elem] for elem in comb]  
                         myrow = []
                         for tt in tmp:
-                            myrow.extend( [ tt.transition[0], tt.annotation ])
+                            myrow.extend( [ tt.q3, tt.annotation ])
                         wuis.writerow(myrow)
                 if really_calculate_uis:
                     # if you want the real deal, go ahead. 
@@ -425,15 +385,8 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
                         tmp = [ srm_lookup[elem] for elem in comb]  
                         myrow = []
                         for tt in tmp:
-                            myrow.extend( [ tt.transition[0], tt.annotation ])
+                            myrow.extend( [ tt.q3, tt.annotation ])
                         wuis.writerow(myrow)
-
-        useable = []
-        unuseable = []
-        for peak in peaks: 
-            if peak.transition[1] in nonunique:
-                unuseable.append(peak)
-            else: useable.append(peak)
 
         useable = []
         unuseable = []
@@ -452,7 +405,7 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
         # print "<p>Percent Useable: %d %%</p>" % (len(useable)*100.0 / len(transitions)  )
         print "</div>"
 
-        if len( useable ) > 0:
+        if len(useable ) > 0:
             print "<h3>Transitions without any interferences</h3>"
             print "<table class='tr_table'>"
             print "<tr><td>Type</td> <td>Q3</td> </tr>"
@@ -461,7 +414,7 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
                 print peak.annotation
                 print "</td><td>"
                 print peak.pQ3
-                w.writerow( [ s, precursor.q1, round(peak.pQ3), peak.annotation, 
+                w.writerow( [s, precursor.q1, round(peak.pQ3), peak.annotation, 
                              peak.charge ] )
                 print "</td><td>"
             print "</table>"
@@ -469,7 +422,8 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
             print "<p>No transitions that have no interference at all!</p>"
             w.writerow( ['"Sorry: no useable transitions for this peptide. Try to calculate UIS."' ] )
 
-        print_collding_peptides(collisions_per_peptide, precursor_obj_dic, ii, peaks)
+        print_collding_peptides(collisions_per_peptide, precursor_obj_dic,
+                                ii, fragments)
         print_unuseable(unuseable, nonunique, ii)
         toggle_all_str += "toggleDisplay('col_peptides_%s'); toggleDisplay('col_transitions_%s');\n" % (ii,ii)
 
