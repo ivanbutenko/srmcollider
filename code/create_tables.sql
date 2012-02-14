@@ -67,3 +67,31 @@ non_useable_UIS int,
 total_UIS int, 
 uisorder int(4)
 )
+
+
+ALTER TABLE hroest.srmPeptides_human ADD isotopically_modified tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_human SET isotopically_modified = 0;
+
+ALTER TABLE hroest.srmPeptides_human ADD modifications tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_human SET modifications = 0;
+ALTER TABLE hroest.srmPeptides_human ADD missed_cleavages tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_human SET missed_cleavages = 0;
+
+
+ALTER TABLE hroest.srmPeptides_yeast ADD isotopically_modified tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_yeast SET isotopically_modified = 0;
+ALTER TABLE hroest.srmPeptides_yeast ADD modifications tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_yeast SET modifications = 1;
+ALTER TABLE hroest.srmPeptides_yeast ADD missed_cleavages tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_yeast SET missed_cleavages = 1;
+
+ALTER TABLE hroest.srmPeptides_test ADD isotopically_modified tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_test SET isotopically_modified = 0;
+ALTER TABLE hroest.srmPeptides_test ADD modifications tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_test SET modifications = 1;
+ALTER TABLE hroest.srmPeptides_test ADD missed_cleavages tinyint(3) unsigned;
+UPDATE hroest.srmPeptides_test SET missed_cleavages = 1;
+
+ALTER TABLE srmPeptides_yeast_oxMetDeamid_miss1 ADD isotopically_modified tinyint(3) unsigned;
+UPDATE srmPeptides_yeast_oxMetDeamid_miss1 SET isotopically_modified = 0;
+

@@ -2,12 +2,14 @@
 # -*- coding: utf-8  -*-
 # vim:set fdm=marker:
 """
-select count(distinct parent_key) from result_srmuis where exp_key = 104;
-select count(*) from srmPeptides_mouse where isotope_nr = 0 and q1_charge = 2 and q1 between 400 and 1400;
+Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
 
-python prepare_rangetree.py 104 60000 9999 hroest.srmPeptides_mouse
-sh /tmp/tmp.sh
-
+python run_3strikes.py 111234567 400 1400 -f testout.out  --ssr3strike=1.25 --q1_window=1.2 --q3_window=2.0 --ssrcalc_window=40 --order=2 --peptide_table=srmPeptides_test --sqlite_database=/tmp/srmcollider_testdb
+Analysed: 882
+At least one eUIS of order 2 : 882  which is 100.0 %
+Random probability to choose good 0.950950173093
+Average lost in strike 3 0.011721581048
+Average without strike 3 0.037328245859
 """
 
 import time
@@ -89,7 +91,9 @@ for precursor in precursors_to_evaluate:
     ###############################################################
     #strike 1: it has to be global UIS
 
-    computed_collisions = myprecursors.get_collisions_per_peptide_from_rangetree(precursor, transitions, par)
+    computed_collisions = myprecursors.get_collisions_per_peptide_from_rangetree(
+        precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
+        transitions, par)
     collisions_per_peptide = computed_collisions 
 
     non_useable_combinations = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)
@@ -132,7 +136,7 @@ for precursor in precursors_to_evaluate:
     ssrcalcvalues = [ [] for t in transitions]
     for k,v in collisions_per_peptide.iteritems():
         #ssrcalc = trgroup_lookup[k]
-        ssrcalc = myprecursors.loopup_by_transition_group(k).ssrcalc
+        ssrcalc = myprecursors.lookup_by_transition_group(k).ssrcalc
         for tr in v:
             ssrcalcvalues[tr].append(ssrcalc)
 

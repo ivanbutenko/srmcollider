@@ -326,6 +326,13 @@ for p in runprecursors2:
     runprecursors_obj2.append(Precursor(
     modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
 
+runpep_obj1 = Precursor( q1 = runpep1['q1'], modified_sequence = 
+  runpep1['mod_sequence'], transition_group = runpep1['transition_group'], 
+  isotopically_modified = 0, ssrcalc = runpep1['ssrcalc']) 
+
+runpep_obj2 = Precursor( q1 = runpep2['q1'], modified_sequence = 
+  runpep2['mod_sequence'], transition_group = runpep2['transition_group'], 
+  isotopically_modified = 0, ssrcalc = runpep2['ssrcalc']) 
 
 from SRM_parameters import SRM_parameters
 def get_default_setup_parameters():
@@ -341,7 +348,7 @@ def get_default_setup_parameters():
         par.peptide_table = 'srmPeptides_test'
         par.mysql_config = '~/.my.cnf'
         par.sqlite_database = SQLITE_DATABASE_LOCATION
-        par.use_sqlite = True
+        par.use_sqlite = False
         par.quiet = False
 
         par.bions      =  True

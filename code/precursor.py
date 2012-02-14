@@ -49,7 +49,7 @@ class Precursor:
           self.q1 + (R.mass_diffC13 * iso)/self.q1_charge < range_high): return True
 
   def __repr__(self):
-      return "Precursor object '%s': %s (%s+) with transition_gr %s and parent_id %s" % (self.modified_sequence, self.q1, self.q1_charge, self.transition_group, self.parent_id)
+      return "Precursor object '%s': %s with transition_gr %s and parent_id %s" % (self.modified_sequence, self.q1, self.transition_group, self.parent_id)
 
   def to_old_pep(self):
       return {

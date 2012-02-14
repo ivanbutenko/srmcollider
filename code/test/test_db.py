@@ -16,9 +16,13 @@ import test_shared
 
 test_database = 'hroest'
 
-def psort(x,y):
+def psort_old(x,y):
     if(x[1] != y[1]): return -cmp(x[1], y[1]) 
     else: return cmp( x[0], y[0] )
+
+def psort(x,y):
+    if(x.transition_group != y.transition_group): return -cmp(x.transition_group, y.transition_group) 
+    else: return cmp( x.modified_sequence, y.modified_sequence )
 
 def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
     query = """
@@ -198,56 +202,67 @@ class Test_collider_mysql(unittest.TestCase):
 
     def test_get_all_precursors1(self): 
         pep = test_shared.runpep1
+        pep = test_shared.runpep_obj1
         transitions = test_shared.runtransitions1
         precursors = test_shared.runprecursors1
+
+        # filter out the isotopes
+        pprec = []
+        for p in precursors:
+          if(p[1] not in [pp[1] for pp in pprec]): pprec.append(p)
+        precursors = pprec
+        runprecursors_obj2 = []
+        for p in precursors:
+            runprecursors_obj2.append(Precursor( q1 = p[0], q1_charge = p[3],
+            modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
+        precursors = runprecursors_obj2
+
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
         par = self.par
 
         cursor = self.db.cursor()
         myprec = collider.SRMcollider()._get_all_precursors(par, pep, cursor)
-        myprec = list(myprec)
+        self.assertEqual( len(myprec), len(precursors))
+
         precursors.sort(psort)
         myprec.sort(psort)
 
-        pprec = []
-        for p in precursors:
-          if(p[1] not in [pp[1] for pp in pprec]): pprec.append(p)
-        precursors = pprec
-
-
         for i in range(len(myprec)):
-            self.assertEqual( myprec[i][1], precursors[i][1]) # sequence
-            # self.assertEqual( myprec[i][2], precursors[i][2]) # transition group
-            self.assertEqual( myprec[i][3], precursors[i][3]) # charge
-        self.assertEqual( len(myprec), len(precursors))
+            self.assertEqual( myprec[i].modified_sequence, precursors[i].modified_sequence)
+            self.assertEqual( myprec[i].q1_charge, precursors[i].q1_charge)
 
     def test_get_all_precursors2(self): 
-        pep = test_shared.runpep2
+        pep = test_shared.runpep_obj2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
+
+        # filter out the isotopes
+        pprec = []
+        for p in precursors:
+          if(p[1] not in [pp[1] for pp in pprec]): pprec.append(p)
+        precursors = pprec
+        runprecursors_obj2 = []
+        for p in precursors:
+            runprecursors_obj2.append(Precursor( q1 = p[0], q1_charge = p[3],
+            modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
+        precursors = runprecursors_obj2
+
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
         par = self.par
 
         cursor = self.db.cursor()
         myprec = collider.SRMcollider()._get_all_precursors(par, pep, cursor)
-        myprec = list(myprec)
+        self.assertEqual( len(myprec), len(precursors))
+
         precursors.sort(psort)
         myprec.sort(psort)
 
-        pprec = []
-        for p in precursors:
-          if(p[1] not in [pp[1] for pp in pprec]): pprec.append(p)
-
-        precursors = pprec
-
         for i in range(len(myprec)):
-            self.assertEqual( myprec[i][1], precursors[i][1])
-            #self.assertEqual( myprec[i][2], precursors[i][2])
-            self.assertEqual( myprec[i][3], precursors[i][3])
-        self.assertEqual( len(myprec), len(precursors))
+            self.assertEqual( myprec[i].modified_sequence, precursors[i].modified_sequence)
+            self.assertEqual( myprec[i].q1_charge, precursors[i].q1_charge)
 
     def test_get_coll_per_peptide(self): 
-        pep = test_shared.runpep1
+        pep = test_shared.runpep_obj1
         transitions = test_shared.runtransitions1
         precursors = test_shared.runprecursors1
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
@@ -269,7 +284,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
 
     def test_get_coll_per_peptide2(self): 
-        pep = test_shared.runpep2
+        pep = test_shared.runpep_obj2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
@@ -295,7 +310,7 @@ class Test_collider_mysql(unittest.TestCase):
     def test_get_coll_per_peptide_debug(self): 
         """This is a small example with very few interferences, 
         good to debug"""
-        pep = test_shared.runpep2
+        pep = test_shared.runpep_obj2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])

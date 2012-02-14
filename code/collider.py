@@ -105,22 +105,30 @@ class SRMcollider(object):
         RN15.recalculate_monisotopic_data_for_N15()
         q3_low, q3_high = par.get_q3range_collisions()
         return self._get_all_collisions_calculate_sub(
-            self._get_all_precursors(par, pep, cursor, values=values), 
+            self._get_all_precursors(par, pep, cursor), 
             par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
 
     def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high, 
         RN15=None, forceFragmentChargeCheck=False):
         for c in precursors:
-            q1 = c[0]
-            peptide_key = c[2]
-            peptide = DDB.Peptide()
-            peptide.set_sequence(c[1])
-            peptide.charge = c[3]
-            if c[4] == Residues.NOISOTOPEMODIFICATION:
+            # keep the list around for some of the tests
+            if type(c).__name__ == "list" or type(c).__name__ == "tuple":
+                q1 = c[0]
+                peptide_key = c[2]
+                peptide = DDB.Peptide()
+                peptide.set_sequence(c[1])
+                peptide.charge = c[3]
+                isotopically_modified = c[4] 
+            elif type(c).__name__ == "instance":
+                peptide = c.to_peptide()
+                q1 = c.q1
+                peptide_key = c.transition_group
+                isotopically_modified = c.isotopically_modified
+            if isotopically_modified == Residues.NOISOTOPEMODIFICATION:
               R_used = R
             # TODO test
-            elif c[4] == Residues.N15_ISOTOPEMODIFICATION:
+            elif isotopically_modified == Residues.N15_ISOTOPEMODIFICATION:
               R_used = RN15
             peptide.create_fragmentation_pattern( R_used, 
                 aions      =  par.aions    ,
@@ -278,7 +286,7 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
         try: 
             #try to use C++ libraries, really fast 50ms or less
             if forceNonCpp or forceFragmentChargeCheck: import somedummymodulethatwillneverexist
-            return _get_coll_per_peptide_sub(self, transitions, par, pep, cursor)
+            return _get_coll_per_peptide_sub(self, transitions, par, pep, cursor, forceFragmentChargeCheck)
         except ImportError:
             collisions = list(self._get_all_collisions_calculate_new(par, pep, cursor,
                 forceFragmentChargeCheck=forceFragmentChargeCheck))
@@ -295,7 +303,7 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
                 else: collisions_per_peptide[c[3]] = [ t[1] ] 
     return collisions_per_peptide 
 
-def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
+def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor, forceFragmentChargeCheck=False):
 
     try:
         #use range tree, really fast = 50
@@ -322,13 +330,13 @@ def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor):
         # fast = 100 
         import c_getnonuis
         precursors = self._get_all_precursors(par, pep, cursor)
-        if par.do_b_y_only():
+        if False and par.do_b_y_only():
             # we gain around 60 % performance when using the optimized function
             return c_getnonuis.calculate_collisions_per_peptide( 
                 transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
         else: 
             return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm, par)
+            transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceFragmentChargeCheck)
 
 # Calculate the transitions of a peptide with a given charge (using c++ if possible)
 def calculate_transitions_ch(peptides, charges, q3_low, q3_high):
