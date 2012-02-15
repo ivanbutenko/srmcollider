@@ -197,6 +197,20 @@ class Peptide:
                 if q3 < q3_low or q3 > q3_high: continue
                 yield Fragment(q3, series + str(scount), ch )
 
+    def get_GRAVY(self):
+        """
+        http://web.expasy.org/protscale/pscale/Hphob.Doolittle.html
+        GRAVY (Grand Average of Hydropathy) 
+        The GRAVY value for a peptide or protein is calculated as the sum of hydropathy values [9] of all the amino acids, divided by the number of residues in the sequence. 
+        Amino acid scale: Hydropathicity.
+
+        Author(s): Kyte J., Doolittle R.F.
+        Reference: J. Mol. Biol. 157:105-132(1982).
+        """
+
+        import Residues
+        return sum([ Residues.Residues.Hydropathy_aa[aa] for aa in self.sequence]) / len(self.sequence)
+
 class Fragment():
 
     def __init__(self, q3=None, annotation=None, charge=None): 

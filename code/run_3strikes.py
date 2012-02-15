@@ -32,6 +32,8 @@ group.add_option("--order", dest="myorder", default=3, type='int',
                   help="Order to consider" )
 group.add_option("--allow_contamination", dest="allow_contamination", default=3, type='int',
                   help="Number of locally contaminated transitions to be allowed" )
+group.add_option("--GRAVY", action="store_true", dest="GRAVY", default=False,
+                  help="Use GRAVY scores instead of SSRCalc values.")
 parser.add_option_group(group)
 
 # Run the collider
@@ -60,6 +62,7 @@ print par.get_common_filename()
 from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
+if options.GRAVY: myprecursors.use_GRAVY_scores()
 myprecursors.build_rangetree()
 precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()

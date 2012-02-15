@@ -94,6 +94,11 @@ class Precursors:
         self.precursors.append(p)
 
   def getPrecursorsToEvaluate(self, min_q1, max_q1):
+    """
+    Select all precursors that may be used for a whole-proteome SRM Experiment,
+    e.g. only 2+ charge, no modifications or missed cleavages and within the q1
+    max/min range.
+    """
     return [p for p in self.precursors 
                        if p.q1_charge == 2 
                        and p.modifications == 0
@@ -128,6 +133,10 @@ class Precursors:
     alltuples = [ (0,0, p.parent_id, p.q1_charge, p.q1, p.ssrcalc) for p in self.precursors]
     c_rangetree.create_tree(tuple(alltuples))
     return c_rangetree
+
+  def use_GRAVY_scores(self):
+    for p in self.precursors:
+        p.ssrcalc = p.to_peptide().get_GRAVY()
 
   def get_collisions_per_peptide_from_rangetree(self, precursor, q1_low, q1_high,
     transitions, par, ForceChargeCheck=False):

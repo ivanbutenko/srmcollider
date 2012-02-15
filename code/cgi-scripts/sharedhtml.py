@@ -26,9 +26,9 @@ topdiv = """
     SRM Collider
     </div>
     <div class="version">
-    version 1.2
+    version 1.3
     </br>
-    Hannes Roest 2011
+    Hannes Roest 2012
     </div>
     <div class="navigation">
     %s

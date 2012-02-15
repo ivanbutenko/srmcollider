@@ -62,6 +62,7 @@ class Residues:
         'C[160]' : 'Cys+CAM',
         'M[147]' : 'Met+Ox',
     }
+    aa_codes_rev = dict([(v,k) for k,v in aa_codes.iteritems()])
 
     aa_names = {
         'A': 'Alanine',
@@ -228,18 +229,56 @@ class Residues:
         'Z': ('Glutamic acid, or glutamine', 128.05858),
         }
 
-#E[111] 351      => pyroGlu
-#C[169] 58       => ? 
-#R[166] 12599    => SILAC?
-#C[143] 319      => Pyro-carbamidomethyl 
-#C[152] 2        => ?
-#C[553] 4        => ICAT?
-#K[136] 15131    => SILAC?
-#Q[111] 1730     => pyroGlu
-#C[330] 37       => ICAT?
-#C[339] 20       => ICAT?
-#C[545] 4        => ICAT?
-#W[202] 23       => Oxidation?
+    #E[111] 351      => pyroGlu
+    #C[169] 58       => ? 
+    #R[166] 12599    => SILAC?
+    #C[143] 319      => Pyro-carbamidomethyl 
+    #C[152] 2        => ?
+    #C[553] 4        => ICAT?
+    #K[136] 15131    => SILAC?
+    #Q[111] 1730     => pyroGlu
+    #C[330] 37       => ICAT?
+    #C[339] 20       => ICAT?
+    #C[545] 4        => ICAT?
+    #W[202] 23       => Oxidation?
+
+
+    """
+    http://web.expasy.org/protscale/pscale/Hphob.Doolittle.html
+    GRAVY (Grand Average of Hydropathy) 
+    The GRAVY value for a peptide or protein is calculated as the sum of hydropathy values [9] of all the amino acids, divided by the number of residues in the sequence. 
+    Amino acid scale: Hydropathicity.
+
+    Author(s): Kyte J., Doolittle R.F.
+    Reference: J. Mol. Biol. 157:105-132(1982).
+
+    Amino acid scale values:
+    """
+
+
+    Hydropathy = {
+    'Ala':  1.800,  
+    'Arg': -4.500,  
+    'Asn': -3.500,  
+    'Asp': -3.500,  
+    'Cys':  2.500,  
+    'Gln': -3.500,  
+    'Glu': -3.500,  
+    'Gly': -0.400,  
+    'His': -3.200,  
+    'Ile':  4.500,  
+    'Leu':  3.800,  
+    'Lys': -3.900,  
+    'Met':  1.900,  
+    'Phe':  2.800,  
+    'Pro': -1.600,  
+    'Ser': -0.800,  
+    'Thr': -0.700,  
+    'Trp': -0.900,  
+    'Tyr': -1.300,  
+    'Val':  4.200,  
+    }
+    Hydropathy_aa = dict([ (aa_codes_rev[k],v) for k,v in Hydropathy.iteritems()])
 
 
     hydrophobicity = {

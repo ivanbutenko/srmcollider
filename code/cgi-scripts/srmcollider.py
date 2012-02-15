@@ -579,8 +579,9 @@ else:
     <p>
     
     <label> Charge check: </label>
+      <!-- checked="true" --> 
       <input type="checkbox" name="chargeCheck" value="chargeCheck"> Check that 
-      interfering peptide can actually hold charge (e.g. 2+ charge) </br>
+      interfering signal can actually hold charge (e.g. 2+ charge) </br>
     </p>
 
     <label> Modifications: </label>
