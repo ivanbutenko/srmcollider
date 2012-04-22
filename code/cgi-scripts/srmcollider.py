@@ -26,55 +26,25 @@
  *
 """
 
-import MySQLdb, time, sys 
-import csv, re
-import cgitb; cgitb.enable()
-import cgi
-
-sys.path.append( '/home/hroest/projects/msa/code' )
-sys.path.append( '/home/hroest/projects/srm_clashes/code' )
-import DDB; from Residues import Residues
-import collider
-import c_getnonuis
-import sharedhtml as shared
-
-# some options that can be changed locally for your convenience
-default_mysql = "/IMSB/users/hroest/.srm.cnf"
-db_used = 'hroest'
-default_org_prefix = '.srmPeptides_'
-genomes_that_require_N15_data = ['yeastN15']
-default_ssrcalc = 'hroest.ssrcalc_pr_copy'
-ssrcalc_path = '/tmp/' 
-
-#myCSVFile = '/nas/www/html/hroest/srmcollider.csv'
-myCSVFile = '/var/www/documents/srmcollider.csv'
-myUIS_CSVFile = '/var/www/documents/uis_srmcollider.csv'
-myUIS_CSVFile_rel = '/../documents/uis_srmcollider.csv'
-myCSVFile_rel = '/../documents/srmcollider.csv'
-
-# If you want to add additional genomes, edit the genome_select HTML and the
-# map_db_tables function
-genome_select = """
-    <option value="yeast">Yeast (tryptic)</option>
-    <option value="human">Human (tryptic)</option>
-"""
-
-def map_db_tables(genome):
-    # figure out which db to use 
-    # you will have to change that if you have a different setup
-    if genome == 'yeast':
-        table_used =  'yeast_oxMetDeamid_miss1'
-    elif genome == 'yeastN15':
-        table_used =  'yeastN15'
-    elif genome == 'human':
-        table_used =  'human_oxMetDeamid_miss1'
-    else: 
-        print "Genome not recognized";
-        exit()
-    return table_used
+# All changes that should be done by the user are in the collider_config.py
+from collider_config import *
 
 ###########################################################################
 # No changes after here
+
+import MySQLdb, time, sys 
+import csv, re
+import random, string
+import cgi
+import os
+
+sys.path.append(SRMCOLLIDER_HOME)
+import DDB
+from Residues import Residues
+import collider
+import c_getnonuis
+import sharedhtml as shared
+from precursor import Precursor
 
 db = MySQLdb.connect(read_default_file=default_mysql)
 c = db.cursor()
@@ -82,29 +52,29 @@ cursor = c
 R = Residues('mono')
 
 def get_ssrcalc_values(seqs, input_sequences, default_ssrcalc):
-    import os, csv
-    ssr_query = """
-    select sequence, ssrcalc
-    from %(ssrcalc_table)s
-    where sequence in (%(seqs)s)
-    """ % { 'seqs' : seqs, 'ssrcalc_table' : default_ssrcalc}
-    cursor.execute( ssr_query )
-    pepmap = dict( cursor.fetchall() )
-    #pepmap = {}
-
-    # TODO: the used version in the TPP is 3.0 which is old and cannot be used
-    # any more!? Is there a new pl script?
+    if default_ssrcalc != '':
+        ssr_query = """
+        select sequence, ssrcalc
+        from %(ssrcalc_table)s
+        where sequence in (%(seqs)s)
+        """ % { 'seqs' : seqs, 'ssrcalc_table' : default_ssrcalc}
+        cursor.execute( ssr_query )
+        pepmap = dict( cursor.fetchall() )
+    else: pepmap = {}
 
     not_found = []
     for ii,s in enumerate(input_sequences):
         try: ssrcalc = pepmap[filter(str.isalpha,s)]
         except KeyError: not_found.append(s)
 
+    # TODO: the used version in the TPP is 3.0 which is old and cannot be used
+    # any more online. It makes it hard to compare. Is there a new pl script?
+
     # SSRCalc finds the parameter file with ENV
     shellfile = '/tmp/ssrfile%s.sh' % os.getpid()
     outfile = '/tmp/ssrout%s.out' % os.getpid()
     env = {'SSRCalc' : ssrcalc_path } 
-    cmd = """/SSRCalc3.pl --alg 3.0 --seq %s --output tsv --B 1 --A 0 > """ % " / ".join(not_found)
+    cmd = """/SSRCalc3.pl --alg 3.0 --seq "%s" --output tsv --B 1 --A 0 > """ % " / ".join(not_found)
     cmd = ssrcalc_path + cmd + outfile
 
     f = open(shellfile, 'w')
@@ -129,7 +99,6 @@ def unique_values(seq):
     return checked
 
 def print_collding_peptides(collisions_per_peptide, precdic, ii, fragments):
-
     coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
 
     print """
@@ -201,7 +170,6 @@ def main(myinput, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions,
     cursor = db.cursor()
 
     # create unique files
-    import random, string
     thisrandom = "".join( [string.ascii_letters[ int(random.random() * len(string.ascii_letters) )] for i in range(10)])
     myCSVFile         = myCSVFile_         + thisrandom + '.csv'
     myCSVFile_rel     = myCSVFile_rel_     + thisrandom + '.csv'
@@ -332,7 +300,6 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, w):
         # Step 3 : find all potentially interfering precursors
         #  Create precursor and use db to find all interfering precursors
         #
-        from precursor import Precursor
         precursor = Precursor(
             modified_sequence = s, parent_id = -1,
             q1 = peptide.charged_mass, q1_charge = 2, 
@@ -579,7 +546,6 @@ else:
     <p>
     
     <label> Charge check: </label>
-      <!-- checked="true" --> 
       <input type="checkbox" name="chargeCheck" value="chargeCheck"> Check that 
       interfering signal can actually hold charge (e.g. 2+ charge) </br>
     </p>

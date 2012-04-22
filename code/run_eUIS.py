@@ -4,7 +4,7 @@
 """
 Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
 
-python run_3strikes.py 111234567 400 1400 -f testout.out  --ssr3strike=1.25 --q1_window=1.2 --q3_window=2.0 --ssrcalc_window=40 --order=2 --peptide_table=srmPeptides_test --sqlite_database=/tmp/srmcollider_testdb
+python run_eUIS.py 111234567 400 1400 -f testout.out  --ssr3strike=1.25 --q1_window=1.2 --q3_window=2.0 --ssrcalc_window=40 --order=2 --peptide_table=srmPeptides_test --sqlite_database=/tmp/srmcollider_testdb
 Analysed: 882
 At least one eUIS of order 2 : 882  which is 100.0 %
 Random probability to choose good 0.950950173093
@@ -24,7 +24,7 @@ usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
 parser = OptionParser(usage=usage)
 group = OptionGroup(parser, "Run uis Options",
                     "None yet")
-group.add_option("-f", "--outfile", dest="outfile", default='3strikes.out',
+group.add_option("-f", "--outfile", dest="outfile", default='eUIS.out',
                   help="A different outfile " )
 group.add_option("--ssr3strike", dest="ssr3strike", default=0.3, type='float',
                   help="SSRCalc for the 3rd strike" )
