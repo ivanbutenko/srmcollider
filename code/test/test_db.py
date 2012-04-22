@@ -3,6 +3,7 @@ This file tests the interoperability with the MySQL / SQLite databases.
 """
 
 from nose.tools import nottest
+from nose.plugins.attrib import attr
 import random
 import unittest
 import sys
@@ -15,6 +16,7 @@ from test_shared import *
 import test_shared 
 
 test_database = 'hroest'
+mysql_conf_file = "~/.my.cnf.srmcollider"
 
 def psort_old(x,y):
     if(x[1] != y[1]): return -cmp(x[1], y[1]) 
@@ -123,6 +125,7 @@ class Test_collider_mysql(unittest.TestCase):
 
         try:
             import MySQLdb
+            self.database_available = True
         except ImportError:
             print """Module MySQLdb not available.
             
@@ -130,8 +133,14 @@ class Test_collider_mysql(unittest.TestCase):
             Use the following command (on Ubuntu systems):
                 sudo apt-get install python-mysqldb
             """
+            self.database_available = False
 
-        self.db = MySQLdb.connect(read_default_file="~/.my.cnf.srmcollider")
+        try: 
+          self.db = MySQLdb.connect(read_default_file=mysql_conf_file)
+          self.database_available = True
+        except MySQLdb.OperationalError as e:
+            print "Could not connect to database: Please check the configuration in test/test_db.py!\n", e
+            self.database_available = False
 
         class Minimal: 
             def get_q3_window_transitions(self, q3):
@@ -186,6 +195,9 @@ class Test_collider_mysql(unittest.TestCase):
         self.aparamset = collider.testcase(testdatabase=test_database)
 
     def _reducecollisionstoperpep(self, transitions, collisions, par):
+
+        if not self.database_available: return
+
         collisions_per_peptide = {}
         q3_window_used = par.q3_window
         for t in transitions:
@@ -200,7 +212,11 @@ class Test_collider_mysql(unittest.TestCase):
                         collisions_per_peptide[c[3]] = [ t[1] ] ; 
         return collisions_per_peptide
 
+    @attr('slow') 
     def test_get_all_precursors1(self): 
+
+        if not self.database_available: return
+
         pep = test_shared.runpep1
         pep = test_shared.runpep_obj1
         transitions = test_shared.runtransitions1
@@ -231,7 +247,11 @@ class Test_collider_mysql(unittest.TestCase):
             self.assertEqual( myprec[i].modified_sequence, precursors[i].modified_sequence)
             self.assertEqual( myprec[i].q1_charge, precursors[i].q1_charge)
 
+    @attr('slow') 
     def test_get_all_precursors2(self): 
+
+        if not self.database_available: return
+
         pep = test_shared.runpep_obj2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
@@ -261,7 +281,11 @@ class Test_collider_mysql(unittest.TestCase):
             self.assertEqual( myprec[i].modified_sequence, precursors[i].modified_sequence)
             self.assertEqual( myprec[i].q1_charge, precursors[i].q1_charge)
 
+    @attr('slow') 
     def test_get_coll_per_peptide(self): 
+
+        if not self.database_available: return
+
         pep = test_shared.runpep_obj1
         transitions = test_shared.runtransitions1
         precursors = test_shared.runprecursors1
@@ -283,7 +307,11 @@ class Test_collider_mysql(unittest.TestCase):
            transitions, par, pep, cursor, forceNonCpp=True)
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
 
+    @attr('slow') 
     def test_get_coll_per_peptide2(self): 
+
+        if not self.database_available: return
+
         pep = test_shared.runpep_obj2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
@@ -310,6 +338,9 @@ class Test_collider_mysql(unittest.TestCase):
     def test_get_coll_per_peptide_debug(self): 
         """This is a small example with very few interferences, 
         good to debug"""
+
+        if not self.database_available: return
+
         pep = test_shared.runpep_obj2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
@@ -358,7 +389,10 @@ class Test_collider_mysql(unittest.TestCase):
         self.assertEqual(1, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 5]))
         self.assertEqual(0, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 6]))
 
+    @attr('slow') 
     def test_complete_without_isotopes(self):
+
+        if not self.database_available: return
 
         par = collider.testcase(testdatabase=test_database)
         par.query2_add = ' and isotope_nr = 0 ' # still necessary, old style tables
@@ -375,7 +409,11 @@ class Test_collider_mysql(unittest.TestCase):
         find_clashes_small(self, mycollider, cursor, par, pepids)
         do_check_complete(self, mycollider)
 
+    @attr('slow') 
     def test_complete_with_isotopes(self):
+
+        if not self.database_available: return
+
         #now test with isotopes enabled
         par  = collider.testcase(testdatabase=test_database)
         par.quiet = True

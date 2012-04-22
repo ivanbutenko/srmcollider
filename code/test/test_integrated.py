@@ -3,8 +3,10 @@ This file tests the functionality of the c_integrated module.
 """
 
 import unittest
-import sys
+from nose.plugins.attrib import attr
 from nose.tools import nottest
+
+import sys
 sys.path.append( '..')
 sys.path.append( '../external')
 import collider
@@ -59,6 +61,7 @@ class Test_cintegrated(unittest.TestCase):
         self.acollider = collider.SRMcollider()
         self.aparamset = collider.testcase()
 
+    @attr('slow') 
     def test_getMinNeededTransitions_1(self):
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
@@ -90,6 +93,7 @@ class Test_cintegrated(unittest.TestCase):
             par.max_uis, par.q3_window, par.ppm, par)
         self.assertEqual(m, 4)
 
+    @attr('slow') 
     def test_getMinNeededTransitions_2(self):
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2

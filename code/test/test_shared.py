@@ -2,7 +2,7 @@
 # vim:set fdm=marker:
 
 import sys
-sys.path.extend( ['..', '../external'])
+sys.path.extend( ['.', '../', '../external'])
 SQLITE_DATABASE_LOCATION = '/tmp/srmcollider_testdb'
 
 def ignoreImportError_rangetree(f):
@@ -314,17 +314,15 @@ peptide2 = (400, 'CEPC[160]IDM[147]E',2,2)
 
 from test_shared_large import *
 
-
-
 runprecursors_obj1 = []
 for p in runprecursors1:
     runprecursors_obj1.append(Precursor(
-    modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
+    modified_sequence = p[1], transition_group = p[2], q1_charge = p[3], isotopically_modified = p[4]))
 
 runprecursors_obj2 = []
 for p in runprecursors2:
     runprecursors_obj2.append(Precursor(
-    modified_sequence = p[1], transition_group = p[2], isotopically_modified = p[4]))
+    modified_sequence = p[1], transition_group = p[2], q1_charge = p[3], isotopically_modified = p[4]))
 
 runpep_obj1 = Precursor( q1 = runpep1['q1'], modified_sequence = 
   runpep1['mod_sequence'], transition_group = runpep1['transition_group'], 

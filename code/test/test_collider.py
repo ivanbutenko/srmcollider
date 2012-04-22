@@ -2,6 +2,7 @@
 This file tests the functionality of the collider.py module. 
 """
 from nose.tools import nottest
+from nose.plugins.attrib import attr
 import unittest
 
 
@@ -56,6 +57,7 @@ class Test_collider_large_tests(unittest.TestCase):
         self.par = test_shared.get_default_setup_parameters()
         self.par.q3_window = 4.0
 
+    @attr('slow') 
     def test_calculate_collisions_1(self):
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
@@ -83,6 +85,7 @@ class Test_collider_large_tests(unittest.TestCase):
 
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult1)
 
+    @attr('slow') 
     def test_calculate_collisions_2(self):
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
@@ -110,6 +113,7 @@ class Test_collider_large_tests(unittest.TestCase):
 
         self.assertEqual(collisions_per_peptide, test_shared.collpepresult2)
 
+    @attr('slow') 
     def test_getMinNeededTransitions_1(self):
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
@@ -133,6 +137,7 @@ class Test_collider_large_tests(unittest.TestCase):
         m = self.acollider._getMinNeededTransitions(par, transitions, collisions)
         self.assertEqual(m, 4)
 
+    @attr('slow') 
     def test_getMinNeededTransitions_2(self):
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
@@ -407,7 +412,8 @@ class Test_three_peptide_example(unittest.TestCase):
       collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(self.acollider, 
               transitions, self.interfering_precursors, self.real_parameters, precursor, forceNonCpp=False, 
                forceFragmentChargeCheck=True)
-      self.assertEqual(collisions_per_peptide, {665: [4], 618: [0]})
+      ### TODO, forceFragment check will reduce this
+      self.assertEqual(collisions_per_peptide, {665: [4]})
 
     def test_min_needed_transitions(self):
 
