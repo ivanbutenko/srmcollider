@@ -384,6 +384,12 @@ class Test_three_peptide_example(unittest.TestCase):
       transitions = precursor.calculate_transitions(q3_low, q3_high)
       self.assertEqual(transitions, test_shared.ThreePeptideExample.expected_transitions)
 
+      # test old python way of calculating the transitions
+      peptides = [ [precursor.q1, precursor.modified_sequence, -1] ]
+      transitions = collider._calculate_transitions_ch(peptides, [1], q3_low, q3_high)
+      transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+      self.assertEqual(transitions, test_shared.ThreePeptideExample.expected_transitions)
+
     def test_collisions_per_peptide(self):
       """ Test to calculate the collisions per peptide.
       """

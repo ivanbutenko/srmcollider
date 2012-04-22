@@ -51,7 +51,7 @@ python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
         q3window, bool ppm);
 python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         python::tuple transitions, python::list precursors, python::object par, 
-        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck);
+        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck=false);
 
 // calculate the number of collisions for each transition
 python::list _find_clashes_calculate_colldensity(python::tuple transitions,

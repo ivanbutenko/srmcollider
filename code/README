@@ -258,17 +258,26 @@ Changing the constraints for Q1/Q3/RT can be easily done using the --q1_window,
 
 === Testing === {{{
 
-The easiest way to test which functions are enabled and which ones are not is by running the tests:
+The easiest way to test which functions are enabled and which ones are not is
+by running the tests. Please use the -s option because it may give you valuable
+information whether all the modules are correctly loaded and available.
 
-$ nosetests test --with-coverage
+$ nosetests test --with-coverage -s
 $ nosetests performance_tests
+
+In order to test sqlite, first an sqlite databse needs to be created:
+$ cd test; python sqlite_setupdb.py
+
+To run all nonslow tests (e.g. no database tests or complete functionality tests)
+$ nosetests test -a '!slow' -s
 
 To just test one function, one could do this
 $ nosetests test/test_collider.py:Test_collider_function.test_getMinNeededTransitions_1
 
-After the install, you can test the success with 
-$ python test/test_independent.py
-which will test all functions that do not rely on databse access.
+To test the real coverage
+
+$ nosetests test --with-coverage --cover-package=DDB,Residues,SRM_parameters,collider,precursor,uis_functions 
+
 
 
  }}}
