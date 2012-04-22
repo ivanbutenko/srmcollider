@@ -49,22 +49,6 @@ class SRMcollider(object):
           precursors.append(p)
       return precursors
 
-    def _get_all_precursors_old_list(self, par, pep, cursor, 
-         values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
-         bysequence=False):
-        R = Residues.Residues('mono')
-        result = self._get_all_precursors_sub(par, pep, cursor, values)
-        assert(values[:50] == "q1, modified_sequence, transition_group, q1_charge")
-        new_result = []
-        for r in result:
-          append = False
-          ch = r[3]
-          for iso in range(par.isotopes_up_to+1):
-            if (r[0] + (R.mass_diffC13 * iso)/ch > pep['q1'] - par.q1_window and 
-                r[0] + (R.mass_diffC13 * iso)/ch < pep['q1'] + par.q1_window): append=True
-          if(append): new_result.append(r)
-        return tuple(new_result)
-
     def _get_all_precursors_sub(self, par, pep, cursor, 
          values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
          bysequence=False):

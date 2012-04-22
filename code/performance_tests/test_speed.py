@@ -80,7 +80,7 @@ def runpy(self, pep, transitions, precursors):
     oldtime = time.time() - st
     return collisions_per_peptide, oldtime
 
-class dd_Test_speed(unittest.TestCase):
+class Test_speed(unittest.TestCase):
 
     def setUp(self):
         try:
@@ -332,7 +332,6 @@ from random import shuffle
 class Test_speed_integrated(unittest.TestCase):
 
     def setUp(self):
-        print "Setup of Test_speed_integrated"
         self.limit = 100
         self.limit_large = 100
         self.limit = 300
@@ -378,7 +377,7 @@ class Test_speed_integrated(unittest.TestCase):
                            """ % (par.peptide_table, self.min_q1 - par.q1_window, self.max_q1 + par.q1_window) 
             cursor.execute(query)
             self.alltuples =  list(cursor.fetchall() )
-            print "len alltuples", len(self.alltuples)
+            #print "len alltuples", len(self.alltuples)
 
             query =  """
             select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, isotope_nr, 0, 0
@@ -387,7 +386,7 @@ class Test_speed_integrated(unittest.TestCase):
                            """ % (par.peptide_table, self.min_q1 - par.q1_window, isotope_correction, self.max_q1 + par.q1_window) 
             cursor.execute(query)
             self.alltuples_isotope_correction =  list(cursor.fetchall())
-            print "len alltuples zero", len(self.alltuples_isotope_correction)
+            #print "len alltuples zero", len(self.alltuples_isotope_correction)
 
             self.myprecursors = Precursors()
 
@@ -408,7 +407,6 @@ class Test_speed_integrated(unittest.TestCase):
                           'highq1' : upper_q1, # max_q1 + par.q1_window,
                           'isotope_correction' : isotope_correction
                   } 
-            print q
             cursor.execute(q)
             for res in cursor.fetchall():
               p = Precursor()
@@ -425,182 +423,6 @@ class Test_speed_integrated(unittest.TestCase):
             print "something went wrong"
             print inst
 
-    @nottest
-    def test_integrated_range(self):
-
-        # currently deactivated because we set up the rangetree in a completely new way
-        try:
-            print "Trying test integrated range"
-            par = self.par
-            cursor = self.cursor
-
-            start = time.time()
-            #shuffle(self.alltuples)
-            #print "finished query fetch: ", time.time() - start
-
-            mypepids = [
-                        {
-                            'mod_sequence'  :  r[0],
-                            'peptide_key' :r[1],
-                            'parent_id' :  r[2],
-                            'q1_charge' :  r[3],
-                            'q1' :         r[4],
-                            'ssrcalc' :    r[5],
-                            'transition_group' :  r[2],
-                        }
-                        for r in self.alltuples
-                if r[3] == 2 #charge is 2
-                and r[6] == 0 #isotope is 0
-                and r[4] >= self.min_q1
-                and r[4] < self.max_q1
-            ]
-
-            parentid_lookup = [ [ r[2], (r[4], r[0], r[1]) ] 
-                        for r in self.alltuples
-                #if r[3] == 2 and r[6] == 0
-            ]
-            parentid_lookup  = dict(parentid_lookup)
-            #print "finished python lookups: ", time.time() - start
-
-            mystart = time.time()
-            #c_rangetree.create_tree(alltuples[:100000])
-            #print "building tree with : %s nodes " % len(self.alltuples)
-            c_rangetree.create_tree(tuple(self.alltuples))
-            #print "finished build tree : ", time.time() - start
-            #print "tree time ", time.time() - mystart
-
-            self.mycollider.pepids = mypepids
-            MAX_UIS = 5
-            newtime = 0; oldtime = 0; ctime = 0
-            oldsql = 0; newsql = 0
-            alllocaltime = 0
-            localprecursor = 0
-            c_fromprecursortime = 0
-            prepare  = []
-            self._cursor = False
-            print '\n'*2
-            print "old = use fast SQL to get precursors, use C++ code to get collperpep"
-            print "new = use rangetree to get precursors, use C++ code to get collperpep"
-            print "i\tnew_prec_tot\trangetree\tnewcollper\ttotalnew\t>>\ttotalold\tspeedup"
-            self.mycollider.pepids = self.mycollider.pepids[:self.limit_large]
-            for kk, pep in enumerate(self.mycollider.pepids):
-                ii = kk + 1
-                p_id = pep['parent_id']
-                q1 = pep['q1']
-                ssrcalc = pep['ssrcalc']
-                q3_low, q3_high = par.get_q3range_transitions()
-                #
-                #new way to calculate the precursors
-                mystart = time.time()
-                transitions = c_getnonuis.calculate_transitions_ch(
-                    ((q1, pep['mod_sequence'], p_id),), [1,2], q3_low, q3_high)
-                #fake some srm_id for the transitions
-                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-                q1_low = q1 - par.q1_window 
-                q1_high = q1 + par.q1_window
-                innerstart = time.time()
-                isotope_correction = par.isotopes_up_to * Residues.mass_diffC13 / min(par.parent_charges)
-                #correct rounding errors, s.t. we get the same results as before!
-                ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
-                ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-                precursor_ids = tuple(c_rangetree.query_tree( q1 - par.q1_window, ssrcalc_low, 
-                    q1 + par.q1_window,  ssrcalc_high, par.isotopes_up_to, isotope_correction))
-                precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                                    #dont select myself 
-                                       if parentid_lookup[myid[0]][2]  != pep['transition_group']])
-
-
-                alllocaltime += time.time() - mystart
-
-                #
-                #now calculate coll per peptide the new way
-                mystart = time.time()
-                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-                non_uis_list = [{} for i in range(MAX_UIS+1)]
-                for order in range(1,MAX_UIS+1):
-                    non_uis_list[order] = c_getnonuis.get_non_uis(
-                        collisions_per_peptide, order)
-                c_fromprecursortime += time.time() - mystart
-                precursor_new = precursors
-                non_uis_list_new = [set(kk.keys()) for kk in non_uis_list]
-                non_uis_list_len = [len(kk) for kk in non_uis_list]
-                transitions_before = transitions
-
-                ###################################
-                #old way to calculate the precursors
-                mystart = time.time()
-                #transitions = self.mycollider._get_all_transitions(par, pep, cursor)
-                transitions = collider.calculate_transitions_ch(
-                    ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
-                #fake some srm_id for the transitions
-                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-                nr_transitions = len( transitions )
-                if nr_transitions == 0: continue #no transitions in this window
-                transitions = transitions_before
-                par.query2_add = ' and isotope_nr = 0 ' # due to the new handling of isotopes
-                precursors = self.mycollider._get_all_precursors(par, pep, cursor)
-                par.query2_add = '' # due to the new handling of isotopes
-                newsql += time.time() - mystart
-                #
-                #now calculate coll per peptide the new way
-                mystart = time.time()
-                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-                    transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-                non_uis_list = [ {} for i in range(MAX_UIS+1)]
-                for order in range(1,MAX_UIS+1):
-                    non_uis_list[order] = c_getnonuis.get_non_uis(
-                        collisions_per_peptide, order)
-                ctime += time.time() - mystart
-                non_uis_list_len_old = [len(kk) for kk in non_uis_list]
-
-                print len(precursors), len(precursor_new) 
-                self.assertEqual( len(precursors), len(precursor_new) )
-                self.assertEqual( non_uis_list_len_old , non_uis_list_len) 
-
-                # 1. row is sequence
-                # 2. row is the total time for the rangetree query 
-                # 3. row is the time of the rangetree query which actually
-                #    queries the rangetree and the rest of the time we spend
-                #    filtering out the peptide_key of the current peptide
-                # 4. row is the time to calculate the collisions per peptide
-                #    from the precursors
-                # 5. is row 2 and 4 combined
-                # >>>
-                # 6. is the time to get the precursors by querying the db plus
-                #    the time to get collisions per peptide from the C++ code
-                mys =  "%s\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t>>\t%0.2fms\t%0.2f" % \
-                (ii, alllocaltime *1000/ ii, \
-                        localprecursor*1000/ii, c_fromprecursortime*1000/ii, 
-                 #in the last speedtest, the new version is ctime+newsql
-                 #this should correspond to the OLD version here
-                 #allnew
-                 (alllocaltime + c_fromprecursortime)*1000/ii, 
-                 #(alllocaltime + c_fromprecursortime)*1000/ii, 
-                 #
-                 # >>
-                 #
-                 (ctime + newsql)*1000/ii, 
-                 #(c_fromprecursortime + newsql)*1000/ii, 
-                 (ctime + newsql)/ (alllocaltime + c_fromprecursortime) )
-                #start a new line for each output?
-                #mys += '\t%s\t%s' % ( len(precursors), len(precursor_new) )
-                if False: mys += '\n'
-
-                self.ESC = chr(27)
-                sys.stdout.write(self.ESC + '[2K')
-                if self._cursor:
-                    sys.stdout.write(self.ESC + '[u')
-                self._cursor = True
-                sys.stdout.write(self.ESC + '[s')
-                sys.stdout.write(mys)
-                sys.stdout.flush()
-
-
-        except Exception as inst:
-            print "something went wrong"
-            print inst
-
     def test_integrated_cpp(self):
             """ Compare the fully integrated vs the mixed C++ rangetree / Python solution.
 
@@ -612,12 +434,13 @@ class Test_speed_integrated(unittest.TestCase):
 
             verbose = True
             verbose = False
+            print '\n'*1
             print "Comparing fully integrated solution (c_integrated.wrap_all)"
             par = self.par
             cursor = self.cursor
 
             all_precursors = self.precursors_to_evaluate
-            shuffle(all_precursors)
+            ## shuffle(all_precursors)
             all_precursors = all_precursors[:self.limit_large]
 
             self.myprecursors.build_parent_id_lookup()
@@ -633,8 +456,8 @@ class Test_speed_integrated(unittest.TestCase):
             c_fromprecursortime = 0
             prepare  = []
             self._cursor = False
-            print "Running experiment ", par.get_common_filename(), "\n"
-            #print '\n'*1
+            print "Running experiment ", par.get_common_filename()
+            print "calc_trans. = time to calculate the transitions of the precursor"
             print "old = use rangetree to get precursors, use C++ code to get collperpep"
             print "new = use rangetree to get precursors, use single C++ code to get collperpep"
             print "i\tcalc_trans.\tnew\t\told\t\t>>\tspeedup"
@@ -711,7 +534,7 @@ class Test_speed_integrated(unittest.TestCase):
                 # Assert equality, print out result
                 self.assertEqual( newresult , non_uis_list_len) 
 
-                mys =  "%s\t%0.2fms\t\t%0.2fms\t\t%0.2fms\t\t>>\t%0.2f" % \
+                mys =  "%s\t%0.4fms\t%0.2fms\t\t%0.2fms\t\t>>\t%0.2f" % \
                 (ii, transitiontime *1000/ ii, 
                         newtime*1000/ii, oldtime*1000/ii,
                 oldtime *1.0 / newtime)
@@ -733,15 +556,17 @@ class Test_speed_integrated(unittest.TestCase):
             #     print "something went wrong"
             #     print inst
 
-    def test_integrated_mysql(self):
-            """ Here we are testing the old (querying the transitions database as
+    def test_two_table_mysql(self):
+            """Compare the two table vs the one table MySQL approach
+            
+            Here we are comparing the old (querying the transitions database as
             well as the precursor database) and the new way (only query the
             precursor database and calculate the transitions on the fly) way of
             calculating the collisions.
             """
 
-            return
-            print "test_integrated_mysql"
+            print '\n'*1
+            print "Comparing one vs two table MySQL solution"
             par = self.par
             cursor = self.cursor
 
@@ -757,14 +582,13 @@ class Test_speed_integrated(unittest.TestCase):
             oldsql = 0; newsql = 0
             oldcalctime = 0; localsql = 0
             self._cursor = False
-            print '\n'*2
             print "oldtime = get UIS from collisions and transitions (getting all collisions from the transitions db)"
             print "cuis + oldsql = as oldtime but calculate UIS in C++"
-            print "newsql = only get the precursors from the db and calculate collisions in Python"
+            print "py+newsql = only get the precursors from the db and calculate collisions in Python"
             print "ctime + newsql = only get the precursors from the db and calculate collisions in C++"
             print "new = use fast SQL and C++ code"
             print "old = use slow SQL and Python code"
-            print "i\toldtime\tcuis+oldsql\tnewsql\tctime+newsql\t>>>\toldsql\tnewsql\tunused\t...\tspeedup"
+            print "i\toldtime\tcuis+oldsql\tpy+newsql\tctime+newsql\t>>>\toldsql\tnewsql\t...\t...\tspeedup"
             for kk, pep in enumerate(self.mycollider.pepids):
                 ii = kk + 1
                 p_id = pep['parent_id']
@@ -832,22 +656,146 @@ class Test_speed_integrated(unittest.TestCase):
                 self.assertEqual(non_uis_list, cnewuis)
                 self.assertEqual(non_uis_list, oldnonuislist)
 
-                mys =  "%s\t%0.fms\t%0.fms\t\t%0.fms\t%0.2fms\t\t>>>\t%0.fms\t%0.2fms\t%0.2f\t...\t%0.2f" % \
-                (ii, 
-                 (oldtime + oldsql)*1000/ii, 
-                 (c_newuistime+oldsql)*1000/ii,
-                 (oldcalctime + newsql + oldtime)*1000/ii, 
-                 (c_fromprecursortime + newsql)*1000/ii, 
+                mys =  "%s\t%0.fms\t%0.fms\t\t%0.fms\t\t%0.2fms\t\t>>>\t%0.fms\t%0.2fms\t...\t...\t%0.2f" % \
+                 (ii,  #i
+                 (oldtime + oldsql)*1000/ii,  #oldtime
+                 (c_newuistime+oldsql)*1000/ii, #cuis + oldsql
+                 (oldcalctime + newsql + oldtime)*1000/ii,  #newsql
+                 (c_fromprecursortime + newsql)*1000/ii,  #ctime+newsql
                  #(c_fromprecursortime + localsql)*1000/ii,
-                 #42.42,
 
-                 oldsql*1000/ii, 
-                 newsql*1000/ii,
+                 oldsql*1000/ii, #newsql
+                 newsql*1000/ii, #oldsql
                  #localsql*1000/ii,
-                 42.42,
-
                  #oldtime / c_newuistime
                  (oldtime + oldsql) / (c_fromprecursortime + newsql)
+                )
+
+                self.ESC = chr(27)
+                sys.stdout.write(self.ESC + '[2K')
+                if self._cursor:
+                    sys.stdout.write(self.ESC + '[u')
+                self._cursor = True
+                sys.stdout.write(self.ESC + '[s')
+                sys.stdout.write(mys)
+                sys.stdout.flush()
+
+    def test_mysql_vs_integrated(self):
+            """Compare the one table MySQL approach vs the fully integrated Cpp approach
+            
+            Here we are comparing the old (querying the transitions database as
+            well as the precursor database) and the new way (only query the
+            precursor database and calculate the transitions on the fly) way of
+            calculating the collisions.
+            """
+
+            print '\n'*1
+            print "Comparing one table MySQL solution vs integrated solution"
+            par = self.par
+            cursor = self.cursor
+
+            mypepids = [
+                        {
+                            'mod_sequence'  :  r[0],
+                            'peptide_key' :r[1],
+                            'transition_group' :r[1],
+                            'parent_id' :  r[2],
+                            'q1_charge' :  r[3],
+                            'q1' :         r[4],
+                            'ssrcalc' :    r[5],
+                        }
+                        for r in self.alltuples
+                if r[3] == 2 #charge is 2
+                and r[6] == 0 #isotope is 0
+                and r[4] >= self.min_q1
+                and r[4] < self.max_q1
+            ]
+
+            mycollider = collider.SRMcollider()
+            #mypepids = _get_unique_pepids(par, cursor)
+            self.mycollider.pepids = mypepids
+            self.mycollider.calcinner = 0
+            shuffle( self.mycollider.pepids )
+            self.mycollider.pepids = self.mycollider.pepids[:self.limit]
+
+            c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
+
+            MAX_UIS = 5
+            c_newuistime = 0; oldtime = 0; c_fromprecursortime = 0
+            oldsql = 0; newsql = 0
+            newtime = 0
+            oldcalctime = 0; localsql = 0
+            self._cursor = False
+            print "i\toldtime\t\tnewtime\t>>\tspeedup"
+            for kk, pep in enumerate(self.mycollider.pepids):
+                ii = kk + 1
+                p_id = pep['parent_id']
+                q1 = pep['q1']
+                q3_low, q3_high = par.get_q3range_transitions()
+                q1_low = q1 - par.q1_window 
+                q1_high = q1 + par.q1_window
+                ssrcalc = pep['ssrcalc']
+                peptide_key = pep['peptide_key']
+
+                #correct rounding errors, s.t. we get the same results as before!
+                ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
+                ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
+                isotope_correction = par.isotopes_up_to * Residues.mass_diffC13 / min(par.parent_charges)
+
+                precursor = Precursor(q1=pep['q1'], transition_group=pep['transition_group'], parent_id = pep['parent_id'], modified_sequence=pep['mod_sequence'], ssrcalc=pep['ssrcalc'])
+
+                transitions = collider.calculate_transitions_ch(
+                    ((q1, pep['mod_sequence'], p_id),), [1], q3_low, q3_high)
+                #fake some srm_id for the transitions
+                transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+                ##### transitions = self.mycollider._get_all_transitions(par, pep, cursor)
+                nr_transitions = len( transitions )
+                if nr_transitions == 0: continue #no transitions in this window
+
+                ###################################
+                # Old way to calculate non_uislist 
+                #  - get all precursors from the SQL database
+                #  - calculate collisions per peptide in C++
+
+                par.query2_add = ' and isotope_nr = 0 ' # due to the new handling of isotopes
+                mystart = time.time()
+                self.mycollider.mysqlnewtime= 0
+                precursors = self.mycollider._get_all_precursors(par, precursor, cursor)
+                newsql += time.time() - mystart
+
+                mystart = time.time()
+                q3_low, q3_high = par.get_q3range_transitions()
+                collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+                    transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, False)
+                non_uis_list = [ {} for i in range(MAX_UIS+1)]
+                for order in range(1,MAX_UIS+1):
+                    non_uis_list[order] = c_getnonuis.get_non_uis(
+                        collisions_per_peptide, order)
+                c_fromprecursortime += time.time() - mystart
+
+                newl = [len(n) for n in non_uis_list]
+                non_uis_list_old_way = [set(kk.keys()) for kk in non_uis_list]
+                non_uis_list_len = [len(kk) for kk in non_uis_list_old_way[1:]]
+
+                ###################################
+                # New way to calculate non_uislist 
+                #  - start out from transitions, get non_uislist
+                mystart = time.time()
+                newresult = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low,
+                    q1_high,  ssrcalc_high, peptide_key,
+                    min(MAX_UIS,nr_transitions) , par.q3_window, #q3_low, q3_high,
+                    par.ppm, par.isotopes_up_to, isotope_correction, par)
+                newtime += time.time() - mystart
+
+                ###################################
+                # Assert equality, print out result
+                self.assertEqual( newresult , non_uis_list_len) 
+
+                mys =  "%s\t%0.1fms\t\t%0.2fms\t>>>\t%0.1f" % \
+                 (ii,  #i
+                 (c_fromprecursortime + newsql)*1000/ii,  # oldtime
+                 (newtime)*1000/ii, # newtime
+                 (c_fromprecursortime + newsql) / (newtime), # speedup
                 )
 
                 self.ESC = chr(27)
