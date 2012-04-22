@@ -70,6 +70,27 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
 bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
         ssrwindow );
 
+// helper functions
+
+// checks whether the current fragment 
+bool has_allowed_charge(int fragment_charge, int q1_charge, int maximal_charge)
+{
+
+  // disallow doubly charged precursors and double charged fragments
+  if(ch == 2 && q1_charge == 2)
+  {return false;}
+  // disallow precursors that exceed the maximal charge of the peptide
+  if(q1_charge > maximal_charge )
+  {return false;}
+  // disallow doubly charged fragments where the maximal charge of the fragment is 1 or 2
+  if(ch == 2 && maximal_charge < 3)
+  {return false;}
+
+  // TODO / implement: check each 2+ fragment whether it can hold the charge
+
+  return true;
+}
+
 /*
  */
 python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
@@ -84,7 +105,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch, listmembers = 0;
-    int isotope_modification;
+    int isotope_nr, q1_charge, maximal_charge;
 
     long t1, peptide_key;
     double t0, q3used = q3window;
@@ -115,6 +136,8 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         precursor = python::extract< python::object >(precursors[j]);
         sequence = python::extract<char *>(precursor.attr("modified_sequence"));
         isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
+        q1_charge = python::extract<int>(precursor.attr("q1_charge"));
+        maximal_charge = precursor.attr("to_peptide")().attr("get_maximal_charge")();
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
@@ -122,9 +145,9 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
                   bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
                   yMinusNH3, zions, MMinusH2O, MMinusNH3, isotope_modification);
 
-            if(forceChargeCheck && ch == 2 && 
-              precursor.attr("to_peptide")().attr("get_maximal_charge")() == 2)
-            { continue;}
+            if(forceChargeCheck && !has_allowed_charge(ch, q1_charge, maximal_charge) )
+            {continue;}
+
             for (i=0; i<transitions_length; i++) {
                 tlist = python::extract< python::tuple >(transitions[i]);
                 //ppm is 10^-6
@@ -349,7 +372,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch;
-    int isotope_nr, q1_charge;
+    int isotope_nr, q1_charge, maximal_charge;
 
     long t1, peptide_key;
     double t0, q1, ssrcalc, q3used = q3window, q1_used;
@@ -372,14 +395,15 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
 
         ssrcalc = python::extract<double>(precursor.attr("ssrcalc"));
         q1_charge = python::extract<int>(precursor.attr("q1_charge"));
+        maximal_charge = precursor.attr("to_peptide")().attr("get_maximal_charge")();
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series(sequence, tmp_series,
                     series, ch, par);
 
-            if(forceChargeCheck && ch == 2 && 
-              precursor.attr("to_peptide")().attr("get_maximal_charge")() == 2)
-            { continue;}
+            if(forceChargeCheck && !has_allowed_charge(ch, q1_charge, maximal_charge) )
+            {continue;}
+
             for (i=0; i<transitions_length; i++) {
                 tlist = python::extract< python::tuple >(transitions[i]);
                 //ppm is 10^-6

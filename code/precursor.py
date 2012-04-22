@@ -139,7 +139,7 @@ class Precursors:
         p.ssrcalc = p.to_peptide().get_GRAVY()
 
   def get_collisions_per_peptide_from_rangetree(self, precursor, q1_low, q1_high,
-    transitions, par, ForceChargeCheck=False):
+    transitions, par, forceFragmentChargeCheck=False):
     """Get the collisions per peptide, e.g. a dictionary that contains the
     interfered transitions for a given precursor with given transitions.
     """
@@ -158,11 +158,11 @@ class Precursors:
         ssrcalc_high,
         par.isotopes_up_to, isotope_correction)  
 
-    # Now deselect the myself (the precursor passed as argument) and everything
-    # that is in my transitions group, e.g. considered to be the same peptide
+    # Now deselect the myself (the precursor passed as argument) and reformat
     globalprecursors = [self.lookup_by_parent_id(myid[0]) for myid in precursor_ids
       #dont select myself 
       if self.lookup_by_parent_id(myid[0]).transition_group != precursor.transition_group]
+
     return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-        transitions, globalprecursors, par, q3_low, q3_high, par.q3_window, par.ppm, ForceChargeCheck)
+        transitions, globalprecursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceFragmentChargeCheck)
 

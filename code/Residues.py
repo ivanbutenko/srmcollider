@@ -236,7 +236,7 @@ class Residues:
     #C[152] 2        => ?
     #C[553] 4        => ICAT?
     #K[136] 15131    => SILAC?
-    #Q[111] 1730     => pyroGlu
+    #Q[111] 1730     => pyroGlu  (loss of 17)
     #C[330] 37       => ICAT?
     #C[339] 20       => ICAT?
     #C[545] 4        => ICAT?
