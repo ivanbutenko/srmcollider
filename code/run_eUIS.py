@@ -2,14 +2,40 @@
 # -*- coding: utf-8  -*-
 # vim:set fdm=marker:
 """
+ *
+ * Program       : SRMCollider
+ * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
+ * Date          : 05.02.2011 
+ *
+ *
+ * Copyright (C) 2011 Hannes Roest
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+ *
+"""
+
+"""
 Expected results on the test-database (see README and test-folder on how to set up the sqlite-testdatabase):
 
-python run_eUIS.py 111234567 400 1400 -f testout.out  --ssr3strike=1.25 --q1_window=1.2 --q3_window=2.0 --ssrcalc_window=40 --order=2 --peptide_table=srmPeptides_test --sqlite_database=/tmp/srmcollider_testdb
+python run_eUIS.py 1234567 400 1400 -f testout.out  --ssr3strike=1.25 --q1_window=1.2 --q3_window=2.0 --ssrcalc_window=40 --order=2 --peptide_table=srmPeptides_test --sqlite_database=/tmp/srmcollider_testdb
 Analysed: 882
 At least one eUIS of order 2 : 882  which is 100.0 %
 Random probability to choose good 0.950950173093
 Average lost in strike 3 0.011721581048
 Average without strike 3 0.037328245859
+
 """
 
 import time

@@ -44,22 +44,6 @@ Order 3, Average non useable UIS 0.000427182046582
 Order 4, Average non useable UIS 4.72421355715e-05
 Order 5, Average non useable UIS 3.86353977514e-06
 
-
-Expected results:
-
-python run_integrated.py 123456777 500 502 --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10    
-yeast_noMod_miss0_None_None_100_10_10_range400to1400
-
-building tree with 1866 Nodes
-[------------------------------------------------------------>] 100%  2422.1 peptides/sec (eta 0s)
-It took 0s
-Order 1, Average non useable UIS 0.978233765985
-Order 2, Average non useable UIS 0.363422284899
-Order 3, Average non useable UIS 0.0547185849199
-Order 4, Average non useable UIS 0.00946989873164
-Order 5, Average non useable UIS 0.0019244054479
-
-
 """
 
 import sys 

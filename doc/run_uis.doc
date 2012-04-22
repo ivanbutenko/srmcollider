@@ -1,0 +1,146 @@
+
+Expected Result:
+SELECT uisorder,  experiment, (sum(sum_nonUIS) / sum(nr_peptides)) as free_UIS  FROM hroest.result_completegraph_aggr  WHERE experiment like 'noModMiss01Da1Da' GROUP by uisorder, experiment order by id;
++----------+------------------+--------------------+
+| uisorder | experiment       | free_UIS           |
++----------+------------------+--------------------+
+|        1 | noModMiss01Da1Da |    0.9996759602799 | 
+|        2 | noModMiss01Da1Da |   0.57746879421919 | 
+|        3 | noModMiss01Da1Da |  0.099576558987993 | 
+|        4 | noModMiss01Da1Da |  0.018526360622894 | 
+|        5 | noModMiss01Da1Da | 0.0052870174827842 | 
++----------+------------------+--------------------+
+
+
+python run_uis.py 123456789 500 525 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=25 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb --swath_mode
+[------------------------------------------------------------>] 100%  4886.1 peptides/sec (eta 0s)
+It took 0s
+Analyzed 39 peptides
+Order 1, Average non useable UIS 0.478557767019
+Order 2, Average non useable UIS 0.0377468685161
+Order 3, Average non useable UIS 0.00329392829393
+Order 4, Average non useable UIS 0.0002035002035
+Order 5, Average non useable UIS 0.0
+
+
+
+
+
+
+
+
+
+### Compare with
+
+$ python run_uis.py 123456777_yeast_test11 400 1400  --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=99999
+analyzing 121009 peptides
+building tree with 208419 Nodes
+[------------------------------------------------------------>] 100%  187.1 peptides/sec (eta 0s)
+It took 10m 46s
+Analyzed 121009 peptides
+Order 1, Average non useable UIS 0.99967596028
+Order 2, Average non useable UIS 0.577468794219
+Order 3, Average non useable UIS 0.099576558988
+Order 4, Average non useable UIS 0.0185263606229
+Order 5, Average non useable UIS 0.00528701748278
+
+
+$ python run_uis.py 123456777_yeast_test11 500 520 --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=99999
+Analyzed 4613 peptides
+Order 1, Average non useable UIS 1.0
+Order 2, Average non useable UIS 0.70346158406
+Order 3, Average non useable UIS 0.145541762234
+Order 4, Average non useable UIS 0.0285638344602
+Order 5, Average non useable UIS 0.00781288405936
+
+
+
+
+python run_uis.py 123456777 500 502 --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 
+$ python run_uis.py 123456777 500 502 --use_db --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 
+
+analyzing 447 peptides
+[------------------------------------------------------------>] 100%  63.2 peptides/sec (eta 0s)
+It took 7s
+Analyzed 447 peptides
+Order 1, Average non useable UIS 0.978233765985
+Order 2, Average non useable UIS 0.363422284899
+Order 3, Average non useable UIS 0.0547185849199
+Order 4, Average non useable UIS 0.00946989873164
+Order 5, Average non useable UIS 0.0019244054479
+
+
+$ python run_uis.py 123456777 500 502 --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=1 --q3_window=2 --ssrcalc_window=10 --swath_mode
+$ python run_uis.py 123456777 500 502 --use_db --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 --max_uis 5 -i 3 --q1_window=2 --q3_window=1 --ssrcalc_window=10 --swath_mode
+It took 0s
+Analyzed 447 peptides
+Order 1, Average non useable UIS 0.988537804477
+Order 2, Average non useable UIS 0.42405850426
+Order 3, Average non useable UIS 0.0612668837501
+Order 4, Average non useable UIS 0.00981822055648
+Order 5, Average non useable UIS 0.0019244054479
+
+
+"""
+
+
+
+python run_uis.py 123456777 500 502 --use_db --swath_mode  --peptide_table=hroest.srmPeptides_yeast --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_out.csv | wc
+python run_uis.py 123456777 500 501 --peptide_table=hroest.srmPeptides_yeast --max_uis 5 -i 3 --q1_window=1 --q3_window=0.7 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_noswath.csv | wc
+
+python run_uis.py 123456777 500 501 --peptide_table=hroest.srmPeptides_yeast_no_iso --max_uis 5 -i 3 --q1_window=1 --q3_window=0.7 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_noswath.csv | wc
+
+
+python run_uis.py 123456777 500 501  --peptide_table=hroest.srmPeptides_yeast_no_iso --max_uis 5 -i 3 --q1_window=1 --q3_window=0.7 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_noswath.csv | wc
+python run_uis.py 123456777 500 501  --use_db --peptide_table=hroest.srmPeptides_yeast_no_iso --max_uis 5 -i 3 --q1_window=1 --q3_window=0.7 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_noswath.csv | wc
+
+python run_uis.py 123456777 500 502  --swath_mode  --peptide_table=hroest.srmPeptides_yeast_no_iso --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_new_swath.csv| wc
+python run_uis.py 123456777 500 502  --use_db --swath_mode  --peptide_table=hroest.srmPeptides_yeast_no_iso --max_uis 5 -i 3 --q1_window=1 --q3_window=1 --ssrcalc_window=10 && diff /tmp/testout test/data/run_uis_new_swath.csv| wc
+
+
+drop table srmPeptides_yeast_1200         ;
+drop table srmPeptides_yeast_all          ;
+drop table srmPeptides_yeast_allCAM       ;
+drop table srmPeptides_yeast_ionseries    ;
+drop table srmPeptides_yeast_noIsotopes   ;
+drop table srmPeptides_yeast_no_iso       ;
+drop table srmPeptides_yeast_pI10         ;
+drop table srmPeptides_yeast_pI11         ;
+drop table srmPeptides_yeast_pI12         ;
+drop table srmPeptides_yeast_pI13         ;
+drop table srmPeptides_yeast_pI14         ;
+drop table srmPeptides_yeast_pI15         ;
+drop table srmPeptides_yeast_pI3          ;
+drop table srmPeptides_yeast_pI4          ;
+drop table srmPeptides_yeast_pI5          ;
+drop table srmPeptides_yeast_pI6          ;
+drop table srmPeptides_yeast_pI7          ;
+drop table srmPeptides_yeast_pI8          ;
+drop table srmPeptides_yeast_pI9          ;
+
+# check those first
+drop table srmPeptides_yeast_mrmatlas     ;
+drop table srmPeptides_yeast_mrmatlasall  ;
+#drop table  srmTransitions_test                 ; 
+
+drop table  srmTransitions_human                ; 
+drop table  srmTransitions_humanN15             ; 
+drop table  srmTransitions_mouse                ; 
+drop table  srmTransitions_test_ionseries       ; 
+drop table  srmTransitions_yeast                ; 
+drop table  srmTransitions_yeastN15             ; 
+drop table  srmTransitions_yeast_1200           ; 
+drop table  srmTransitions_yeast_N14N15         ; 
+drop table  srmTransitions_yeast_all            ; 
+drop table  srmTransitions_yeast_allCAM         ; 
+drop table  srmTransitions_yeast_ionseries      ; 
+drop table  srmTransitions_yeast_mrmatlas       ; 
+drop table  srmTransitions_yeast_mrmatlasall    ; 
+drop table  srmTransitions_yeast_pepatlas       ; 
+drop table  srmTransitions_yeast_pepatlas_union ; 
+drop table  srmTransitions_yeast_top4           ; 
+
+
+
+"""
+

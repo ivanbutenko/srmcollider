@@ -1,0 +1,52 @@
+
+
+select count(distinct parent_key) from result_srmuis where exp_key = 104;
+select count(*) from srmPeptides_mouse where isotope_nr = 0 and q1_charge = 2 and q1 between 400 and 1400;
+
+python prepare_rangetree.py 104 60000 9999 hroest.srmPeptides_mouse
+sh /tmp/tmp.sh
+
+
+python run_eUIS.py 111234567 900 1000.9 -f testout.out  --ssr3strike=0.25 --q1_window=1.2 --q3_window=2.0 --ssrcalc_window=10 --order=4 --peptide_table=hroest.srmPeptides_yeast_noMod_miss0
+
+GOLD STANDARD
+python run_eUIS.py 111234567 400 405.9 -f testout.out  --ssr3strike=0.25 --q1_window=0.7 --q3_window=0.7 --ssrcalc_window=10 --order=4 --peptide_table=hroest.srmPeptides_yeast_noMod_miss0 
+
+
+yeast_noMod_miss0_None_None_100_7_7_range400to1400
+building tree with 4861 Nodes
+Experiment Type:
+        check all four charge states [True] vs all four charge states [True] with
+        thresholds of SSRCalc 10.0, Q1 0.7 (Th), Q3 0.7 (Th) and a range of 400 to 1400
+        Da for the q3 transitions.  Ignore 2+ parent / 2+ fragment ions False, 
+        selecting from hroest.srmPeptides_yeast_noMod_miss0 and None.
+        Consider Isotopes up to: 3
+[------------------------------------------------------------>] 100%  233.9 peptides/sec (eta 0s)
+It took 8s
+=
+using c++ stl own construct
+2.67151117325 5.32382488251 0.152252912521
+Analysed: 1912
+At least one eUIS of order 4 : 1395  which is 72.960251046 %
+Random probability to choose good 0.443325363618
+Average lost in strike 3 0.515802450687
+Average without strike 3 0.0408721856944
+
+
+
+
+#################### old
+yeast_noMod_miss0_None_None_100_7_7_range400to1400
+building tree with 4861 Nodes
+Experiment Type:
+        check all four charge states [True] vs all four charge states [True] with
+        thresholds of SSRCalc 10.0, Q1 0.7 (Th), Q3 0.7 (Th) and a range of 400 to 1400
+        Da for the q3 transitions.  Ignore 2+ parent / 2+ fragment ions False, 
+        selecting from hroest.srmPeptides_yeast_noMod_miss0 and None.
+        Consider Isotopes up to: 3
+[------------------------------------------------------------>] 100%  1002.8 peptides/sec (eta 0s)
+It took 1s
+Analysed: 1912
+At least one eUIS of order 4 : 1805  which is 94.4037656904 %
+Random probability to choose good 0.795546921698
+Average lost in strike 3 0.16441273162

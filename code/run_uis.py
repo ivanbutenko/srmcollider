@@ -234,6 +234,7 @@ print "Analyzed %s peptides" % len(precursors_to_evaluate)
 for order in range(1,MAX_UIS+1):
     sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
     nr_peptides = len([p for p in prepare if p[3] == order])
-    if not par.quiet: print sum_all *1.0/ nr_peptides
+    if not par.quiet and not nr_peptides ==0:
+      print "Order %s, Average non useable UIS %s" % (order, sum_all *1.0/ nr_peptides)
     cursor.execute("insert into hroest.result_completegraph_aggr (sum_nonUIS, nr_peptides, uisorder, experiment) VALUES (%s,%s,%s,'%s')" % (sum_all, nr_peptides, order, exp_key))
 
