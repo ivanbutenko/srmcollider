@@ -12,15 +12,6 @@ SELECT uisorder,  experiment, (sum(sum_nonUIS) / sum(nr_peptides)) as free_UIS  
 +----------+------------------+--------------------+
 
 
-python run_uis.py 123456789 500 525 --peptide_table=srmPeptides_test --max_uis 5 -i 3 --q1_window=25 --q3_window=1 --ssrcalc_window=10 --sqlite_database=/tmp/srmcollider_testdb --swath_mode
-[------------------------------------------------------------>] 100%  4886.1 peptides/sec (eta 0s)
-It took 0s
-Analyzed 39 peptides
-Order 1, Average non useable UIS 0.478557767019
-Order 2, Average non useable UIS 0.0377468685161
-Order 3, Average non useable UIS 0.00329392829393
-Order 4, Average non useable UIS 0.0002035002035
-Order 5, Average non useable UIS 0.0
 
 
 
