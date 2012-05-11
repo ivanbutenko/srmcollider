@@ -1,0 +1,101 @@
+
+#define BOOST_TEST_DYN_LINK
+#define BOOST_TEST_MODULE MyTest
+ 
+#include <boost/test/unit_test.hpp>
+#include <iostream>
+
+//include our own libraries
+#include "srmcollider.h"
+#include "srmcolliderLib.cpp"
+
+#include "getNonUis.cpp"
+ 
+BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
+{
+
+  // The b and y ion transitions of PEPTIDE are tested
+
+  const char* sequence = "PEPTIDE";
+  double* series = new double[1024];
+  double* tmp_series = new double[1024];
+  double ch = 2;
+  int fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch, 
+       false, false, true, false, 
+       false, false, false, false, 
+       true, false, false, false, 
+       false, false, 
+       0);
+        /*
+        bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
+        bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
+        bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
+        bool MMinusH2O , bool MMinusNH3 ,
+        int isotope_mod 
+        */
+
+  BOOST_CHECK_EQUAL(fragcount, 12);
+  BOOST_CHECK ( boost::test_tools::check_is_close( 352.161417374, series[0], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 287.640122374, series[1], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 239.113742374, series[2], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 188.589902374, series[3], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 132.047872374, series[4], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 74.5344023740, series[5], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+
+  BOOST_CHECK ( boost::test_tools::check_is_close( 49.53420503, series[6], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 114.0555000, series[7], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 162.5818800, series[8], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 213.1057200, series[9], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 269.6477500, series[10], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 327.1612200, series[11], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+                                                                
+}
+
+BOOST_AUTO_TEST_CASE( three_peptide_test )
+{
+    /*
+    The target is YYLLDYR with these transitions and numbers
+
+      (842.4412197, 0), y6+
+      (679.3778897, 1), y5+
+      (566.2938297, 2), y4+
+      (453.2097697, 3), y3+
+      (440.2185450, 4), b3+
+      (553.3026050, 5), b4+
+      (668.3295450, 6), b5+
+      (831.3928750, 7)  b6+ 
+
+    */
+
+
+  char* sequence = (char*)"YYLLDYR";
+  double* series = new double[1024];
+  double* tmp_series = new double[1024];
+  double ch = 2;
+
+  double* b_series = new double[256];
+  double* y_series = new double[256];
+
+  SRMPrecursor p = {sequence, 0, 1, 0, 0};
+  std::vector<SRMTransition> result;
+  std::vector<int> charges;
+  charges.push_back(1);
+  double q3_low = 400;
+  double q3_high = 1500;
+
+  calculate_transitions_with_charge(p, charges, result, b_series, y_series, q3_low, q3_high);
+
+  // y series
+  BOOST_CHECK ( boost::test_tools::check_is_close( 842.4412197 , result[0].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 679.3778897 , result[1].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 566.2938297 , result[2].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 453.2097697 , result[3].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+
+  // b series
+  BOOST_CHECK ( boost::test_tools::check_is_close( 440.2185450 , result[4].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 553.3026050 , result[5].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 668.3295450 , result[6].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 831.3928750 , result[7].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+
+                                                                
+}

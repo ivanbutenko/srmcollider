@@ -28,6 +28,21 @@
 #define SRMCOLLIDERLIB_H
 #include "srmcollider.h"
 
+struct SRMTransition
+{
+  double q1;
+  double q3;
+  long peptide_key;
+};
+
+struct SRMPrecursor{
+  char* sequence; 
+  double q1;
+  long parent_id;
+  int q1_charge;
+  int isotope_modification;
+};
+
 /* 
  * Function to calculate the b and y fragment series given a peptide sequence 
  * Note that the y series is calculated "backwards" starting from left to right
@@ -474,6 +489,38 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
 }
 
 
+void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charges, std::vector<SRMTransition>& result, 
+  double* b_series, double* y_series, double & q3_low, double & q3_high )
+{
+
+  long peptide_key;
+  int fragcount, k;
+  double q3;
+
+  peptide_key = p.parent_id;
+
+  for (std::vector<int>::iterator ch_it = charges.begin(); ch_it != charges.end(); ch_it++) {
+    fragcount = _calculate_clashes(p.sequence, b_series, y_series, (*ch_it) );
+    // go through all fragments of this precursor
+    for (k=0; k<fragcount; k++) {
+      q3 = y_series[k];
+      if (q3 > q3_low && q3 < q3_high)
+      {
+        SRMTransition t = {p.q1, q3, peptide_key};
+        result.push_back(t);
+      }
+    }
+    for (k=0; k<fragcount; k++) {
+      q3 = b_series[k];
+      if (q3 > q3_low && q3 < q3_high)
+      {
+        SRMTransition t = {p.q1, q3, peptide_key};
+        result.push_back(t);
+      }
+    }
+  }
+
+}
 
 /* 
  * Function to calculate all transitions of a list of precursor peptides and
@@ -486,49 +533,48 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
  * precursors: (q1, sequence, peptide_key)
  *
  */
-python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
-        python::list charges, double q3_low, double q3_high ) {
+python::list _find_clashes_calculate_clashes_ch(python::tuple py_precursors,
+        python::list py_charges, double q3_low, double q3_high ) {
 
     python::tuple clist;
-    python::list result;
+    python::list py_result;
 
-    int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    int charges_length = python::extract<int>(charges.attr("__len__")());
+    std::vector<SRMTransition> result;
+    std::vector<SRMPrecursor> precursors;
+    std::vector<int> charges;
+
     long peptide_key;
-    int ch, fragcount, k;
-    double q3, q1;
+    double q1;
     char* sequence;
 
     double* b_series = new double[256];
     double* y_series = new double[256];
 
-    for (int i=0; i<precursor_length; i++) {
-        clist = python::extract< python::tuple >(precursors[i]);
-        q1 = python::extract< double >(clist[0]);
-        sequence = python::extract<char *>(clist[1]);
-        peptide_key = python::extract< long >(clist[2]);
+    for (int kk=0; kk<python::extract<int>(py_charges.attr("__len__")()); kk++) {
+      charges.push_back(python::extract< int >(py_charges[kk]));
+    }
+    for (int i=0; i<python::extract<int>(py_precursors.attr("__len__")()); i++) {
+      clist = python::extract< python::tuple >(py_precursors[i]);
+      q1 = python::extract< double >(clist[0]);
+      sequence = python::extract<char *>(clist[1]);
+      peptide_key = python::extract< long >(clist[2]);
+      SRMPrecursor p = {sequence, q1, peptide_key, 0, 0};
+      precursors.push_back(p);
+    }
 
-        for (int kk=0; kk<charges_length; kk++) {
-            ch = python::extract< int >(charges[kk]);
-            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-            // go through all fragments of this precursor
-            for (k=0; k<fragcount; k++) {
-                q3 = y_series[k];
-                if (q3 > q3_low && q3 < q3_high)
-                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
-            }
-            for (k=0; k<fragcount; k++) {
-                q3 = b_series[k];
-                if (q3 > q3_low && q3 < q3_high)
-                    result.append(python::make_tuple(q3, q1, 0, peptide_key) );
-            }
-        }
+    for (int i=0; i< precursors.size(); i++) {
+      calculate_transitions_with_charge(precursors[i], charges, result, b_series, y_series, q3_low, q3_high);
+    }
+
+    for (std::vector<SRMTransition>::iterator it = result.begin(); it != result.end(); it++)
+    {
+      py_result.append(python::make_tuple(it->q3, it->q1, 0, it->peptide_key));
     }
 
     delete [] b_series;
     delete [] y_series;
 
-    return result;
+    return py_result;
 }        
 
 /*
