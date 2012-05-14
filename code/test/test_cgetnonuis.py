@@ -500,7 +500,6 @@ class Test_three_peptide_example(unittest.TestCase):
       q3_low, q3_high = self.real_parameters.get_q3range_transitions()
       precursor = self.precursor
       transitions = precursor.calculate_transitions(q3_low, q3_high)
-
     
       nonunique = c_getnonuis._find_clashes_forall_other_series( 
         tuple(transitions), self.interfering_precursors, par, q3_low, q3_high,
@@ -510,19 +509,28 @@ class Test_three_peptide_example(unittest.TestCase):
       self.assertEqual( nonunique.keys(), [0,2,4] )
 
       self.assertTrue( abs(nonunique[0][0][0] - 842.4008) < self.EPSILON )
+      self.assertTrue( abs(nonunique[0][0][1] - 506.584613) < self.EPSILON )
+      self.assertEqual( nonunique[0][0][2], 0) # empty
+      self.assertEqual( nonunique[0][0][3], 618) # peptide key
       self.assertEqual( nonunique[0][0][4], 'b')
       self.assertEqual( nonunique[0][0][5], 9)
-      self.assertEqual( nonunique[0][0][-1], 1)
+      self.assertEqual( nonunique[0][0][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[0][0][-1], 1) # charge
 
       self.assertTrue( abs(nonunique[2][0][0] - 565.8035) < self.EPSILON )
       self.assertEqual( nonunique[2][0][4], 'y')
       self.assertEqual( nonunique[2][0][5], 4)
-      self.assertEqual( nonunique[2][0][-1], 2)
+      self.assertEqual( nonunique[2][0][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[2][0][-1], 2) # charge
 
       self.assertTrue( abs(nonunique[4][0][0] - 440.287275) < self.EPSILON )
+      self.assertTrue( abs(nonunique[4][0][1] - 500.787837374 ) < self.EPSILON )
+      self.assertEqual( nonunique[4][0][2], 0) # empty
+      self.assertEqual( nonunique[4][0][3], 665) # peptide key
       self.assertEqual( nonunique[4][0][4], 'b')
       self.assertEqual( nonunique[4][0][5], 5)
-      self.assertEqual( nonunique[4][0][-1], 1)
+      self.assertEqual( nonunique[4][0][6], 'GGLIVELGDK') # sequence
+      self.assertEqual( nonunique[4][0][-1], 1) # charge
 
 if __name__ == '__main__':
     unittest.main()

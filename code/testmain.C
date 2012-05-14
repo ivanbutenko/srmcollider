@@ -10,6 +10,8 @@
 #include "srmcolliderLib.cpp"
 
 #include "getNonUis.cpp"
+
+#define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
  
 BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
 {
@@ -35,19 +37,19 @@ BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
         */
 
   BOOST_CHECK_EQUAL(fragcount, 12);
-  BOOST_CHECK ( boost::test_tools::check_is_close( 352.161417374, series[0], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 287.640122374, series[1], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 239.113742374, series[2], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 188.589902374, series[3], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 132.047872374, series[4], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 74.5344023740, series[5], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 352.161417374, series[0], EPS_05 ) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 287.640122374, series[1], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 239.113742374, series[2], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 188.589902374, series[3], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 132.047872374, series[4], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 74.5344023740, series[5], EPS_05 ) );
 
-  BOOST_CHECK ( boost::test_tools::check_is_close( 49.53420503, series[6], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 114.0555000, series[7], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 162.5818800, series[8], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 213.1057200, series[9], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 269.6477500, series[10], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 327.1612200, series[11], boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 49.53420503, series[6], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 114.0555000, series[7], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 162.5818800, series[8], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 213.1057200, series[9], EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 269.6477500, series[10],EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 327.1612200, series[11],EPS_05 ) );
                                                                 
 }
 
@@ -67,7 +69,6 @@ BOOST_AUTO_TEST_CASE( three_peptide_test )
 
     */
 
-
   char* sequence = (char*)"YYLLDYR";
   double* series = new double[1024];
   double* tmp_series = new double[1024];
@@ -86,16 +87,15 @@ BOOST_AUTO_TEST_CASE( three_peptide_test )
   calculate_transitions_with_charge(p, charges, result, b_series, y_series, q3_low, q3_high);
 
   // y series
-  BOOST_CHECK ( boost::test_tools::check_is_close( 842.4412197 , result[0].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 679.3778897 , result[1].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 566.2938297 , result[2].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 453.2097697 , result[3].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 842.4412197 , result[0].q3, EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 679.3778897 , result[1].q3, EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 566.2938297 , result[2].q3, EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 453.2097697 , result[3].q3, EPS_05 ) );
 
   // b series
-  BOOST_CHECK ( boost::test_tools::check_is_close( 440.2185450 , result[4].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 553.3026050 , result[5].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 668.3295450 , result[6].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-  BOOST_CHECK ( boost::test_tools::check_is_close( 831.3928750 , result[7].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
-
+  BOOST_CHECK ( boost::test_tools::check_is_close( 440.2185450 , result[4].q3, EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 553.3026050 , result[5].q3, EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 668.3295450 , result[6].q3, EPS_05 ) );
+  BOOST_CHECK ( boost::test_tools::check_is_close( 831.3928750 , result[7].q3, EPS_05 ) );
                                                                 
 }

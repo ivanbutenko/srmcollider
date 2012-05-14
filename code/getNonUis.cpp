@@ -98,18 +98,18 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck) {
 
     python::dict collisions_per_peptide, tmpdict;
-    python::object precursor;
     python::tuple tlist;
     python::list tmplist;
+
+    std::vector<SRMPrecursor> c_precursors;
+    std::vector<SRMTransition> c_transitions;
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch, listmembers = 0;
-    int q1_charge, maximal_charge, isotope_modification;
 
     long t1, peptide_key;
     double t0, q3used = q3window;
-    char* sequence;
 
     double* series = new double[1024];
     double* tmp_series = new double[1024];
@@ -129,29 +129,43 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
     bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
+    for (int i=0; i<python::extract<int>(precursors.attr("__len__")()); i++) {
+      SRMPrecursor p;
+      python::object precursor = python::extract< python::object >(precursors[i]);
+      p.sequence = python::extract<char *>(precursor.attr("modified_sequence"));
+      p.isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
+      p.q1_charge = python::extract<int>(precursor.attr("q1_charge"));
+      p.maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());
+      p.transition_group = python::extract<long>(precursor.attr("transition_group"));
+      c_precursors.push_back(p);
+    }
+
+    for (int i=0; i<python::extract<int>(transitions.attr("__len__")()); i++) {
+      SRMTransition t;
+      tlist = python::extract< python::tuple >(transitions[i]);
+      t.q3 = python::extract< double >(tlist[0]);
+      t.transition_id = python::extract<long>(tlist[1]);
+      c_transitions.push_back(t);
+    }
+
     // go through all (potential) interfering precursors and store the
     // colliding SRM ids in a dictionary (they can be found at position 3 and 1
     // respectively).
     for (j=0; j<precursor_length; j++) {
-        precursor = python::extract< python::object >(precursors[j]);
-        sequence = python::extract<char *>(precursor.attr("modified_sequence"));
-        isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
-        q1_charge = python::extract<int>(precursor.attr("q1_charge"));
-        maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());
+        SRMPrecursor & precursor = c_precursors[j];
 
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
+            fragcount = _calculate_clashes_other_series_sub(precursor.sequence, tmp_series, series, ch,
                   aions, aMinusNH3, bions, bMinusH2O,
                   bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-                  yMinusNH3, zions, MMinusH2O, MMinusNH3, isotope_modification);
+                  yMinusNH3, zions, MMinusH2O, MMinusNH3, precursor.isotope_modification);
 
-            if(forceChargeCheck && !has_allowed_charge(ch, q1_charge, maximal_charge) )
+            if(forceChargeCheck && !has_allowed_charge(ch, precursor.q1_charge, precursor.maximal_charge) )
             {continue;}
 
             for (i=0; i<transitions_length; i++) {
-                tlist = python::extract< python::tuple >(transitions[i]);
                 //ppm is 10^-6
-                t0 = python::extract< double >(tlist[0]);
+                t0 = c_transitions[i].q3;
                 if(ppm) {q3used = q3window / 1000000.0 * t0; } 
 
                     // go through all fragments of this precursor
@@ -160,7 +174,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
                         if(fabs(t0-series[k]) < q3used ) {
                             // extract SRM_id from transition list and store it
                             // as dirty in a temporary dict
-                            t1 = python::extract<long>(tlist[1]);
+                            t1 = c_transitions[i].transition_id;
                             tmpdict[t1] = 0;
                             listmembers++; 
                         
@@ -176,7 +190,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
         //is negligible.
         if (listmembers>0) {
-            peptide_key = python::extract<long>(precursor.attr("transition_group"));
+            peptide_key = c_precursors[j].transition_group;
             tmplist = tmpdict.keys();
             tmplist.sort();
             collisions_per_peptide[peptide_key] = tmplist;
@@ -365,22 +379,46 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     bool ppm, double q1_low, bool forceChargeCheck) {
 
     python::dict result, tmpdict;
-    python::object precursor;
+    //python::object precursor;
     python::tuple tlist;
     python::list tmplist;
+
+    std::vector<SRMPrecursor> c_precursors;
+    std::vector<SRMTransition> c_transitions;
 
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch;
-    int isotope_nr, q1_charge, maximal_charge;
+    int isotope_nr;
 
-    long t1, peptide_key;
-    double t0, q1, ssrcalc, q3used = q3window, q1_used;
+    long t1;
+    double t0, q3used = q3window, q1_used;
     char* sequence;
     int max_isotopes = python::extract<int>(par.attr("isotopes_up_to"));
 
     double* series = new double[10*256];
     double* tmp_series = new double[256];
+
+    for (int i=0; i<python::extract<int>(precursors.attr("__len__")()); i++) {
+      SRMPrecursor p;
+      python::object precursor = python::extract< python::object >(precursors[i]);
+      p.q1 = python::extract<double>(precursor.attr("q1"));
+      p.sequence = python::extract<char *>(precursor.attr("modified_sequence"));
+      p.transition_group = python::extract<long>(precursor.attr("transition_group"));
+
+      p.ssrcalc = python::extract<double>(precursor.attr("ssrcalc"));
+      p.q1_charge = python::extract<int>(precursor.attr("q1_charge"));
+      p.maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());
+      c_precursors.push_back(p);
+    }
+
+    for (int i=0; i<python::extract<int>(transitions.attr("__len__")()); i++) {
+      SRMTransition t;
+      tlist = python::extract< python::tuple >(transitions[i]);
+      t.q3 = python::extract< double >(tlist[0]);
+      t.transition_id = python::extract<long>(tlist[1]);
+      c_transitions.push_back(t);
+    }
 
     string curr_ion = "?";
 
@@ -388,32 +426,25 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     // and store the colliding SRM ids in a dictionary (they can be found at
     // position 3 and 1 respectively)
     for (j=0; j<precursor_length; j++) {
-        precursor = python::extract< python::object >(precursors[j]);
-        q1 = python::extract<double>(precursor.attr("q1"));
-        sequence = python::extract<char *>(precursor.attr("modified_sequence"));
-        peptide_key = python::extract<long>(precursor.attr("transition_group"));
-
-        ssrcalc = python::extract<double>(precursor.attr("ssrcalc"));
-        q1_charge = python::extract<int>(precursor.attr("q1_charge"));
-        maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());
+        SRMPrecursor & precursor = c_precursors[j];
+        sequence = c_precursors[j].sequence;
 
         for (ch=1; ch<=2; ch++) {
             fragcount = _calculate_clashes_other_series(sequence, tmp_series,
                     series, ch, par);
 
-            if(forceChargeCheck && !has_allowed_charge(ch, q1_charge, maximal_charge) )
+            if(forceChargeCheck && !has_allowed_charge(ch, precursor.q1_charge, precursor.maximal_charge) )
             {continue;}
 
             for (i=0; i<transitions_length; i++) {
-                tlist = python::extract< python::tuple >(transitions[i]);
                 //ppm is 10^-6
-                t0 = python::extract< double >(tlist[0]);
+                t0 = c_transitions[i].q3;
                 if(ppm) {q3used = q3window / 1000000.0 * t0; } 
 
                 // go through all fragments of this precursor
                 for (k=0; k<fragcount; k++) {
                     if(fabs(t0-series[k]) < q3used ) {
-                        t1 = python::extract<long>(tlist[1]);
+                        t1 = c_transitions[i].transition_id;
                         if( result.has_key(t1) ) {
                             int snumber = k; //ion number within series
                             // We need to map back the ion number to a specific
@@ -427,12 +458,12 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                             // was on a monoisotopic precursor or not)
                             for(isotope_nr=0;isotope_nr<=max_isotopes;isotope_nr++)
                             {
-                                q1_used = q1 + (MASS_DIFFC13 * isotope_nr)/q1_charge;
+                                q1_used = precursor.q1 + (MASS_DIFFC13 * isotope_nr)/precursor.q1_charge;
                                 if(q1_used > q1_low) {break;}
                             }
                             tmplist = python::extract<python::list>(result[t1]);
-                            tmplist.append( python::make_tuple(series[k],
-                            q1_used, 0, peptide_key, curr_ion, snumber, precursor.attr("modified_sequence"), ssrcalc, isotope_nr, ch));
+                            tmplist.append( python::make_tuple(series[k], q1_used, 0, precursor.transition_group,
+                              curr_ion, snumber, (std::string)sequence, precursor.ssrcalc, isotope_nr, ch));
                         }
                         else{
                             python::list newlist;
@@ -449,11 +480,11 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
                             // was on a monoisotopic precursor or not)
                             for(isotope_nr=0;isotope_nr<=max_isotopes;isotope_nr++)
                             {
-                                q1_used = q1 + (MASS_DIFFC13 * isotope_nr)/q1_charge;
+                                q1_used = precursor.q1 + (MASS_DIFFC13 * isotope_nr)/precursor.q1_charge;
                                 if(q1_used > q1_low) {break;}
                             }
-                            tmplist.append( python::make_tuple(series[k],
-                            q1_used, 0, peptide_key, curr_ion, snumber, precursor.attr("modified_sequence"), ssrcalc, isotope_nr, ch));
+                            tmplist.append( python::make_tuple(series[k], q1_used, 0, precursor.transition_group,
+                              curr_ion, snumber, (std::string)sequence, precursor.ssrcalc, isotope_nr, ch));
                             result[t1] = tmplist;
                         }
                     }
