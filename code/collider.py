@@ -290,36 +290,13 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
 def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor, forceFragmentChargeCheck=False):
 
     try:
-        #use range tree, really fast = 50
-        #needs self.c_rangetree and self.parentid_lookup
-        import c_getnonuis
-        q3_low, q3_high = par.get_q3range_collisions()
-        q1 = pep['q1']
-        ssrcalc = pep['q1']
-        q1_low = q1 - par.q1_window
-        q1_high = q1 + par.q1_window
-        ssrcalc_low = ssrcalc - par.ssrcalc_window
-        ssrcalc_high = ssrcalc + par.ssrcalc_window
-        #
-        precursor_ids = tuple(self.c_rangetree.query_tree( 
-            q1_low, -9999, q1_high,  9999 )  )
-        precursors = tuple([self.parentid_lookup[myid[0]] for myid in precursor_ids
-                            #dont select myself 
-                           if parentid_lookup[myid[0]][2]  != pep['peptide_key']])
-        assert par.do_b_y_only() #doesnt for ion series other than b/y 
-        return c_getnonuis.calculate_collisions_per_peptide( 
-            transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+        assert False
     except AttributeError, ImportError:
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
         # fast = 100 
         import c_getnonuis
         precursors = self._get_all_precursors(par, pep, cursor)
-        if False and par.do_b_y_only():
-            # we gain around 60 % performance when using the optimized function
-            return c_getnonuis.calculate_collisions_per_peptide( 
-                transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
-        else: 
-            return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+        return c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
             transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceFragmentChargeCheck)
 
 # Calculate the transitions of a peptide with a given charge (using c++ if possible)

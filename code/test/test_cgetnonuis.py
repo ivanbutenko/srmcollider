@@ -58,7 +58,6 @@ class Test_cgetnonuis(unittest.TestCase):
             self.par.MMinusH2O      =  False
             self.par.MMinusNH3      =  False
 
-
     def test_getnonuis(self):
             q3window = 1.0
             ppm = False
@@ -370,15 +369,29 @@ class Test_cgetnonuis(unittest.TestCase):
             self.assertEqual(collisions_per_peptide,
                              { 11498839: [1,2,4, 8, 9 ]} )
 
-    def get_charged_mass(self):
+    def test_get_charged_mass(self):
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 1)
-            self.assertTrue( abs(res - 978.57368) < 1e-5)
+            self.assertTrue( abs(res - 978.57368) < 1e-4)
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 2)
-            self.assertTrue( abs(res - 489.79078) < 1e-5)
+            self.assertTrue( abs(res - 489.79078) < 1e-4)
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 3)
-            self.assertTrue( abs(res - 326.86314) < 1e-5)
+            self.assertTrue( abs(res - 326.86314) < 1e-4)
             res = c_getnonuis.calculate_charged_mass( (0, 'VASHIPNLK', 1), 4)
-            self.assertTrue( abs(res - 245.39932) < 1e-5)
+            self.assertTrue( abs(res - 245.39932) < 1e-4)
+
+    def test_get_charged_mass(self):
+  
+      pep = test_shared.runpep2
+      transitions = test_shared.runtransitions2
+      precursors = test_shared.runprecursors_obj2
+      par = self.par
+      q3_high = self.q3_high
+      q3_low = self.q3_low
+
+      precursors = [ (p.q1, p.modified_sequence, p.transition_group) for p in precursors]
+      colldensity = c_getnonuis.calculate_density( 
+        tuple(transitions), precursors, q3_low, q3_high, par.q3_window, par.ppm)
+      self.assertEqual(colldensity, [1916, 1800, 2601, 3127, 4525, 4975, 3155, 3091, 2127, 3494, 4519, 5546, 4505, 4429, 5604])
 
 class Test_cgetnonuis_get_non_UIS_from_transitions(unittest.TestCase):
     """ Tests the c_getnonuis module over the collider.

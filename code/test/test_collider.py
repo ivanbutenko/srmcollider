@@ -382,13 +382,17 @@ class Test_three_peptide_example(unittest.TestCase):
       q3_low, q3_high = self.real_parameters.get_q3range_transitions()
       precursor = self.precursor
       transitions = precursor.calculate_transitions(q3_low, q3_high)
-      self.assertEqual(transitions, test_shared.ThreePeptideExample.expected_transitions)
-
+      for tr, exp in zip(transitions, test_shared.ThreePeptideExample.expected_transitions):
+        self.assertEqual(tr[1], exp[1])
+        self.assertTrue(abs(tr[0] - exp[0]) < 10**-5)
+      
       # test old python way of calculating the transitions
       peptides = [ [precursor.q1, precursor.modified_sequence, -1] ]
       transitions = collider._calculate_transitions_ch(peptides, [1], q3_low, q3_high)
       transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
-      self.assertEqual(transitions, test_shared.ThreePeptideExample.expected_transitions)
+      for tr, exp in zip(transitions, test_shared.ThreePeptideExample.expected_transitions):
+        self.assertEqual(tr[1], exp[1])
+        self.assertTrue(abs(tr[0] - exp[0]) < 10**-5)
 
     def test_collisions_per_peptide(self):
       """ Test to calculate the collisions per peptide.

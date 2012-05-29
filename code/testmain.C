@@ -84,7 +84,10 @@ BOOST_AUTO_TEST_CASE( three_peptide_test )
   double q3_low = 400;
   double q3_high = 1500;
 
-  calculate_transitions_with_charge(p, charges, result, b_series, y_series, q3_low, q3_high);
+  SRMParameters param;
+  param.yions = true;
+  param.bions = true;
+  calculate_transitions_with_charge(p, charges, result, b_series, y_series, q3_low, q3_high, param);
 
   // y series
   BOOST_CHECK ( boost::test_tools::check_is_close( 842.4412197 , result[0].q3, EPS_05 ) );
@@ -99,3 +102,82 @@ BOOST_AUTO_TEST_CASE( three_peptide_test )
   BOOST_CHECK ( boost::test_tools::check_is_close( 831.3928750 , result[7].q3, EPS_05 ) );
                                                                 
 }
+
+BOOST_AUTO_TEST_CASE( three_peptide_testdf )
+//BOOST_AUTO_TEST_CASE( calculate_charged_mass )
+{
+    /*
+    The target is YYLLDYR with these transitions and numbers
+
+      (842.4412197, 0), y6+
+      (679.3778897, 1), y5+
+      (566.2938297, 2), y4+
+      (453.2097697, 3), y3+
+      (440.2185450, 4), b3+
+      (553.3026050, 5), b4+
+      (668.3295450, 6), b5+
+      (831.3928750, 7)  b6+ 
+
+    */
+
+
+  char* sequence = (char*)"YYLLDYR";
+  double* series = new double[1024];
+  double* tmp_series = new double[1024];
+  double ch = 2;
+
+  double* b_series = new double[256];
+  double* y_series = new double[256];
+
+  SRMPrecursor p = {sequence, 0, 1, 0, 0};
+  std::vector<SRMTransition> result;
+  std::vector<int> charges;
+  charges.push_back(1);
+  double q3_low = 400;
+  double q3_high = 1500;
+
+  SRMParameters param;
+  param.yions = true;
+  param.bions = true;
+  calculate_transitions_with_charge(p, charges, result, b_series, y_series, q3_low, q3_high, param);
+
+  // y series
+  BOOST_CHECK ( boost::test_tools::check_is_close( 842.4412197 , result[0].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 679.3778897 , result[1].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 566.2938297 , result[2].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 453.2097697 , result[3].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+
+  // b series
+  BOOST_CHECK ( boost::test_tools::check_is_close( 440.2185450 , result[4].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 553.3026050 , result[5].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 668.3295450 , result[6].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+  BOOST_CHECK ( boost::test_tools::check_is_close( 831.3928750 , result[7].q3, boost::test_tools::fraction_tolerance(1.e-5)) ) ;
+
+                                                                
+}
+
+BOOST_AUTO_TEST_CASE( calculate_charged_mass_TEST )
+{
+  BOOST_CHECK (true) ;
+}
+
+BOOST_AUTO_TEST_CASE( _combinations_magic_TEST)
+{
+}
+
+BOOST_AUTO_TEST_CASE( _combinations_TEST)
+{
+}
+
+BOOST_AUTO_TEST_CASE( get_non_uis_magic_TEST)
+{
+}
+
+// BOOST_AUTO_TEST_CASE( wrap_all_TEST)
+// {
+// }
+// 
+// BOOST_AUTO_TEST_CASE( wrap_all_magic_TEST)
+// {
+// }
+

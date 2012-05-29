@@ -46,9 +46,9 @@ bool SortIntDoublePairSecond(const std::pair<int,double>& left, const std::pair<
 // Function declarations
 
 // functions to calculate collperpeptide dictionary
-python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
-        python::tuple precursors, double q3_low, double q3_high, double
-        q3window, bool ppm);
+//// python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
+////         python::tuple precursors, double q3_low, double q3_high, double
+////         q3window, bool ppm);
 python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         python::tuple transitions, python::list precursors, python::object par, 
         double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck=false);
@@ -92,10 +92,23 @@ bool has_allowed_charge(int fragment_charge, int q1_charge, int maximal_charge)
 }
 
 /*
+ * Function to calculate the collisions_per_peptide out of a set of transitions
+ * and precursor peptides that are colliding peptides.  It will return a
+ * dictionary where for each key (colliding peptide key) the set of transitions
+ * of the query peptide are stored that are interfered with is held.
+ * Transitions are tuples of the form (q3, srm_id), precursors are tuples of
+ * the form (q1, sequence, peptide_key).
+ *
+ * Calculate collisions per peptide
+ *
+    // go through all (potential) interfering precursors and store the
+    // colliding SRM ids in a dictionary (they can be found at position 3 and 1
+    // respectively).
  */
 python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         python::tuple transitions, python::list precursors, python::object par, 
-        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck) {
+        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck) 
+{
 
     python::dict collisions_per_peptide, tmpdict;
     python::tuple tlist;
@@ -114,20 +127,21 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     double* series = new double[1024];
     double* tmp_series = new double[1024];
 
-    bool aions      =  python::extract<bool>(par.attr("aions"));
-    bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    bool bions      =  python::extract<bool>(par.attr("bions"));
-    bool bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    bool bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    bool bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    bool cions      =  python::extract<bool>(par.attr("cions"));
-    bool xions      =  python::extract<bool>(par.attr("xions"));
-    bool yions      =  python::extract<bool>(par.attr("yions"));
-    bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    bool zions      =  python::extract<bool>(par.attr("zions"));
-    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
+    SRMParameters params;
+    params.aions      =  python::extract<bool>(par.attr("aions"));
+    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    params.bions      =  python::extract<bool>(par.attr("bions"));
+    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    params.cions      =  python::extract<bool>(par.attr("cions"));
+    params.xions      =  python::extract<bool>(par.attr("xions"));
+    params.yions      =  python::extract<bool>(par.attr("yions"));
+    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    params.zions      =  python::extract<bool>(par.attr("zions"));
+    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     for (int i=0; i<python::extract<int>(precursors.attr("__len__")()); i++) {
       SRMPrecursor p;
@@ -155,10 +169,8 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         SRMPrecursor & precursor = c_precursors[j];
 
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes_other_series_sub(precursor.sequence, tmp_series, series, ch,
-                  aions, aMinusNH3, bions, bMinusH2O,
-                  bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-                  yMinusNH3, zions, MMinusH2O, MMinusNH3, precursor.isotope_modification);
+            fragcount = calculate_fragment_masses(precursor.sequence, tmp_series, series, ch,
+                  params, precursor.isotope_modification);
 
             if(forceChargeCheck && !has_allowed_charge(ch, precursor.q1_charge, precursor.maximal_charge) )
             {continue;}
@@ -202,6 +214,7 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     } //end of loop over all precursors
 
     delete [] series;
+    delete [] tmp_series;
     return collisions_per_peptide;
 }
 
@@ -213,81 +226,89 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
  * Transitions are tuples of the form (q3, srm_id), precursors are tuples of
  * the form (q1, sequence, peptide_key).
  */
-python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
-    python::tuple precursors, double q3_low, double q3_high, double q3window,
-    bool ppm) {
-
-    python::dict collisions_per_peptide, tmpdict;
-    python::tuple clist;
-    python::tuple tlist;
-    python::list tmplist;
-
-    int transitions_length = python::extract<int>(transitions.attr("__len__")());
-    int precursor_length = python::extract<int>(precursors.attr("__len__")());
-    int fragcount, i, j, k, ch, listmembers = 0;
-
-    long t1, peptide_key;
-    double t0, q3used = q3window;
-    char* sequence;
-
-    double* b_series = new double[256];
-    double* y_series = new double[256];
-
-    // go through all (potential) collisions
-    // and store the colliding SRM ids in a dictionary (they can be found at
-    // position 3 and 1 respectively)
-    for (j=0; j<precursor_length; j++) {
-        clist = python::extract< python::tuple >(precursors[j]);
-        sequence = python::extract<char *>(clist[1]);
-
-        for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-
-
-            for (i=0; i<transitions_length; i++) {
-                tlist = python::extract< python::tuple >(transitions[i]);
-                //ppm is 10^-6
-                t0 = python::extract< double >(tlist[0]);
-                if(ppm) {q3used = q3window / 1000000.0 * t0; } 
-
-                    // go through all fragments of this precursor
-                    for (k=0; k<fragcount; k++) {
-
-                        if(fabs(t0-y_series[k]) < q3used || 
-                           fabs(t0-b_series[k]) < q3used) {
-                            // extract SRM_id from transition list and store it
-                            // as dirty in a temporary dict
-                            t1 = python::extract<long>(tlist[1]);
-                            tmpdict[t1] = 0;
-                            listmembers++; 
-                        
-                        }
-                    }
-                } //loop over all transitions
-            }
-
-        //we keep one empty list around since we hope that most precursors dont 
-        //use it. If it gets used, we store it in the result and create a new 
-        //list to use from then on.
-        //Sorting it costs something and could be done more efficiently since 
-        //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
-        //is negligible.
-        if (listmembers>0) {
-            peptide_key = python::extract< long >(clist[2]);
-            tmplist = tmpdict.keys();
-            tmplist.sort();
-            collisions_per_peptide[peptide_key] = tmplist;
-            python::dict newlist;
-            tmpdict = newlist;
-        }
-        listmembers = 0;
-
-    } //end of loop over all precursors
-
-    delete [] b_series;
-    delete [] y_series;
-    return collisions_per_peptide;
-}
+/// // python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
+/// //     python::tuple precursors, double q3_low, double q3_high, double q3window,
+/// //     bool ppm) {
+/// // 
+/// //     python::dict collisions_per_peptide, tmpdict;
+/// //     python::tuple clist;
+/// //     python::tuple tlist;
+/// //     python::list tmplist;
+/// // 
+/// //     int transitions_length = python::extract<int>(transitions.attr("__len__")());
+/// //     int precursor_length = python::extract<int>(precursors.attr("__len__")());
+/// //     int fragcount, i, j, k, ch, listmembers = 0;
+/// // 
+/// //     SRMParameters param;
+/// // 
+/// //     long t1, peptide_key;
+/// //     double t0, q3used = q3window;
+/// //     char* sequence;
+/// // 
+/// //     double* tmp = new double[1024];
+/// //     double* series = new double[1024];
+/// // 
+/// //     // go through all (potential) collisions
+/// //     // and store the colliding SRM ids in a dictionary (they can be found at
+/// //     // position 3 and 1 respectively)
+/// //     for (j=0; j<precursor_length; j++) {
+/// //         clist = python::extract< python::tuple >(precursors[j]);
+/// //         sequence = python::extract<char *>(clist[1]);
+/// // 
+/// //         for (ch=1; ch<=2; ch++) {
+/// //             //fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+/// //             //fragcount = _calculate_clashes(p.sequence, b_series, y_series, (*ch_it) );
+/// //             fragcount = calculate_fragment_masses(sequence, tmp, series, ch, param, NOISOTOPEMODIFICATION);
+/// // 
+/// // 
+/// //             for (i=0; i<transitions_length; i++) {
+/// //                 tlist = python::extract< python::tuple >(transitions[i]);
+/// //                 //ppm is 10^-6
+/// //                 t0 = python::extract< double >(tlist[0]);
+/// //                 if(ppm) {q3used = q3window / 1000000.0 * t0; } 
+/// // 
+/// //                     // go through all fragments of this precursor
+/// //                     for (k=0; k<fragcount; k++) {
+/// // 
+/// //                         if(fabs(t0-series[k]) < q3used )
+/// //                         {
+/// //                         /*
+/// //                         if(fabs(t0-y_series[k]) < q3used || 
+/// //                            fabs(t0-b_series[k]) < q3used) {
+/// //                         */
+/// //                             // extract SRM_id from transition list and store it
+/// //                             // as dirty in a temporary dict
+/// //                             t1 = python::extract<long>(tlist[1]);
+/// //                             tmpdict[t1] = 0;
+/// //                             //listmembers++; 
+/// //                         
+/// //                         }
+/// //                     }
+/// //                 } //loop over all transitions
+/// //             }
+/// // 
+/// //         //we keep one empty list around since we hope that most precursors dont 
+/// //         //use it. If it gets used, we store it in the result and create a new 
+/// //         //list to use from then on.
+/// //         //Sorting it costs something and could be done more efficiently since 
+/// //         //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
+/// //         //is negligible.
+/// //         if (listmembers>0) {
+/// //             peptide_key = python::extract< long >(clist[2]);
+/// //             tmplist = tmpdict.keys();
+/// //             tmplist.sort();
+/// //             collisions_per_peptide[peptide_key] = tmplist;
+/// //             python::dict newlist;
+/// //             tmpdict = newlist;
+/// //         }
+/// //         listmembers = 0;
+/// // 
+/// //     } //end of loop over all precursors
+/// // 
+/// //     delete [] tmp;
+/// //     delete [] series;
+/// //     return collisions_per_peptide;
+/// // }
 
 /*
  * Function to calculate the collision density out of a set of transitions
@@ -311,11 +332,13 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int fragcount, i, j, k, ch;
 
+    SRMParameters param;
+
     double q3used = q3window;
     char* sequence;
 
-    double* b_series = new double[256];
-    double* y_series = new double[256];
+    double* tmp = new double[256];
+    double* series = new double[256];
 
     int* cresult = new int[transitions_length];
     for (i=0; i<transitions_length; i++) cresult[i] = 0;
@@ -338,21 +361,22 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
         sequence = python::extract<char *>(clist[1]);
 
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+            //fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+            fragcount = calculate_fragment_masses(sequence, tmp, series, ch, param, NOISOTOPEMODIFICATION);
 
             for (i=0; i<transitions_length; i++) {
 
                     // go through all fragments of this precursor
                     for (k=0; k<fragcount; k++) {
-                        if(fabs(tmptrans[i]-y_series[k]) < tmpq3used[i]) cresult[i]++;
-                        if(fabs(tmptrans[i]-b_series[k]) < tmpq3used[i]) cresult[i]++; 
+                        if(fabs(tmptrans[i]-series[k]) < tmpq3used[i]) cresult[i]++;
+                        //if(fabs(tmptrans[i]-b_series[k]) < tmpq3used[i]) cresult[i]++; 
                     }
                 } //loop over all transitions
             }
     } //end of loop over all precursors
 
-    delete [] b_series;
-    delete [] y_series;
+    delete [] tmp;
+    delete [] series;
 
     // TODO replace with std::vector 
     // http://www.boost.org/doc/libs/1_41_0/libs/python/doc/v2/indexing.html
@@ -518,12 +542,14 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
     bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     int scounter, icounter;
-    double* b_series = new double[256];
-    double* y_series = new double[256];
+    double* tmp = new double[256];
+    double* series = new double[256];
     bool done = false;
 
     // get the number of amino acids in the sequence
-    scounter = _calculate_clashes(sequence, b_series, y_series, ch);
+    SRMParameters params;
+    params.bions = false;
+    scounter = calculate_fragment_masses(sequence, tmp, series, ch,  params, NOISOTOPEMODIFICATION);
     scounter++;
     done = false;
     icounter = 0;
@@ -550,8 +576,8 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
 
     l++; // ion series starts at 1, thus add one
 
-    delete [] b_series;
-    delete [] y_series;
+    delete [] tmp;
+    delete [] series;
 }
 
 /*
@@ -725,7 +751,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
   /* 
    * Which functions are used where:
    *  calculate_collisions_per_peptide_other_ion_series - precursor.py  / collider.py
-   *  calculate_collisions_per_peptide  - collider.py (if only b/y series is used)
    *  calculate_transitions_ch - collider.py / precursor.py to calculate transitions (in Lib)
    *
    *  3strikes.py: 
@@ -744,7 +769,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
    *  cgi-scripts/srmcollider.py
    *   - calculate_transitions_ch (in Lib) 
    *   - calculate_collisions_per_peptide_other_ion_series 
-   *   - calculate_collisions_per_peptide  
    *   - _find_clashes_forall_other_series
    *   - get_non_uis  (in Lib)
    *
@@ -752,9 +776,6 @@ BOOST_PYTHON_MODULE(c_getnonuis)
   */
 
     def("calculate_collisions_per_peptide_other_ion_series", _find_clashes_calculate_collperpeptide_other_ion_series, 
-            ""); 
-
-    def("calculate_collisions_per_peptide", _find_clashes_calculate_collperpeptide, 
  "Function to calculate the collisions_per_peptide out of a set of transitions\n"
  "and precursor peptides that are colliding peptides.  It will return a\n"
  "dictionary where for each key (colliding peptide key) the set of transitions\n"
@@ -764,10 +785,10 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "\n"
  "\n"
  " Signature\n"
- "dict calculate_collisions_per_peptide(tuple transitions, tuple precursors, \n"
- "       double q3_low, double q3_high, double q3window, bool ppm)\n"
- );
-
+ "dict calculate_collisions_per_peptide_other_ion_series(tuple transitions, tuple precursors, \n"
+ " parameter object, double q3_low, double q3_high, double q3window, bool ppm, \n"
+ " bool forceChargecheck)\n"
+            ""); 
 
     def("get_non_uis", get_non_uis, 
  "Function to calculate all non-UIS transitions from a dictionary \n"
@@ -782,7 +803,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  );
 
 
-    def("calculate_transitions_ch", _find_clashes_calculate_clashes_ch,
+    def("calculate_transitions_ch", _py_calculate_transitions_with_charge,
  "Function to calculate all transitions of a list of precursor peptides and \n"
  "allows to select the charge states of these precursors.\n"
  "Precursors are tuples of the form (q1, sequence, peptide_key).\n"
