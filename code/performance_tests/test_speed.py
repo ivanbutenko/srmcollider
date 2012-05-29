@@ -54,9 +54,10 @@ from precursor import Precursor
 def runcpp(self, pep, transitions, precursors):
     #first we run the C++ version
     st = time.time()
+    pre_obj = [Precursor(modified_sequence=p[1], q1_charge=2, q1=p[0], transition_group=p[2], isotopically_modified=0) for p in precursors]
     for kk in range(10):
-        tmp = c_getnonuis.calculate_collisions_per_peptide( 
-            transitions, tuple(precursors), self.q3_low, self.q3_high, self.par.q3_window, self.par.ppm)
+        tmp = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+            transitions, pre_obj, self.par, self.q3_low, self.q3_high, self.par.q3_window, self.par.ppm, False)
     ctime = (time.time() - st)/10.0
     return tmp, ctime
 
