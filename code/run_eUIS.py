@@ -85,6 +85,8 @@ contamination_allow =options.allow_contamination
 par.eval()
 print par.get_common_filename()
 
+skip_strike2 = True
+
 # Get the precursors
 ###########################################################################
 from precursor import Precursors
@@ -135,23 +137,23 @@ for precursor in precursors_to_evaluate:
 
     ###############################################################
     #strike 2: it has to be locally clean
-    ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
-    ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
-    precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
-                                                 q1_high,  ssrcalc_high )  )
-    precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
-                        #dont select myself 
-                       if parentid_lookup[myid[0]][2]  != pep['transition_group']])
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
-        transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceChargeCheck)
-    local_interferences = [t[0] for t in c_getnonuis.get_non_uis( collisions_per_peptide, 1).keys()]
-    tuples_2strike = []
-    for mytuple in tuples_1strike:
-        contaminated = 0.0
-        for dirty_t in local_interferences:
-            if dirty_t in mytuple: contaminated += 1.0
-        if contaminated <= contamination_allow: tuples_2strike.append(mytuple)
-    #tuples_2strike = tuples_1strike
+    if not skip_strike2:
+      ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
+      ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
+      precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
+                                                   q1_high,  ssrcalc_high )  )
+      precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
+                          #dont select myself 
+                         if parentid_lookup[myid[0]][2]  != pep['transition_group']])
+      collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+          transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceChargeCheck)
+      local_interferences = [t[0] for t in c_getnonuis.get_non_uis( collisions_per_peptide, 1).keys()]
+      tuples_2strike = []
+      for mytuple in tuples_strike1:
+          contaminated = 0.0
+          for dirty_t in local_interferences:
+              if dirty_t in mytuple: contaminated += 1.0
+          if contaminated <= contamination_allow: tuples_2strike.append(mytuple)
 
     ###############################################################
     #strike 3: the transitions in the tuple shall not coelute elsewhere

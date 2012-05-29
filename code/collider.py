@@ -289,9 +289,7 @@ def get_coll_per_peptide(self, transitions, par, pep, cursor,
 
 def _get_coll_per_peptide_sub(self, transitions, par, pep, cursor, forceFragmentChargeCheck=False):
 
-    try:
-        assert False
-    except AttributeError, ImportError:
+        q3_low, q3_high = par.get_q3range_collisions()
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
         # fast = 100 
         import c_getnonuis
