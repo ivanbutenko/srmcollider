@@ -34,7 +34,9 @@
  *
  */
 
+
 //include our own libraries
+#include "rangetree.cpp"
 #include "srmcollider.h"
 #include "combinatorics.h"
 #include "srmcolliderLib.cpp"
@@ -47,7 +49,6 @@
 #include <vector>
 
 // Function declarations
-void create_tree(python::tuple pepids);
 //minimally needed number of transitions to get a UIS (ordered transitions)
 int min_needed(python::tuple transitions, python::tuple precursors,
     int max_uis, double q3window, bool ppm, python::object par);
@@ -57,67 +58,16 @@ int min_needed(python::tuple transitions, python::tuple precursors,
 // using magic gives a speedup of around 2fold
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
         double c, double d, long thispeptide_key, int max_uis, double q3window,
-        bool ppm, int max_nr_isotopes, double isotope_correction, python::object par);
+        bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
+        SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree
+        );
 python::list wrap_all(python::tuple transitions, double a, double b, double c,
         double d, long thispeptide_key, int max_uis, double q3window, bool ppm);
-
-struct Precursor{
-  char* sequence; 
-  long peptide_key;
-  long parent_id;
-  int q1_charge;
-  int isotope_modification;
-};
 
 struct Transition{
   double q3;
   long srm_id;
 };
-
-typedef CGAL::Cartesian<double> K;
-typedef CGAL::Range_tree_map_traits_2<K, Precursor> Traits;
-typedef CGAL::Range_tree_2<Traits> Range_tree_2_type;
-
-typedef Traits::Key Key;                
-typedef Traits::Interval Interval;    
-Range_tree_2_type *Range_tree_2 = new Range_tree_2_type;
-
-// Create the rangetree that will be used throughout. This is essential
-void create_tree(python::tuple pepids) {
-
-    python::tuple tlist;
-    std::vector<Key> InputList;
-    int i, q1_charge, isotope_modification;
-    long parent_id, peptide_key;
-    double ssrcalc, q1;
-    char* sequence;
-
-    int pepids_length = python::extract<int>(pepids.attr("__len__")());
-    for (i=0; i<pepids_length; i++) {
-        tlist = python::extract< python::tuple >(pepids[i]);
-
-        sequence = python::extract<char *>(tlist[0]);
-        peptide_key = python::extract<long>(tlist[1]);
-        parent_id = python::extract<long>(tlist[2]);
-        q1_charge = python::extract<int>(tlist[3]);
-
-        q1 = python::extract<double>(tlist[4]);
-        ssrcalc = python::extract<double>(tlist[5]);
-        isotope_modification = python::extract<double>(tlist[8]);
-
-        struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
-        InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
-
-        /*
-        parent_id = python::extract<long>(tlist[2]);
-        q1 = python::extract<double>(tlist[4]);
-        ssrcalc = python::extract<double>(tlist[5]);
-
-        InputList.push_back(Key(K::Point_2(q1,ssrcalc), parent_id));
-        */
-    }
-    Range_tree_2->make_tree(InputList.begin(),InputList.end());
-}
 
 /* 
  * Calculate the minimally needed number of transitions needed to get a UIS
@@ -143,7 +93,6 @@ int min_needed(python::tuple transitions, python::tuple precursors,
     char* sequence;
 
     Transition transition;
-    std::vector<Key> OutputList;
 
     double* series = new double[1024];
     double* tmp_series = new double[1024];
@@ -253,9 +202,10 @@ int min_needed(python::tuple transitions, python::tuple precursors,
  * thrown. 
 */
 python::list wrap_all_magic(python::tuple transitions, double a, double b,
-        double c, double d, long thispeptide_key, int max_uis, double q3window,
-        bool ppm, int max_nr_isotopes, double isotope_correction, python::object par)   {
-
+  double c, double d, long thispeptide_key, int max_uis, double q3window,
+  bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
+  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree)
+{
     //use the defined COMBINT (default 32bit int) and some magic to do this :-)
     COMBINT one;
     COMBINT currenttmp = 0;
@@ -267,8 +217,8 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     char* sequence;
 
     Transition transition;
-    Precursor precursor;
-    std::vector<Key> OutputList;
+    SRMCollider::ExtendedRangetree::Precursor precursor;
+    std::vector<SRMCollider::ExtendedRangetree::Key> OutputList;
 
     double* b_series = new double[256];
     double* y_series = new double[256];
@@ -316,9 +266,11 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     }
 
     // search for all matching peptides (including all potential isotopes)
-    Interval win(Interval(K::Point_2(a-isotope_correction,b),K::Point_2(c,d)));
-    Range_tree_2->window_query(win, std::back_inserter(OutputList));
-    std::vector<Key>::iterator current=OutputList.begin();
+    SRMCollider::ExtendedRangetree::Interval win(SRMCollider::ExtendedRangetree::Interval(
+      SRMCollider::ExtendedRangetree::K::Point_2(a-isotope_correction,b),
+      SRMCollider::ExtendedRangetree::K::Point_2(c,d)));
+    rtree.my_rangetree->window_query(win, std::back_inserter(OutputList));
+    std::vector<SRMCollider::ExtendedRangetree::Key>::iterator current=OutputList.begin();
 
     double* series = new double[1024];
     double* tmp_series = new double[1024];
@@ -402,7 +354,7 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     delete [] y_series;
 
     python::list result;
-    for (int i = 0; i < c_result.size(); i++)
+    for (size_t i = 0; i < c_result.size(); i++)
     {
       result.append(c_result[i]);
     }
@@ -413,14 +365,6 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
 using namespace python;
 BOOST_PYTHON_MODULE(c_integrated)
 {
-
-    def("create_tree", create_tree, 
- "Create the rangetree that will be used throughout. This is essential. \n"
- "\n"
- "\n"
- " Signature\n"
- "void create_tree(python::tuple pepids) \n"
-            );
 
     def("wrap_all_magic", wrap_all_magic,
             

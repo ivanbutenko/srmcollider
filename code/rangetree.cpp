@@ -249,13 +249,6 @@ python::list query_tree(double a, double b, double c, double d, int max_nr_isoto
 
 }
 
-void pass_rtree(Rangetree_Q1_RT& t)
-{
-   std::cout << "got a tree " << std::endl;
-   t.query_tree(2,1,0,0,0,1);
-   std::cout << "got a tree " << std::endl;
-}
-
 
   }
   namespace ExtendedRangetree
@@ -374,7 +367,6 @@ void pass_rtree(Rangetree_Q1_RT& t)
   }
 }
 
-
 // Expose to Python
 using namespace python;
 BOOST_PYTHON_MODULE(c_rangetree)
@@ -416,7 +408,4 @@ class_<SRMCollider::ExtendedRangetree::Rangetree_Q1_RT,
         .def("create_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create_tree)
         .def("query_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::query_tree)
     ;
-
-  def("pass_rtree", SRMCollider::SimpleRangetree::pass_rtree);
-
 }

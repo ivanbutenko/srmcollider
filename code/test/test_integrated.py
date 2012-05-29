@@ -145,7 +145,7 @@ class Test_cintegrated(unittest.TestCase):
         r.new_rangetree()
         r.create_tree(tuple(alltuples))
 
-        c_integrated.create_tree(tuple(alltuples))
+        #//c_integrated.create_tree(tuple(alltuples))
 
         q1 = 450
         par.q1_window = 5
@@ -156,7 +156,7 @@ class Test_cintegrated(unittest.TestCase):
         MAX_UIS=5
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
-            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [12, 66, 220, 495, 790])
 
         q1 = 450
@@ -169,7 +169,7 @@ class Test_cintegrated(unittest.TestCase):
         MAX_UIS=5
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
-            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [12, 35, 20, 3, 0] )
 
         q1 = 450
@@ -182,7 +182,7 @@ class Test_cintegrated(unittest.TestCase):
         MAX_UIS=5
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
-            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [10, 10, 5, 1, 0] )
 
 
