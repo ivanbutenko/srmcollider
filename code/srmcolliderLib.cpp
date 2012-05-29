@@ -43,6 +43,44 @@ struct SRMPrecursor{
   int isotope_modification;
 };
 
+struct SRMParameters
+{
+  bool aions      ;
+  bool aMinusNH3  ;
+  bool bions      ;
+  bool bMinusH2O  ;
+  bool bMinusNH3  ;
+  bool bPlusH2O   ;
+  bool cions      ;
+  bool xions      ;
+  bool yions      ;
+  bool yMinusH2O  ;
+  bool yMinusNH3  ;
+  bool zions      ;
+  bool MMinusH2O  ;
+  bool MMinusNH3  ;
+
+  SRMParameters()
+  {
+      // default values
+      aions      = false;
+      aMinusNH3  = false;
+      bions      = true;
+      bMinusH2O  = false;
+      bMinusNH3  = false;
+      bPlusH2O   = false;
+      cions      = false;
+      xions      = false;
+      yions      = true;
+      yMinusH2O  = false;
+      yMinusNH3  = false;
+      zions      = false;
+      MMinusH2O  = false;
+      MMinusNH3  = false;
+  }
+
+};
+
 /* 
  * Function to calculate the b and y fragment series given a peptide sequence 
  * Note that the y series is calculated "backwards" starting from left to right
@@ -59,133 +97,8 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         int isotope_mod = NOISOTOPEMODIFICATION
         ) ;
 
-int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
-        double ch) {
-
-    int j, start, scounter;
-    double acc_mass, res_mass;
-    char c;
-    bool inside;
-
-    acc_mass = 0.0;
-    res_mass = 0.0;
-    scounter = 0;
-
-    inside = false;
-    start = 0;
-    j = 0; 
-    //go through all characters in the sequence until 0 is hit
-    while((c = sequence[j++])) {
-        if(sequence[j] == '[') {
-            start = j-1;
-            inside = true;
-        }
-        else if(sequence[j-1] == ']') {
-            //We found a modification
-            switch(sequence[start]) {
-                case 'M': 
-                    if(!(sequence[start+2] == '1' && 
-                         sequence[start+3] == '4' && 
-                         sequence[start+4] == '7' )) {
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown modification for methionine");
-                        boost::python::throw_error_already_set();
-                        return -1;
-                        }
-                    res_mass = 147.03540462; break;
-                case 'C': 
-                    if(!(sequence[start+2] == '1' && 
-                         sequence[start+3] == '6' && 
-                         sequence[start+4] == '0' )) {
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown modification for cysteine");
-                        boost::python::throw_error_already_set();
-                        return -1;
-                    }
-                    res_mass = 160.030653721; break;
-                case 'N': 
-                    if(!(sequence[start+2] == '1' && 
-                         sequence[start+3] == '1' && 
-                         sequence[start+4] == '5' )) {
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown modification for cysteine");
-                        boost::python::throw_error_already_set();
-                        return -1;
-                    }
-                    res_mass = 115.026945583; break;
-
-                default: 
-                    PyErr_SetString(PyExc_ValueError, 
-                        "Unknown modification ");
-                    boost::python::throw_error_already_set();
-                    return -1;
-            }
-            //'M[147]':  131.04049 + mass_O), # oxygen
-            //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
-            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
-
-            acc_mass += res_mass;
-            b_series[scounter] = acc_mass + MASS_H ;
-            y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
-            scounter++;
-
-            inside = false;
-        }
-        else if(inside) { }
-        else {
-            //We found a regular AA
-            //TODO use hash map http://en.wikipedia.org/wiki/Hash_map_%28C%2B%2B%29
-            switch(c) {
-                case 'A': res_mass = 71.03711; break;
-                case 'C': res_mass = 103.00919; break;
-                case 'D': res_mass = 115.02694; break;
-                case 'E': res_mass = 129.04259; break;
-                case 'F': res_mass = 147.06841; break;
-                case 'G': res_mass = 57.02146; break;
-                case 'H': res_mass = 137.05891; break;
-                case 'I': res_mass = 113.08406; break;
-                case 'K': res_mass = 128.09496; break;
-                case 'L': res_mass = 113.08406; break;
-                case 'M': res_mass = 131.04049; break;
-                case 'N': res_mass = 114.04293; break;
-                case 'P': res_mass = 97.05276; break;
-                case 'Q': res_mass = 128.05858; break;
-                case 'R': res_mass = 156.10111; break;
-                case 'S': res_mass = 87.03203; break;
-                case 'T': res_mass = 101.04768; break;
-                case 'V': res_mass = 99.06841; break;
-                case 'W': res_mass = 186.07931; break;
-                case 'X': res_mass = 113.08406; break;
-                case 'Y': res_mass = 163.06333; break;
-                default: 
-                    PyErr_SetString(PyExc_ValueError, 
-                        "Unknown amino acid ");
-                    boost::python::throw_error_already_set();
-                    return -1;
-            }
-
-            acc_mass += res_mass;
-            b_series[scounter] = acc_mass + MASS_H ;
-            y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
-            scounter++;
-        }
-    }
-
-    // We computed the y series "backwards" using negative values and thus need
-    // to add the total mass to all entries
-    for (int j=0; j<scounter; j++) y_series[j] += acc_mass;
-
-    for (int j=0; j<scounter-1; j++){
-
-        y_series[j] = (y_series[j] + (ch-1)*MASS_H)/ch;
-        b_series[j] = (b_series[j] + (ch-1)*MASS_H)/ch;
-
-    }
-    // Subtract one because we do not count the last mass as a fragment.
-    // The complete peptide has not undergone fragmentation by definition and
-    // is thus not a fragment. We still compute it but just dont consider it.
-    return --scounter;
-}
+int calculate_fragment_masses(const char* sequence, double* tmp, 
+        double* series, double ch, SRMParameters& params, int isotope_mod);
 
 int _calculate_clashes_other_series(const char* sequence, double* tmp, 
         double* series, double ch, python::object parameters) {
@@ -218,8 +131,31 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
         bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
         bool MMinusH2O , bool MMinusNH3 ,
-        int isotope_mod 
-        ) {
+        int isotope_mod )
+{
+
+    SRMParameters params;
+    params.aions      =  aions;
+    params.aMinusNH3  =  aMinusNH3;
+    params.bions      =  bions;
+    params.bMinusH2O  =  bMinusH2O;
+    params.bMinusNH3  =  bMinusNH3;
+    params.bPlusH2O   =  bPlusH2O;
+    params.cions      =  cions;
+    params.xions      =  xions;
+    params.yions      =  yions;
+    params.yMinusH2O  =  yMinusH2O;
+    params.yMinusNH3  =  yMinusNH3;
+    params.zions      =  zions;
+    params.MMinusH2O  =  MMinusH2O;
+    params.MMinusNH3  =  MMinusNH3;
+    return calculate_fragment_masses(sequence, tmp, 
+        series, ch, params, isotope_mod);
+}
+
+int calculate_fragment_masses(const char* sequence, double* tmp, 
+        double* series, double ch, SRMParameters& params, int isotope_mod) 
+{
 
     int j, start, scounter;
     double acc_mass, res_mass;
@@ -434,29 +370,29 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
     //
     // One could add the last ion of the series (a,b,c = remove the -1)
     //
-    if (yions) 
+    if (params.yions) 
         // series[frg_cnt++] = acc_mass + 2*MASS_H + MASS_OH;
         for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + 2*MASS_H + MASS_OH;
-    if (bions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H ;
+    if (params.bions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H ;
 
-    if (aions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_CO ;
-    if (cions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H + MASS_NH3 ;
-    if (xions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + MASS_CO + MASS_OH;
+    if (params.aions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_CO ;
+    if (params.cions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H + MASS_NH3 ;
+    if (params.xions) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + MASS_CO + MASS_OH;
 
-    if (zions) 
+    if (params.zions) 
         // series[frg_cnt++] = acc_mass + 2*MASS_H + MASS_OH - MASS_NH3;
         for (int j=0; j<scounter-1; j++) series[frg_cnt++] = acc_mass - tmp[j] + 2*MASS_H + MASS_OH - MASS_NH3; 
 
-    if (aMinusNH3) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_CO - MASS_NH3; 
-    if (bMinusH2O) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_H2O;
-    if (bMinusNH3) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_NH3;
-    if (bPlusH2O)  for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H + MASS_H2O;
+    if (params.aMinusNH3) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_CO - MASS_NH3; 
+    if (params.bMinusH2O) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_H2O;
+    if (params.bMinusNH3) for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H - MASS_NH3;
+    if (params.bPlusH2O)  for (int j=0; j<scounter-1; j++) series[frg_cnt++] = tmp[j] + MASS_H + MASS_H2O;
 
-    if (yMinusH2O) {
+    if (params.yMinusH2O) {
         // series[frg_cnt++] = acc_mass + MASS_H;
         for (int j=0; j<scounter-1; j++) 
             series[frg_cnt++] = acc_mass - tmp[j] + MASS_H; }
-    if (yMinusNH3) {
+    if (params.yMinusNH3) {
         //series[frg_cnt++] = acc_mass + 2*MASS_H + MASS_OH - MASS_NH3;
         for (int j=0; j<scounter-1; j++) 
             series[frg_cnt++] = acc_mass - tmp[j] + 2*MASS_H + MASS_OH - MASS_NH3;
@@ -480,17 +416,16 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
     if MMinusNH3: self.nh3loss =   self.mass + R.mass_H2O - R.mass_NH3; self.allseries.append(self.nh3loss)
     */
 
-    if (MMinusH2O) series[frg_cnt++] = acc_mass;
-    if (MMinusNH3) series[frg_cnt++] = acc_mass + MASS_H2O - MASS_NH3;
+    if (params.MMinusH2O) series[frg_cnt++] = acc_mass;
+    if (params.MMinusNH3) series[frg_cnt++] = acc_mass + MASS_H2O - MASS_NH3;
 
     // calculate the charged mass of the fragments
     for (int j=0; j<frg_cnt; j++) series[j] = (series[j] + (ch-1)*MASS_H)/ch;
     return frg_cnt;
 }
 
-
 void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charges, std::vector<SRMTransition>& result, 
-  double* b_series, double* y_series, double & q3_low, double & q3_high )
+  double* tmp, double* series, double & q3_low, double & q3_high, SRMParameters& param)
 {
 
   long peptide_key;
@@ -500,24 +435,19 @@ void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charge
   peptide_key = p.parent_id;
 
   for (std::vector<int>::iterator ch_it = charges.begin(); ch_it != charges.end(); ch_it++) {
-    fragcount = _calculate_clashes(p.sequence, b_series, y_series, (*ch_it) );
+    //fragcount = _calculate_clashes(p.sequence, b_series, y_series, (*ch_it) );
+    fragcount = calculate_fragment_masses(p.sequence, tmp, series, (*ch_it), param, NOISOTOPEMODIFICATION);
+
     // go through all fragments of this precursor
     for (k=0; k<fragcount; k++) {
-      q3 = y_series[k];
+      q3 = series[k];
       if (q3 > q3_low && q3 < q3_high)
       {
         SRMTransition t = {p.q1, q3, peptide_key};
         result.push_back(t);
       }
     }
-    for (k=0; k<fragcount; k++) {
-      q3 = b_series[k];
-      if (q3 > q3_low && q3 < q3_high)
-      {
-        SRMTransition t = {p.q1, q3, peptide_key};
-        result.push_back(t);
-      }
-    }
+
   }
 
 }
@@ -533,7 +463,7 @@ void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charge
  * precursors: (q1, sequence, peptide_key)
  *
  */
-python::list _find_clashes_calculate_clashes_ch(python::tuple py_precursors,
+python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
         python::list py_charges, double q3_low, double q3_high ) {
 
     python::tuple clist;
@@ -543,12 +473,14 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple py_precursors,
     std::vector<SRMPrecursor> precursors;
     std::vector<int> charges;
 
+    SRMParameters param;
+
     long peptide_key;
     double q1;
     char* sequence;
 
-    double* b_series = new double[256];
-    double* y_series = new double[256];
+    double* tmp = new double[1024];
+    double* series = new double[1024];
 
     for (int kk=0; kk<python::extract<int>(py_charges.attr("__len__")()); kk++) {
       charges.push_back(python::extract< int >(py_charges[kk]));
@@ -563,7 +495,7 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple py_precursors,
     }
 
     for (int i=0; i< precursors.size(); i++) {
-      calculate_transitions_with_charge(precursors[i], charges, result, b_series, y_series, q3_low, q3_high);
+      calculate_transitions_with_charge(precursors[i], charges, result, tmp, series, q3_low, q3_high, param);
     }
 
     for (std::vector<SRMTransition>::iterator it = result.begin(); it != result.end(); it++)
@@ -571,8 +503,8 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple py_precursors,
       py_result.append(python::make_tuple(it->q3, it->q1, 0, it->peptide_key));
     }
 
-    delete [] b_series;
-    delete [] y_series;
+    delete [] tmp;
+    delete [] series;
 
     return py_result;
 }        
@@ -584,24 +516,26 @@ python::list _find_clashes_calculate_clashes_ch(python::tuple py_precursors,
 double calculate_charged_mass(python::tuple clist, int ch) {
 
     double charged_mass;
-    double* b_series = new double[256];
-    double* y_series = new double[256];
+    double* tmp = new double[256];
+    double* series = new double[256];
 
     char* sequence = python::extract<char *>(clist[1]);
-    int fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
-
+    SRMParameters params;
+    params.bions = true;
+    params.yions = false;
+    int fragcount = calculate_fragment_masses(sequence, tmp, series, ch, params, NOISOTOPEMODIFICATION);
+ 
     //In order to get the full mass, we need the "last" element of the b-series
     //(which is not technically part of the b series) and add water as well as
     //protons according to the charge to it. Then, the fragment has to be
     //divided by the charge.
-    charged_mass = (b_series[fragcount] + MASS_H*ch + MASS_OH ) /ch  ;
-
-    delete [] b_series;
-    delete [] y_series;
+    charged_mass = (tmp[fragcount] + MASS_H + MASS_H*ch + MASS_OH ) /ch  ;
+ 
+    delete [] tmp;
+    delete [] series;
 
     return charged_mass;
 }        
-
 
 /*
 * This function calculates all combinations of M elements
@@ -850,7 +784,7 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
  *
  * It will return a list of all non UIS of the requested order.
  */
-python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int
+python::dict get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
         order) {
 
     python::dict result;
@@ -887,6 +821,137 @@ python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int
 
     delete [] mapping;
     return result;
+}
+
+
+
+
+int __old_calculate_clashes(const char* sequence, double* b_series, double* y_series,
+        double ch) {
+
+    int j, start, scounter;
+    double acc_mass, res_mass;
+    char c;
+    bool inside;
+
+    acc_mass = 0.0;
+    res_mass = 0.0;
+    scounter = 0;
+
+    inside = false;
+    start = 0;
+    j = 0; 
+    //go through all characters in the sequence until 0 is hit
+    while((c = sequence[j++])) {
+        if(sequence[j] == '[') {
+            start = j-1;
+            inside = true;
+        }
+        else if(sequence[j-1] == ']') {
+            //We found a modification
+            switch(sequence[start]) {
+                case 'M': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '4' && 
+                         sequence[start+4] == '7' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for methionine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                        }
+                    res_mass = 147.03540462; break;
+                case 'C': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '6' && 
+                         sequence[start+4] == '0' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 160.030653721; break;
+                case 'N': 
+                    if(!(sequence[start+2] == '1' && 
+                         sequence[start+3] == '1' && 
+                         sequence[start+4] == '5' )) {
+                        PyErr_SetString(PyExc_ValueError, 
+                            "Unknown modification for cysteine");
+                        boost::python::throw_error_already_set();
+                        return -1;
+                    }
+                    res_mass = 115.026945583; break;
+
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown modification ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+            //'M[147]':  131.04049 + mass_O), # oxygen
+            //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
+            //'N[115]':  114.04293 - mass_N - mass_H + mass_O
+
+            acc_mass += res_mass;
+            b_series[scounter] = acc_mass + MASS_H ;
+            y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
+            scounter++;
+
+            inside = false;
+        }
+        else if(inside) { }
+        else {
+            //We found a regular AA
+            //TODO use hash map http://en.wikipedia.org/wiki/Hash_map_%28C%2B%2B%29
+            switch(c) {
+                case 'A': res_mass = 71.03711; break;
+                case 'C': res_mass = 103.00919; break;
+                case 'D': res_mass = 115.02694; break;
+                case 'E': res_mass = 129.04259; break;
+                case 'F': res_mass = 147.06841; break;
+                case 'G': res_mass = 57.02146; break;
+                case 'H': res_mass = 137.05891; break;
+                case 'I': res_mass = 113.08406; break;
+                case 'K': res_mass = 128.09496; break;
+                case 'L': res_mass = 113.08406; break;
+                case 'M': res_mass = 131.04049; break;
+                case 'N': res_mass = 114.04293; break;
+                case 'P': res_mass = 97.05276; break;
+                case 'Q': res_mass = 128.05858; break;
+                case 'R': res_mass = 156.10111; break;
+                case 'S': res_mass = 87.03203; break;
+                case 'T': res_mass = 101.04768; break;
+                case 'V': res_mass = 99.06841; break;
+                case 'W': res_mass = 186.07931; break;
+                case 'X': res_mass = 113.08406; break;
+                case 'Y': res_mass = 163.06333; break;
+                default: 
+                    PyErr_SetString(PyExc_ValueError, 
+                        "Unknown amino acid ");
+                    boost::python::throw_error_already_set();
+                    return -1;
+            }
+
+            acc_mass += res_mass;
+            b_series[scounter] = acc_mass + MASS_H ;
+            y_series[scounter] = - acc_mass + 2* MASS_H + MASS_OH ;
+            scounter++;
+        }
+    }
+
+    // We computed the y series "backwards" using negative values and thus need
+    // to add the total mass to all entries
+    for (int j=0; j<scounter; j++) y_series[j] += acc_mass;
+
+    for (int j=0; j<scounter-1; j++){
+
+        y_series[j] = (y_series[j] + (ch-1)*MASS_H)/ch;
+        b_series[j] = (b_series[j] + (ch-1)*MASS_H)/ch;
+
+    }
+    // Subtract one because we do not count the last mass as a fragment.
+    // The complete peptide has not undergone fragmentation by definition and
+    // is thus not a fragment. We still compute it but just dont consider it.
+    return --scounter;
 }
 
 #endif

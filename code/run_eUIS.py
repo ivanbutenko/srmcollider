@@ -70,6 +70,8 @@ par.parse_cmdl_args(parser)
 options, args = parser.parse_args(sys.argv[1:])
 par.parse_options(options)
 
+forceChargeCheck = False
+
 db = par.get_db()
 cursor = db.cursor()
 # local arguments
@@ -140,8 +142,8 @@ for precursor in precursors_to_evaluate:
     precursors = tuple([parentid_lookup[myid[0]] for myid in precursor_ids
                         #dont select myself 
                        if parentid_lookup[myid[0]][2]  != pep['transition_group']])
-    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide( 
-        transitions, precursors, q3_low, q3_high, par.q3_window, par.ppm)
+    collisions_per_peptide = c_getnonuis.calculate_collisions_per_peptide_other_ion_series( 
+        transitions, precursors, par, q3_low, q3_high, par.q3_window, par.ppm, forceChargeCheck)
     local_interferences = [t[0] for t in c_getnonuis.get_non_uis( collisions_per_peptide, 1).keys()]
     tuples_2strike = []
     for mytuple in tuples_1strike:
