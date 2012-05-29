@@ -7,6 +7,7 @@ from nose.plugins.attrib import attr
 from nose.tools import nottest
 
 import sys
+sys.path.append( '.')
 sys.path.append( '..')
 sys.path.append( '../external')
 import collider
@@ -15,7 +16,6 @@ from test_shared import *
 import test_shared 
 import time
 from Residues import Residues
-
 
 try:
     import c_integrated
@@ -126,6 +126,65 @@ class Test_cintegrated(unittest.TestCase):
         m = c_integrated.getMinNeededTransitions(transitions, tuple(precursors), 
             par.max_uis, par.q3_window, par.ppm, par)
         self.assertEqual(m, 6)
+
+    def test_integrated(self):
+        pep = test_shared.runpep1
+        transitions = test_shared.runtransitions1
+        precursors = test_shared.runprecursors1
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+        par = self.par
+        q3_high = self.q3_high
+        q3_low = self.q3_low
+        R = self.R
+        par.max_uis = 15
+
+        alltuples = [ (p[1], p[2], p[2], p[3], p[0], 25, -1,-1, 0) for p in precursors]
+
+        import c_rangetree
+        r = c_rangetree.ExtendedRangetree_Q1_RT.create()
+        r.new_rangetree()
+        r.create_tree(tuple(alltuples))
+
+        c_integrated.create_tree(tuple(alltuples))
+
+        q1 = 450
+        par.q1_window = 5
+        par.isotopes_up_to = 2
+        isotope_correction = 1
+        ssrcalc_low = 0
+        ssrcalc_high = 100
+        MAX_UIS=5
+        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
+            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+        self.assertEqual(result, [12, 66, 220, 495, 790])
+
+        q1 = 450
+        par.q1_window = 0.1
+        par.q3_window = 0.1
+        par.isotopes_up_to = 2
+        isotope_correction = 1
+        ssrcalc_low = 0
+        ssrcalc_high = 100
+        MAX_UIS=5
+        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
+            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+        self.assertEqual(result, [12, 35, 20, 3, 0] )
+
+        q1 = 450
+        par.q1_window = 0.08
+        par.q3_window = 0.01
+        par.isotopes_up_to = 2
+        isotope_correction = 1
+        ssrcalc_low = 0
+        ssrcalc_high = 100
+        MAX_UIS=5
+        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
+            MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+        self.assertEqual(result, [10, 10, 5, 1, 0] )
+
 
 if __name__ == '__main__':
     unittest.main()
