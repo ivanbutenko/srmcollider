@@ -388,17 +388,23 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
       current++;
     }
 
-    python::list result;
     //this takes about 50% or more of the time if we have many collisions_per_pep (10k)
     //and below 10% if we have few collision_per_pep (0.1k)
+    std::vector<int> c_result;
     for(i =1; i<= max_uis; i++) {
-        result.append( 
-                get_non_uis_magic(newcollperpep, transitions_length, i).attr("__len__")() );
+      std::set<COMBINT> combinations;
+      get_non_uis_magic(newcollperpep, transitions_length, i, combinations);
+      c_result.push_back(combinations.size());
     }
 
     delete [] b_series;
     delete [] y_series;
 
+    python::list result;
+    for (int i = 0; i < c_result.size(); i++)
+    {
+      result.append(c_result[i]);
+    }
     return result;
 }
 

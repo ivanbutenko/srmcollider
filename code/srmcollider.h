@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <vector>
+#include <set>
 
 using namespace std;
 
@@ -60,8 +61,8 @@ void _combinations(int M, int N, std::vector<std::vector<int> >& result) ;
 void _combinations_magic(int M, int N, COMBINT* mapping,
         python::dict &result) ;
 python::dict get_non_uis(python::dict collisions_per_peptide, int order) ;
-python::dict get_non_uis_magic(vector<COMBINT>& newcollperpep, int max_tr, int
-        order);
+void get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
+        order, std::set<COMBINT> & result);
 
 #endif
 

@@ -40,7 +40,7 @@
 *   implemented as integers with bitflags set or unset
 */
 void _combinations_magic(int M, int N, COMBINT* mapping,
-        python::dict &result) {
+        std::set<COMBINT>& result) {
     // The basic idea is to create an index array of length M that contains
     // numbers between 0 and N. The indices denote the combination produced and
     // we always increment the rightmost index. If it goes above N, we try to
@@ -64,7 +64,7 @@ void _combinations_magic(int M, int N, COMBINT* mapping,
         tmpres = 0;
         for(k=0;k<M;k++) 
             tmpres |= mapping[index[k]];
-        result[tmpres] = 0;
+        result.insert(tmpres);
 
         // We need to break if index[0] has the final value
         // The other option is to make the while condition (index[0] < N-M) 
@@ -253,7 +253,8 @@ void _combinations(int M, int N, std::vector<std::vector<int> > &result)
  *
  * It will return a list of all non UIS of the requested order.
  */
-python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
+python::dict get_non_uis(python::dict collisions_per_peptide, int order) 
+{
 
     python::list tmplist;
     python::list pepcollisions = python::extract< python::list >(
@@ -314,11 +315,9 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order) {
  *
  * It will return a list of all non UIS of the requested order.
  */
-python::dict get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
-        order) {
-
-    python::dict result;
-
+void get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
+        order, std::set<COMBINT> & result) 
+{
     int onecounter;
     COMBINT tmparr;
     COMBINT mask;
@@ -350,7 +349,6 @@ python::dict get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, 
     }
 
     delete [] mapping;
-    return result;
 }
 
 #endif
