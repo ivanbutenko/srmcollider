@@ -36,6 +36,7 @@
 
 //include our own libraries
 #include "srmcollider.h"
+#include "combinatorics.h"
 #include "srmcolliderLib.cpp"
 
 // Including headers from CGAL 
