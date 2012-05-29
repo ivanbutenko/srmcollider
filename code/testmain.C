@@ -11,6 +11,7 @@
 
 #include "getNonUis.cpp"
 
+
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
  
 BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
@@ -103,8 +104,7 @@ BOOST_AUTO_TEST_CASE( three_peptide_test )
                                                                 
 }
 
-BOOST_AUTO_TEST_CASE( three_peptide_testdf )
-//BOOST_AUTO_TEST_CASE( calculate_charged_mass )
+BOOST_AUTO_TEST_CASE( calculate_charged_mass_)
 {
     /*
     The target is YYLLDYR with these transitions and numbers
@@ -156,28 +156,79 @@ BOOST_AUTO_TEST_CASE( three_peptide_testdf )
                                                                 
 }
 
-BOOST_AUTO_TEST_CASE( calculate_charged_mass_TEST )
+BOOST_AUTO_TEST_CASE( _py_combinations_TEST)
 {
-  BOOST_CHECK (true) ;
+  Py_Initialize();
+  python::dict result;
+  python::list mapping;
+  for (int i = 0; i < 5; i++)
+  {
+    mapping.append(i);
+  }
+  _py_combinations(2, 5, mapping, result);
+
+  python::list result_list = python::extract<python::list>(result.attr("keys")());
+  int result_l = python::extract<int>(result_list.attr("__len__")());
+
+  BOOST_CHECK_EQUAL(result_l, 10);
+}
+
+BOOST_AUTO_TEST_CASE( _combinations_TEST_1)
+{
+  Py_Initialize();
+  std::vector<std::vector<int> > result;
+  std::vector<std::vector<int> > cmp_result;
+  int select_nr = 2;
+  int collection_size = 5;
+  _combinations(select_nr, collection_size, result);
+
+  for (int i = 0; i < collection_size; i++)
+  {
+    for (int j = i+1; j < collection_size; j++)
+    {
+      std::vector<int> tmp;
+      tmp.push_back(i);
+      tmp.push_back(j);
+      cmp_result.push_back(tmp);
+    }
+  }
+
+  for (int i = 0; i < collection_size; i++)
+  {
+    BOOST_CHECK_EQUAL_COLLECTIONS(result[i].begin(), result[i].end(), cmp_result[i].begin(), cmp_result[i].end());
+  }
+}
+
+BOOST_AUTO_TEST_CASE( _combinations_TEST_2)
+{
+  Py_Initialize();
+  std::vector<std::vector<int> > result;
+  std::vector<std::vector<int> > cmp_result;
+  int select_nr = 3;
+  int collection_size = 15;
+  _combinations(select_nr, collection_size, result);
+
+  for (int i = 0; i < collection_size; i++)
+  {
+    for (int j = i+1; j < collection_size; j++)
+    {
+      for (int k = j+1; k < collection_size; k++)
+      {
+        std::vector<int> tmp;
+        tmp.push_back(i);
+        tmp.push_back(j);
+        tmp.push_back(k);
+        cmp_result.push_back(tmp);
+      }
+    }
+  }
+
+  for (int i = 0; i < collection_size; i++)
+  {
+    BOOST_CHECK_EQUAL_COLLECTIONS(result[i].begin(), result[i].end(), cmp_result[i].begin(), cmp_result[i].end());
+  }
 }
 
 BOOST_AUTO_TEST_CASE( _combinations_magic_TEST)
 {
 }
-
-BOOST_AUTO_TEST_CASE( _combinations_TEST)
-{
-}
-
-BOOST_AUTO_TEST_CASE( get_non_uis_magic_TEST)
-{
-}
-
-// BOOST_AUTO_TEST_CASE( wrap_all_TEST)
-// {
-// }
-// 
-// BOOST_AUTO_TEST_CASE( wrap_all_magic_TEST)
-// {
-// }
-

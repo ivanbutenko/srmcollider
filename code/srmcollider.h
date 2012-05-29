@@ -55,7 +55,8 @@ python::list _calculate_clashes_wrapper(python::tuple &tlist,
 double calculate_charged_mass(python::tuple clist, int ch);
 
 
-void _combinations(int M, int N, const python::list &mapping, python::dict &result) ;
+void _py_combinations(int M, int N, const python::list &mapping, python::dict &result) ;
+void _combinations(int M, int N, std::vector<std::vector<int> >& result) ;
 void _combinations_magic(int M, int N, COMBINT* mapping,
         python::dict &result) ;
 python::dict get_non_uis(python::dict collisions_per_peptide, int order) ;
