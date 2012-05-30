@@ -443,7 +443,7 @@ class Test_speed_integrated(unittest.TestCase):
             cursor = self.cursor
 
             all_precursors = self.precursors_to_evaluate
-            ## shuffle(all_precursors)
+            shuffle(all_precursors)
             all_precursors = all_precursors[:self.limit_large]
 
             self.myprecursors.build_parent_id_lookup()

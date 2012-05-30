@@ -52,10 +52,10 @@ using namespace SRMCollider;
 namespace SRMCollider {
 namespace IntegratedRun {
 
-struct Transition{
-  double q3;
-  long srm_id;
-};
+  struct Transition{
+    double q3;
+    long srm_id;
+  };
 
   void _pyToC_integratedrunTransitions(python::tuple& transitions, std::vector<Transition>& mytransitions)
   {
@@ -74,36 +74,34 @@ struct Transition{
     }
   }
 
-inline void _charged_interference(const char* sequence, double* tmp_series, double* series, const int ch,
-    const SRMParameters& params, const int isotope_modification, 
-    const std::vector<Transition>& mytransitions, const bool ppm, const double q3window, COMBINT& currenttmp)
-{
-  COMBINT one;
-  double q3, q3used = q3window;
-  Transition transition;
-  int k;
+  inline void _charged_interference(const char* sequence, double* tmp_series, double* series, const int ch,
+      const SRMParameters& params, const int isotope_modification, 
+      const std::vector<Transition>& mytransitions, const bool ppm, const double q3window, COMBINT& currenttmp)
+  {
+    COMBINT one;
+    double q3, q3used = q3window;
+    Transition transition;
+    int k;
 
-  int fragcount = SRMCollider::Common::calculate_fragment_masses(
-      sequence, tmp_series, series, ch, params, isotope_modification);
+    int fragcount = SRMCollider::Common::calculate_fragment_masses(
+        sequence, tmp_series, series, ch, params, isotope_modification);
 
-  for (size_t i=0; i<mytransitions.size(); i++) {
-      transition = mytransitions[i];
-      q3 = transition.q3;
-      //ppm is 10^-6
-      if(ppm) {q3used = q3window / 1000000.0 * q3; } 
+    for (size_t i=0; i<mytransitions.size(); i++) {
+        transition = mytransitions[i];
+        q3 = transition.q3;
+        //ppm is 10^-6
+        if(ppm) {q3used = q3window / 1000000.0 * q3; } 
 
-          // go through all fragments of this precursor
-          for (k=0; k<fragcount; k++) {
-
-              if(fabs(q3-series[k]) < q3used ) {
-              
-                  //left bitshift == 2^i
-                  one = 1;
-                  currenttmp |= one << i;
-              }
-          }
-  } //loop over all transitions
-}
+            // go through all fragments of this precursor
+            for (k=0; k<fragcount; k++) {
+                if(fabs(q3-series[k]) < q3used ) {
+                    //left bitshift == 2^i
+                    one = 1;
+                    currenttmp |= one << i;
+                }
+            }
+    } //loop over all transitions
+  }
 
 /* 
  * Calculate the minimally needed number of transitions needed to get a UIS
