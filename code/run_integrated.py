@@ -97,7 +97,11 @@ import Residues
 R = Residues.Residues('mono')
 isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
 alltuples = [ (p.modified_sequence, p.transition_group, p.parent_id, p.q1_charge, p.q1, p.ssrcalc,0,0,p.isotopically_modified) for p in myprecursors.precursors]
-c_integrated.create_tree(tuple(alltuples))
+import c_rangetree
+r = c_rangetree.ExtendedRangetree_Q1_RT.create()
+r.new_rangetree()
+r.create_tree(tuple(alltuples))
+#c_integrated.create_tree(tuple(alltuples))
 
 MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
@@ -118,7 +122,7 @@ for precursor in precursors_to_evaluate:
     try:
         result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, precursor.transition_group,  
-            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par)
+            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
     except ValueError: 
       print "Too many transitions for", precursor.modification
       continue

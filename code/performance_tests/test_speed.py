@@ -446,7 +446,11 @@ class Test_speed_integrated(unittest.TestCase):
 
             self.myprecursors.build_parent_id_lookup()
             testrange = self.myprecursors.build_rangetree()
-            c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
+            import c_rangetree
+            r = c_rangetree.ExtendedRangetree_Q1_RT.create()
+            r.new_rangetree()
+            r.create_tree(tuple(alltuples))
+            #c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
 
             MAX_UIS = 5
             newtime = 0; oldtime = 0; ctime = 0
@@ -499,7 +503,7 @@ class Test_speed_integrated(unittest.TestCase):
                 newresult = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low,
                     q1_high,  ssrcalc_high, peptide_key,
                     min(MAX_UIS,nr_transitions) , par.q3_window, #q3_low, q3_high,
-                    par.ppm, par.isotopes_up_to, isotope_correction, par)
+                    par.ppm, par.isotopes_up_to, isotope_correction, par, r)
                 newtime += time.time() - mystart
 
                 ###################################
@@ -719,7 +723,11 @@ class Test_speed_integrated(unittest.TestCase):
             shuffle( self.mycollider.pepids )
             self.mycollider.pepids = self.mycollider.pepids[:self.limit]
 
-            c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
+            import c_rangetree
+            r = c_rangetree.ExtendedRangetree_Q1_RT.create()
+            r.new_rangetree()
+            r.create_tree(tuple(alltuples))
+            #c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
 
             MAX_UIS = 5
             c_newuistime = 0; oldtime = 0; c_fromprecursortime = 0
@@ -785,7 +793,7 @@ class Test_speed_integrated(unittest.TestCase):
                 newresult = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low,
                     q1_high,  ssrcalc_high, peptide_key,
                     min(MAX_UIS,nr_transitions) , par.q3_window, #q3_low, q3_high,
-                    par.ppm, par.isotopes_up_to, isotope_correction, par)
+                    par.ppm, par.isotopes_up_to, isotope_correction, par, r)
                 newtime += time.time() - mystart
 
                 ###################################
