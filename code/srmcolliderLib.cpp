@@ -29,6 +29,8 @@
 #include "srmcollider.h"
 #include "combinatorics.h"
 
+//using namespace std;
+
 namespace SRMCollider {
 namespace Common {
 

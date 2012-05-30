@@ -8,6 +8,7 @@ set(my_executables
 testmain
 testIntegrated
 testRangetree
+testeUIS
 combinatorics_test
 )
 
@@ -30,5 +31,6 @@ ENABLE_TESTING()
 ADD_TEST(testmain testmain)
 ADD_TEST(testIntegrated testIntegrated)
 ADD_TEST(testRangetree testRangetree)
+ADD_TEST(testeUIS testeUIS)
 ADD_TEST(combinatorics_test combinatorics_test)
 

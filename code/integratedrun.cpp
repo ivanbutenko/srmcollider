@@ -38,19 +38,15 @@
 #define SRMCOLLIDER_INTEGRATED_C
 
 //include our own libraries
-#include "rangetree.cpp"
 #include "srmcollider.h"
+#include "rangetree.cpp"
 #include "combinatorics.h"
 #include "srmcolliderLib.cpp"
-
-// Including headers from CGAL 
-#include <CGAL/Cartesian.h>
-#include <CGAL/Range_segment_tree_traits.h>
-#include <CGAL/Range_tree_k.h>
 
 #include <vector>
 
 using namespace SRMCollider::Common;
+//using namespace std;
 
 namespace SRMCollider {
 namespace IntegratedRun {
@@ -59,17 +55,6 @@ struct Transition{
   double q3;
   long srm_id;
 };
-
-//return the number of non UIS present given the transitions and a query window
-//in Q1 and SSRCalc
-// using magic gives a speedup of around 2fold
-void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
-  double c, double d, long thispeptide_key, int max_uis, double q3window,
-  bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters params,
-  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& result);
-
-python::list wrap_all(python::tuple transitions, double a, double b, double c,
-        double d, long thispeptide_key, int max_uis, double q3window, bool ppm);
 
 /* 
  * Calculate the minimally needed number of transitions needed to get a UIS
@@ -150,6 +135,7 @@ int min_needed(std::vector<Transition>& mytransitions, std::vector<SRMPrecursor>
     return maxoverlap;
 }
 
+// Python wrapper for min_needed
 int _py_min_needed(python::tuple transitions, python::tuple precursors,
     int max_uis, double q3window, bool ppm, python::object par)   
 {
@@ -212,74 +198,6 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
     }
 
     return min_needed(mytransitions, myprecursors, max_uis, q3window, ppm, params);
-}
-
-python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b,
-  double c, double d, long thispeptide_key, int max_uis, double q3window,
-  bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
-  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree)
-{
-
-    SRMParameters params;
-    params.aions      =  python::extract<bool>(par.attr("aions"));
-    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    params.bions      =  python::extract<bool>(par.attr("bions"));
-    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    params.cions      =  python::extract<bool>(par.attr("cions"));
-    params.xions      =  python::extract<bool>(par.attr("xions"));
-    params.yions      =  python::extract<bool>(par.attr("yions"));
-    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    params.zions      =  python::extract<bool>(par.attr("zions"));
-    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
-
-    //Check whether we have more transitions than we have bits in our number
-    int transitions_length = python::extract<int>(py_transitions.attr("__len__")());
-    if (transitions_length > COMBLIMIT) {
-        PyErr_SetString(PyExc_ValueError, 
-            "Too many transitions, please adjust limit.");
-        boost::python::throw_error_already_set();
-        python::list tlist;
-        return tlist;
-    }
-
-    /*
-    * Transitions are tuples of the form (q3, srm_id)
-    * convert to our struct.
-    */
-    python::tuple tlist;
-    vector<Transition> mytransitions(transitions_length);
-    for (int i=0; i<transitions_length; i++) {
-        python::tuple tlist = python::extract< python::tuple >(py_transitions[i]);
-        double q3 = python::extract<double>(tlist[0]);
-        long srm_id = python::extract<long>(tlist[1]);
-        struct Transition entry = {q3, srm_id};
-        mytransitions[i] = entry;
-    }
-
-    std::vector<COMBINT> collisions_per_peptide; 
-    wrap_all_magic(mytransitions, a, b, c, d,
-        thispeptide_key, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
-         params, rtree, collisions_per_peptide);
-
-    std::vector<int> c_result;
-    for(int i =1; i<= max_uis; i++) {
-      std::set<COMBINT> combinations;
-      get_non_uis_magic(collisions_per_peptide, transitions_length, i, combinations);
-      c_result.push_back(combinations.size());
-    }
-
-    python::list result;
-    for (size_t i = 0; i < c_result.size(); i++)
-    {
-      result.append(c_result[i]);
-    }
-    return result;
-
-
 }
 
 /*
@@ -410,6 +328,75 @@ void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
     delete tmp_series;
     delete b_series;
     delete y_series;
+
+}
+
+// Python wrapper for wrap_all
+python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b,
+  double c, double d, long thispeptide_key, int max_uis, double q3window,
+  bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
+  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree)
+{
+
+    SRMParameters params;
+    params.aions      =  python::extract<bool>(par.attr("aions"));
+    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    params.bions      =  python::extract<bool>(par.attr("bions"));
+    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    params.cions      =  python::extract<bool>(par.attr("cions"));
+    params.xions      =  python::extract<bool>(par.attr("xions"));
+    params.yions      =  python::extract<bool>(par.attr("yions"));
+    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    params.zions      =  python::extract<bool>(par.attr("zions"));
+    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
+
+    //Check whether we have more transitions than we have bits in our number
+    int transitions_length = python::extract<int>(py_transitions.attr("__len__")());
+    if (transitions_length > COMBLIMIT) {
+        PyErr_SetString(PyExc_ValueError, 
+            "Too many transitions, please adjust limit.");
+        boost::python::throw_error_already_set();
+        python::list tlist;
+        return tlist;
+    }
+
+    /*
+    * Transitions are tuples of the form (q3, srm_id)
+    * convert to our struct.
+    */
+    python::tuple tlist;
+    std::vector<Transition> mytransitions(transitions_length);
+    for (int i=0; i<transitions_length; i++) {
+        python::tuple tlist = python::extract< python::tuple >(py_transitions[i]);
+        double q3 = python::extract<double>(tlist[0]);
+        long srm_id = python::extract<long>(tlist[1]);
+        struct Transition entry = {q3, srm_id};
+        mytransitions[i] = entry;
+    }
+
+    std::vector<COMBINT> collisions_per_peptide; 
+    wrap_all_magic(mytransitions, a, b, c, d,
+        thispeptide_key, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
+         params, rtree, collisions_per_peptide);
+
+    std::vector<int> c_result;
+    for(int i =1; i<= max_uis; i++) {
+      std::set<COMBINT> combinations;
+      get_non_uis_magic(collisions_per_peptide, transitions_length, i, combinations);
+      c_result.push_back(combinations.size());
+    }
+
+    python::list result;
+    for (size_t i = 0; i < c_result.size(); i++)
+    {
+      result.append(c_result[i]);
+    }
+    return result;
+
 
 }
 

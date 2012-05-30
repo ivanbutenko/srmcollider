@@ -28,6 +28,8 @@
 #define COMBINATORICS_H
 #include "srmcollider.h"
 
+//using namespace std;
+
 /*
 * This function calculates all combinations of M elements
 * drawn without replacement from a set of N elements. Order of elements

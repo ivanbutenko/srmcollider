@@ -37,6 +37,7 @@
 #include "srmcollider.h"
 #include "srmcolliderLib.cpp"
 
+//using namespace std;
 using namespace SRMCollider::Common;
 
 bool SortIntDoublePairSecond(const std::pair<int,double>& left, const std::pair<int,double>& right)
@@ -66,15 +67,9 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
     python::list precursors, python::object par, double q3_low, double q3_high, double q3window,
     bool ppm, double q1_low, bool forceChargeCheck);
 void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
-    const char* sequence, string& curr_ion, python::object par);
+    const char* sequence, std::string& curr_ion, python::object par);
 
-// calculate eUIS
-bool thirdstrike(python::list myN, python::list py_ssrcalcvalues, double
-        ssrwindow );
-
-// helper functions
-
-// checks whether the current fragment 
+// checks whether the current fragment has an allowed charge
 bool has_allowed_charge(int fragment_charge, int q1_charge, int maximal_charge)
 {
 
@@ -354,7 +349,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
       c_transitions.push_back(t);
     }
 
-    string curr_ion = "?";
+    std::string curr_ion = "?";
 
     // go through all (potential) collisions
     // and store the colliding SRM ids in a dictionary (they can be found at
@@ -434,7 +429,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
 }
 
 void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
-    const char* sequence, string& curr_ion, python::object par) {
+    const char* sequence, std::string& curr_ion, python::object par) {
 
     bool aions      =  python::extract<bool>(par.attr("aions"));
     bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
@@ -495,44 +490,38 @@ void _find_clashes_forall_other_series_sub( int& l, int ch, int k,
  * arrays (one value from each array) such that the M values are within a
  * certain window. 
  *
- * The first argument is a list that contains te length of the lists to be
+ * The first argument is a list that contains the length of the lists to be
  * checked. The second argument a list of lists which contain the values to be
- * checked, the third argument the window size. The function returns true if an
- * M-tuple of such values exists, otherwise false.
+ * checked, the third argument the window size.
+ *
+ * The function returns a all the "forbidden" tuples, e.g. tuples of 
+ * transitions that are interfering and can thus not be used for an eUIS.
+ *
  */
-python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, double
-        ssrwindow) {
+void calculate_eUIS(std::vector<int>& N, std::vector<std::vector<double> >& c_ssrcalcvalues,
+    double ssrwindow, std::vector<std::vector<int> >& all_nonuis) 
+{
 
-    python::list result;
-    int M = python::extract<int>(myN.attr("__len__")());
+    int M = (int)N.size();
 
     int k, i;
     unsigned int m, n;
     int sumlen = 0;
     std::vector<int> index; index.resize(M);
     std::vector<int> sort_idx; sort_idx.resize(M);
-    std::vector<int> N; N.resize(M);
     std::vector<bool> discarded_indices; discarded_indices.resize(M);
     std::vector<double> myssr; myssr.resize(M);
-    std::vector<std::vector<int> > all_nonuis;
     std::vector< std::pair<int,double> > with_index;
 
     for(int k=0;k<M;k++) index[k] = 0;
-    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
     for(int k=0;k<M;k++) sumlen += N[k];
     for(int k=0;k<M;k++) discarded_indices[k] = false;
 
-    std::vector<std::vector<double> > c_ssrcalcvalues; c_ssrcalcvalues.resize(M);
-    for(k = 0; k < M; k++) { c_ssrcalcvalues[k].resize(N[k]); }
-
-    python::list tmplist;
     double max_elem = 0;
     for(k = 0; k < M; k++) {
-        tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
-        for(i = 0; i < N[k]; i++) {
-            c_ssrcalcvalues[k][i] = python::extract<double>(tmplist[i]); 
-            if (c_ssrcalcvalues[k][i] > max_elem) {max_elem = c_ssrcalcvalues[k][i];}
-        }
+      for(i = 0; i < N[k]; i++) {
+        if (c_ssrcalcvalues[k][i] > max_elem) {max_elem = c_ssrcalcvalues[k][i];}
+      }
     }
 
     //# check whether there are any empty ssrcalcvalues
@@ -545,7 +534,7 @@ python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, dou
       }
     }
 
-    if(cnt==M) {return result;}
+    if(cnt==M) {return;}
 
     while(true) {
 
@@ -624,6 +613,7 @@ python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, dou
           if(!is_present)
           {
             all_nonuis.push_back(nonuis);
+
           }
         }
 
@@ -639,6 +629,36 @@ python::list calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, dou
         }
 
     }
+    return;
+}
+
+// Python wrapper for calculate_eUIS
+python::list py_calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, double ssrwindow) 
+{
+
+    python::list result;
+    std::vector<std::vector<int> > all_nonuis;
+
+    int M = python::extract<int>(myN.attr("__len__")());
+    int k, i;
+    unsigned int m, n;
+
+    // fill up N
+    std::vector<int> N; N.resize(M);
+    for(int k=0;k<M;k++) N[k] = python::extract<int>(myN[k]);
+
+    // fil up c_ssrcalc values
+    std::vector<std::vector<double> > c_ssrcalcvalues; c_ssrcalcvalues.resize(M);
+    for(k = 0; k < M; k++) { c_ssrcalcvalues[k].resize(N[k]); }
+    python::list tmplist;
+    for(k = 0; k < M; k++) {
+        tmplist = python::extract<python::list>(py_ssrcalcvalues[k]);
+        for(i = 0; i < N[k]; i++) {
+            c_ssrcalcvalues[k][i] = python::extract<double>(tmplist[i]); 
+        }
+    }
+
+    calculate_eUIS(N, c_ssrcalcvalues, ssrwindow, all_nonuis);
 
     // convert to python datastructure
     for(m=0; m<all_nonuis.size(); m++)
@@ -745,7 +765,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
    /*
    * Used by to calculate eUIs
    */
-   def ("calculate_eUIS", calculate_eUIS);
+   def ("calculate_eUIS", py_calculate_eUIS);
 
 }
 
