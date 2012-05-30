@@ -97,6 +97,71 @@ void _combinations_magic(int M, int N, COMBINT* mapping,
 * drawn without replacement from a set of N elements. Order of elements
 * does NOT matter.
 *
+* M is the order
+* N is the length of the input vector
+* mapping is an array of integers of fixed length (see srmcollider.h)
+* result is a python dictionary that holds all combinations, they are
+*   implemented as integers with bitflags set or unset
+*/
+void _combinations(int M, int N, std::vector<std::vector<int> > &result) 
+{
+    // The basic idea is to create an index array of length M that contains
+    // numbers between 0 and N. The indices denote the combination produced and
+    // we always increment the rightmost index. If it goes above N, we try to
+    // increase the one left to it until we find one that still can be
+    // increased. We stop when the rightmost index hits N-M, we thus go from
+    // (0,1,2,3...M-1) to (N-M,N-M+1,N-M+2...N-1)
+    //
+    // see http://svn.python.org/projects/python/trunk/Modules/itertoolsmodule.c
+    // combinations_next fxn around line 2113
+
+    int j, k;
+    int* index = new int[M];
+    std::vector<int> tmpres;
+
+    //initialize with numbers from 0 to M = range( M )
+    for(int k=0;k<M;k++) index[k] = k;
+    while (index[0] <= N-M) {
+
+        //EVALUATE THE RESULT
+        tmpres.clear();
+        for(k=0;k<M;k++) 
+        {
+          tmpres.push_back(index[k]);
+        }
+        result.push_back(tmpres);
+
+        // We need to break if index[0] has the final value
+        // The other option is to make the while condition (index[0] < N-M) 
+        // and add an additional evaluation of the result to the end of the 
+        // function (that would probably be faster).
+        if(index[0] == N-M) break;
+
+        index[ M-1 ] += 1;
+        if (index[ M-1 ] >= N) {
+            //#now we hit the end, need to increment other positions than last
+            //#the last position may reach N-1, the second last only N-2 etc.
+            j = M-1;
+            while (j >= 0 and index[j] >= N-M+j) j -= 1;
+            //#j contains the value of the index that needs to be incremented
+            //TODO if(j<0) break;
+            index[j] += 1;
+            //now start from j+1 to the right and set all indices to their
+            //lowest possible values
+            k = j + 1;
+            while (k < M) { index[k] = index[k-1] + 1; k += 1; } 
+        }
+    }
+
+    delete [] index;
+
+}
+
+/*
+* This function calculates all combinations of M elements
+* drawn without replacement from a set of N elements. Order of elements
+* does NOT matter.
+*
 * the result will be stored as tuple-keys in a python dict
 */
 void _py_combinations(int M, int N, const python::list &mapping, 
@@ -178,71 +243,6 @@ void _py_combinations(int M, int N, const python::list &mapping,
     result[ tmptuple ] = 0; //append to result dict
 
   }
-}
-
-/*
-* This function calculates all combinations of M elements
-* drawn without replacement from a set of N elements. Order of elements
-* does NOT matter.
-*
-* M is the order
-* N is the length of the input vector
-* mapping is an array of integers of fixed length (see srmcollider.h)
-* result is a python dictionary that holds all combinations, they are
-*   implemented as integers with bitflags set or unset
-*/
-void _combinations(int M, int N, std::vector<std::vector<int> > &result) 
-{
-    // The basic idea is to create an index array of length M that contains
-    // numbers between 0 and N. The indices denote the combination produced and
-    // we always increment the rightmost index. If it goes above N, we try to
-    // increase the one left to it until we find one that still can be
-    // increased. We stop when the rightmost index hits N-M, we thus go from
-    // (0,1,2,3...M-1) to (N-M,N-M+1,N-M+2...N-1)
-    //
-    // see http://svn.python.org/projects/python/trunk/Modules/itertoolsmodule.c
-    // combinations_next fxn around line 2113
-
-    int j, k;
-    int* index = new int[M];
-    std::vector<int> tmpres;
-
-    //initialize with numbers from 0 to M = range( M )
-    for(int k=0;k<M;k++) index[k] = k;
-    while (index[0] <= N-M) {
-
-        //EVALUATE THE RESULT
-        tmpres.clear();
-        for(k=0;k<M;k++) 
-        {
-          tmpres.push_back(index[k]);
-        }
-        result.push_back(tmpres);
-
-        // We need to break if index[0] has the final value
-        // The other option is to make the while condition (index[0] < N-M) 
-        // and add an additional evaluation of the result to the end of the 
-        // function (that would probably be faster).
-        if(index[0] == N-M) break;
-
-        index[ M-1 ] += 1;
-        if (index[ M-1 ] >= N) {
-            //#now we hit the end, need to increment other positions than last
-            //#the last position may reach N-1, the second last only N-2 etc.
-            j = M-1;
-            while (j >= 0 and index[j] >= N-M+j) j -= 1;
-            //#j contains the value of the index that needs to be incremented
-            //TODO if(j<0) break;
-            index[j] += 1;
-            //now start from j+1 to the right and set all indices to their
-            //lowest possible values
-            k = j + 1;
-            while (k < M) { index[k] = index[k-1] + 1; k += 1; } 
-        }
-    }
-
-    delete [] index;
-
 }
 
 /*

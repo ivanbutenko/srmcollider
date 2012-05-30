@@ -60,32 +60,5 @@
 #include <boost/python/def.hpp>
 namespace python = boost::python;
 
-// Function declarations of shared functions
-//
-
-// Function to calculate the b and y fragment series given a peptide sequence 
-int _calculate_clashes(const char* sequence, double* b_series, double* y_series,
-        double ch) ;
-
-//functions to calculate a list of transitions for a given number of peptides
-python::list _find_clashes_calculate_clashes_ch(python::tuple precursors,
-        python::list charges, double q3_low, double q3_high );
-python::list _find_clashes_calculate_clashes(python::tuple precursors,
-        double q3_low, double q3_high ); //for charge states 1 and 2
-python::list _calculate_clashes_wrapper(python::tuple &tlist, 
-        double charge); //for a single peptide
-
-//function to calculate the charged mass of a peptide
-double calculate_charged_mass(python::tuple clist, int ch);
-
-
-void _py_combinations(int M, int N, const python::list &mapping, python::dict &result) ;
-void _combinations(int M, int N, std::vector<std::vector<int> >& result) ;
-void _combinations_magic(int M, int N, COMBINT* mapping,
-        python::dict &result) ;
-python::dict get_non_uis(python::dict collisions_per_peptide, int order) ;
-void get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
-        order, std::set<COMBINT> & result);
-
 #endif
 

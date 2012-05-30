@@ -43,26 +43,6 @@ using namespace SRMCollider::Common;
 
 // Function declarations
 
-// functions to calculate collperpeptide dictionary
-//// python::dict _find_clashes_calculate_collperpeptide(python::tuple transitions,
-////         python::tuple precursors, double q3_low, double q3_high, double
-////         q3window, bool ppm);
-python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
-        python::tuple transitions, python::list precursors, python::object par, 
-        double q3_low, double q3_high, double q3window, bool ppm, bool forceChargeCheck=false);
-
-// calculate the number of collisions for each transition
-python::list _find_clashes_calculate_colldensity(python::tuple transitions,
-    python::list precursors, double q3_low, double q3_high, double q3window,
-    bool ppm) ;
-
-// Function to calculate the exact interfering transitions for each peptide for
-// series other than b/y.
-python::dict _find_clashes_forall_other_series(python::tuple transitions,
-    python::list precursors, python::object par, double q3_low, double q3_high, double q3window,
-    bool ppm, double q1_low, bool forceChargeCheck);
-void annotated_ion( int& l, int k, const char* sequence, std::string& curr_ion, SRMParameters& params);
-
 // checks whether the current fragment has an allowed charge
 bool has_allowed_charge(int fragment_charge, int q1_charge, int maximal_charge)
 {
@@ -130,6 +110,9 @@ void _pyToC_initialize_transitions(python::tuple& transitions, std::vector<SRMTr
     c_transitions.push_back(t);
   }
 }
+
+///////////////////////////////////////////////////////////////////////////
+
 /*
  * Function to calculate the collisions_per_peptide out of a set of transitions
  * and precursor peptides that are colliding peptides.  It will return a
@@ -308,6 +291,53 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     return result;
 }
 
+// we annotate the ion nr k that was produced by a call to calculate_fragment_masses, 
+// the annotated ion is of type "curr_ion"-l (e.g. y7 means curr_ion = "y" and l = 7). 
+void annotate_ion( int& l, int k, const char* sequence, std::string& curr_ion, SRMParameters& params) 
+{
+    int scounter, icounter;
+    double* tmp = new double[256];
+    double* series = new double[256];
+    bool done = false;
+
+    // get the number of amino acids in the sequence
+    SRMParameters tmp_params;
+    tmp_params.bions = false;
+    scounter = calculate_fragment_masses(sequence, tmp, series, 1, tmp_params, NOISOTOPEMODIFICATION);
+    scounter++;
+
+    // default is ? (unknown)
+    done = false;
+    icounter = 0;
+    curr_ion = "?";
+
+    // if we use the same order as in calculate_fragment_masses, we can infer the annotation
+    if (params.yions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "y"; done = true; break;}; icounter++;}
+    if (params.bions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "b"; done = true; break;}; icounter++;}
+    if (params.aions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "a"; done = true; break;}; icounter++;}
+    if (params.cions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "c"; done = true; break;}; icounter++;}
+    if (params.xions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "x"; done = true; break;}; icounter++;}
+    if (params.zions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "z"; done = true; break;}; icounter++;}
+
+    if (params.aMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "aMinusNH3"; done = true; break;}; icounter++;}
+    if (params.bMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusH2O"; done = true; break;}; icounter++;}
+    if (params.bMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusNH3"; done = true; break;}; icounter++;}
+    if (params.bPlusH2O && !done)  for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bPlusH2O"; done = true; break;}; icounter++;}
+
+    if (params.yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
+    if (params.yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
+
+    if (params.MMinusH2O && !done) {l=0;if(icounter==k){curr_ion = "MMinusH2O"; done = true;}; icounter++;}
+    if (params.MMinusNH3 && !done) {l=0;if(icounter==k){curr_ion = "MMinusNH3"; done = true;}; icounter++;}
+
+
+    l++; // ion series starts at 1, thus add one
+
+    delete [] tmp;
+    delete [] series;
+}
+
+
 /*
  * Function to calculate the exact interfering transitions for each peptide.
  * It will return a Transitions are tuples of the form (q3, srm_id), precursors
@@ -385,7 +415,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
             int snumber = k; //ion number within series
             // We need to map back the ion number to a specific
             // ion series (this is for cosmetics only)
-            annotated_ion(snumber, k, sequence, curr_ion, params);
+            annotate_ion(snumber, k, sequence, curr_ion, params);
 
             // Find the isotope with the least amount of C13
             // that is above the specified range (only for
@@ -411,52 +441,6 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
   delete [] series;
   delete [] tmp_series;
   return result;
-}
-
-// we annotate the ion nr k that was produced by a call to calculate_fragment_masses, 
-// the annotated ion is of type "curr_ion"-l (e.g. y7 means curr_ion = "y" and l = 7). 
-void annotated_ion( int& l, int k, const char* sequence, std::string& curr_ion, SRMParameters& params) {
-
-    int scounter, icounter;
-    double* tmp = new double[256];
-    double* series = new double[256];
-    bool done = false;
-
-    // get the number of amino acids in the sequence
-    SRMParameters tmp_params;
-    tmp_params.bions = false;
-    scounter = calculate_fragment_masses(sequence, tmp, series, 1, tmp_params, NOISOTOPEMODIFICATION);
-    scounter++;
-
-    // default is ? (unknown)
-    done = false;
-    icounter = 0;
-    curr_ion = "?";
-
-    // if we use the same order as in calculate_fragment_masses, we can infer the annotation
-    if (params.yions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "y"; done = true; break;}; icounter++;}
-    if (params.bions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "b"; done = true; break;}; icounter++;}
-    if (params.aions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "a"; done = true; break;}; icounter++;}
-    if (params.cions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "c"; done = true; break;}; icounter++;}
-    if (params.xions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "x"; done = true; break;}; icounter++;}
-    if (params.zions && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "z"; done = true; break;}; icounter++;}
-
-    if (params.aMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "aMinusNH3"; done = true; break;}; icounter++;}
-    if (params.bMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusH2O"; done = true; break;}; icounter++;}
-    if (params.bMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bMinusNH3"; done = true; break;}; icounter++;}
-    if (params.bPlusH2O && !done)  for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "bPlusH2O"; done = true; break;}; icounter++;}
-
-    if (params.yMinusH2O && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusH2O"; done = true; break;}; icounter++;}
-    if (params.yMinusNH3 && !done) for (l=0; l<scounter-1; l++) {if(icounter==k) {curr_ion = "yMinusNH3"; done = true; break;}; icounter++;}
-
-    if (params.MMinusH2O && !done) {l=0;if(icounter==k){curr_ion = "MMinusH2O"; done = true;}; icounter++;}
-    if (params.MMinusNH3 && !done) {l=0;if(icounter==k){curr_ion = "MMinusNH3"; done = true;}; icounter++;}
-
-
-    l++; // ion series starts at 1, thus add one
-
-    delete [] tmp;
-    delete [] series;
 }
 
 using namespace python;

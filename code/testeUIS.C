@@ -33,7 +33,7 @@
 #include "srmcollider.h"
 #include "srmcolliderLib.cpp"
 
-#include "getNonUis.cpp"
+#include "calculate_eUIS.cpp"
 
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
  
