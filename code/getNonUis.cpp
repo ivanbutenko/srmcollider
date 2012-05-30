@@ -142,9 +142,6 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
         //we keep one empty list around since we hope that most precursors dont 
         //use it. If it gets used, we store it in the result and create a new 
         //list to use from then on.
-        //Sorting it costs something and could be done more efficiently since 
-        //in fact, we only have to merge 2 presorted arrays. TODO Still the cost
-        //is negligible.
         if (listmembers>0) {
             peptide_key = c_precursors[j].transition_group;
             tmplist = tmpdict.keys();
@@ -172,7 +169,8 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
  */
 python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     python::list precursors, double q3_low, double q3_high, double q3window,
-    bool ppm) {
+    bool ppm) 
+{
 
     python::dict collisions_per_peptide, tmpdict;
     python::tuple clist;
@@ -288,7 +286,6 @@ void annotate_ion( int& l, int k, const char* sequence, std::string& curr_ion, S
     delete [] tmp;
     delete [] series;
 }
-
 
 /*
  * Function to calculate the exact interfering transitions for each peptide.

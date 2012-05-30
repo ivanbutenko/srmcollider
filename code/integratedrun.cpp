@@ -74,6 +74,37 @@ struct Transition{
     }
   }
 
+inline void _charged_interference(const char* sequence, double* tmp_series, double* series, const int ch,
+    const SRMParameters& params, const int isotope_modification, 
+    const std::vector<Transition>& mytransitions, const bool ppm, const double q3window, COMBINT& currenttmp)
+{
+  COMBINT one;
+  double q3, q3used = q3window;
+  Transition transition;
+  int k;
+
+  int fragcount = SRMCollider::Common::calculate_fragment_masses(
+      sequence, tmp_series, series, ch, params, isotope_modification);
+
+  for (size_t i=0; i<mytransitions.size(); i++) {
+      transition = mytransitions[i];
+      q3 = transition.q3;
+      //ppm is 10^-6
+      if(ppm) {q3used = q3window / 1000000.0 * q3; } 
+
+          // go through all fragments of this precursor
+          for (k=0; k<fragcount; k++) {
+
+              if(fabs(q3-series[k]) < q3used ) {
+              
+                  //left bitshift == 2^i
+                  one = 1;
+                  currenttmp |= one << i;
+              }
+          }
+  } //loop over all transitions
+}
+
 /* 
  * Calculate the minimally needed number of transitions needed to get a UIS
  * given transitions in their preferred order and interfering precursors.
@@ -92,8 +123,7 @@ int min_needed(std::vector<Transition>& mytransitions, std::vector<SRMPrecursor>
     COMBINT currenttmp = 0;
     std::vector<COMBINT> newcollperpep;
 
-    int fragcount, i, k, ch;
-    double q3, q3used = q3window;
+    int i, ch;
     size_t transitions_length = mytransitions.size();
 
     double* series = new double[1024];
@@ -115,22 +145,8 @@ int min_needed(std::vector<Transition>& mytransitions, std::vector<SRMPrecursor>
       for (ch=1; ch<=2; ch++) 
       {
         // TODO do N15
-        fragcount = SRMCollider::Common::calculate_fragment_masses(
-          precursors[j].sequence, tmp_series, series, ch, params, NOISOTOPEMODIFICATION); //isotope mod is set to 0
-        for(size_t i = 0; i != transitions_length; i++) 
-        {
-          //ppm is 10^-6
-          q3 = mytransitions[i].q3;
-          if(ppm) {q3used = q3window / 1000000.0 * q3; } 
-          // go through all fragments of this precursor
-          for (k=0; k<fragcount; k++) {
-            if(fabs(q3-series[k]) < q3used ) {
-              //left bitshift == 2^i
-              one = 1;
-              currenttmp |= one << i;
-            }
-          }
-        } //loop over all transitions
+        _charged_interference(precursors[j].sequence, tmp_series, series, ch,
+          params, NOISOTOPEMODIFICATION, mytransitions, ppm, q3window, currenttmp);
       } //end loop over all charge states of this precursor
       if ( currenttmp ) 
       {
@@ -218,14 +234,10 @@ void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
   SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& newcollperpep)
 {
     //use the defined COMBINT (default 32bit int) and some bitwise operations to do this :-)
-    COMBINT one;
     COMBINT currenttmp = 0;
-
-    int fragcount, i, k, ch;
-    double q3, q3used = q3window;
+    int ch;
     char* sequence;
 
-    Transition transition;
     SRMCollider::ExtendedRangetree::Precursor precursor;
     std::vector<SRMCollider::ExtendedRangetree::Key> OutputList;
 
@@ -262,65 +274,47 @@ void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
     // collisions per peptide table.
     while(current!=OutputList.end()){
 
-            double q1 = current->first[0];
-            int charge = current->second.q1_charge;
-            bool proceed = false;
-            // check whether there are any relevant isotopes, otherwise exclude this hit
-            for (iso=0; iso<=max_nr_isotopes; iso++) {
-                if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
-                      q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
-                {
-                    proceed = true;
-                }
-            }
+      double q1 = current->first[0];
+      int charge = current->second.q1_charge;
+      bool proceed = false;
+      // check whether there are any relevant isotopes, otherwise exclude this hit
+      for (iso=0; iso<=max_nr_isotopes; iso++) {
+          if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
+                q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
+          {
+              proceed = true;
+          }
+      }
 
-            if (!proceed || thispeptide_key == current->second.peptide_key) {
-              // go to next
-              current++;
-              continue;
-            }
+      if (!proceed || thispeptide_key == current->second.peptide_key) {
+        // go to next
+        current++;
+        continue;
+      }
 
-            precursor =  current->second;
-            sequence = precursor.sequence;
-            for (ch=1; ch<=2; ch++) {
+      precursor =  current->second;
+      sequence = precursor.sequence;
+      for (ch=1; ch<=2; ch++) {
 
-                fragcount = SRMCollider::Common::calculate_fragment_masses(
-                    sequence, tmp_series, series, ch, params, current->second.isotope_modification);
+        _charged_interference(sequence, tmp_series, series, ch, params, 
+          current->second.isotope_modification, mytransitions, ppm, q3window, currenttmp);
 
-                for (i=0; i<transitions_length; i++) {
-                    transition = mytransitions[i];
-                    q3 = transition.q3;
-                    //ppm is 10^-6
-                    if(ppm) {q3used = q3window / 1000000.0 * q3; } 
-
-                        // go through all fragments of this precursor
-                        for (k=0; k<fragcount; k++) {
-
-                            if(fabs(q3-series[k]) < q3used ) {
-                            
-                                //left bitshift == 2^i
-                                one = 1;
-                                currenttmp |= one << i;
-                            }
-                        }
-                } //loop over all transitions
-            }
+      }
 
 
-            //Store current combination
-            if ( currenttmp ) {
-                newcollperpep.push_back(currenttmp);
-                currenttmp = 0;
-            }
+      //Store current combination
+      if ( currenttmp ) {
+          newcollperpep.push_back(currenttmp);
+          currenttmp = 0;
+      }
 
-      current++;
+current++;
     }
 
     delete series;
     delete tmp_series;
     delete b_series;
     delete y_series;
-
 }
 
 // Python wrapper for wrap_all
