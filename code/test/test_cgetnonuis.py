@@ -502,7 +502,7 @@ class Test_three_peptide_example(unittest.TestCase):
       self.interfering_precursors = test_shared.ThreePeptideExample.interfering_precursors
       self.oldstyle_precursors = tuple([(p.q1, p.modified_sequence, p.transition_group, p.q1_charge, p.isotopically_modified) for p in self.interfering_precursors])
 
-    def test_find_clashes_forall_other_series(self):
+    def test_find_clashes_forall_other_series_by(self):
       """ Test how to calculate the transitions of the target
         nonunique = c_getnonuis._find_clashes_forall_other_series( 
             tuple(transitions), tuple(precursors), q3_low, q3_high, 
@@ -544,6 +544,73 @@ class Test_three_peptide_example(unittest.TestCase):
       self.assertEqual( nonunique[4][0][5], 5)
       self.assertEqual( nonunique[4][0][6], 'GGLIVELGDK') # sequence
       self.assertEqual( nonunique[4][0][-1], 1) # charge
+
+    def test_find_clashes_forall_other_series(self):
+      """ Test how to calculate the transitions of the target
+        nonunique = c_getnonuis._find_clashes_forall_other_series( 
+            tuple(transitions), tuple(precursors), q3_low, q3_high, 
+            par.q3_window, par.ppm, par, q1 - par.q1_window)
+
+      """
+      par = self.real_parameters
+      par.aions = True
+      par.xions = True
+      par.zions = True
+      par.bions = False
+      par.yions = False
+      #par.bMinusNH3 = True
+      #par.bMinusH2O = True
+      #par.bPlusH2O = True
+
+      par.q3_window = 4.5
+
+      q3_low, q3_high = self.real_parameters.get_q3range_transitions()
+      precursor = self.precursor
+      transitions = precursor.calculate_transitions(q3_low, q3_high)
+    
+      nonunique = c_getnonuis._find_clashes_forall_other_series( 
+        tuple(transitions), self.interfering_precursors, par, q3_low, q3_high,
+            par.q3_window, par.ppm, precursor.q1 - par.q1_window, False)
+
+      self.assertEqual( len( nonunique ), 4)
+      self.assertEqual( nonunique.keys(), [3,4,5,6] )
+
+      self.assertEqual( len( nonunique[3] ), 1)
+      self.assertEqual( len( nonunique[4] ), 2)
+      self.assertEqual( len( nonunique[5] ), 3)
+      self.assertEqual( len( nonunique[6] ), 1)
+
+      self.assertTrue( abs(nonunique[3][0][0] - 456.756009652) < self.EPSILON )
+      self.assertTrue( abs(nonunique[3][0][1] - 500.787837374) < self.EPSILON )
+      self.assertEqual( nonunique[3][0][2], 0) # empty
+      self.assertEqual( nonunique[3][0][3], 665) # peptide key
+      self.assertEqual( nonunique[3][0][4], 'x')
+      self.assertEqual( nonunique[3][0][5], 2)
+      self.assertEqual( nonunique[3][0][6], 'GGLIVELGDK') # sequence
+      self.assertEqual( nonunique[3][0][-1], 2) # charge
+
+      self.assertTrue( abs(nonunique[4][0][0] - 443.22541272) < self.EPSILON )
+      self.assertTrue( abs(nonunique[4][0][1] - 506.58461326) < self.EPSILON )
+      self.assertEqual( nonunique[4][0][2], 0) # empty
+      self.assertEqual( nonunique[4][0][3], 618) # peptide key
+      self.assertEqual( nonunique[4][0][4], 'a')
+      self.assertEqual( nonunique[4][0][5], 10)
+      self.assertEqual( nonunique[4][0][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[4][0][-1], 2) # charge
+
+      self.assertTrue( abs(nonunique[5][1][0] - 550.28240465) < self.EPSILON )
+      self.assertEqual( nonunique[5][1][4], 'x')
+      self.assertEqual( nonunique[5][1][5], 5)
+      self.assertEqual( nonunique[5][1][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[5][1][-1], 2) # charge
+
+      self.assertTrue( abs(nonunique[6][0][0] - 665.327537823 ) < self.EPSILON )
+      self.assertEqual( nonunique[6][0][2], 0) # empty
+      self.assertEqual( nonunique[6][0][3], 618) # peptide key
+      self.assertEqual( nonunique[6][0][4], 'z')
+      self.assertEqual( nonunique[6][0][5], 2)
+      self.assertEqual( nonunique[6][0][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[6][0][-1], 2) # charge
 
 if __name__ == '__main__':
     unittest.main()
