@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 2.6)
 set(my_executables
 testmain
 testIntegrated
+testRangetree
 combinatorics_test
 )
 
@@ -28,5 +29,6 @@ endforeach(i)
 ENABLE_TESTING()
 ADD_TEST(testmain testmain)
 ADD_TEST(testIntegrated testIntegrated)
+ADD_TEST(testRangetree testRangetree)
 ADD_TEST(combinatorics_test combinatorics_test)
 

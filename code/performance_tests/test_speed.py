@@ -3,6 +3,7 @@ This file tests the speed of different implementations, mostly C++ vs Python.
 """
 
 from nose.tools import nottest
+from nose.plugins.attrib import attr
 import random
 import unittest
 import time
@@ -424,6 +425,7 @@ class Test_speed_integrated(unittest.TestCase):
             print "something went wrong"
             print inst
 
+    @attr('comparison') 
     def test_integrated_cpp(self):
             """ Compare the fully integrated vs the mixed C++ rangetree / Python solution.
 
@@ -449,7 +451,7 @@ class Test_speed_integrated(unittest.TestCase):
             import c_rangetree
             r = c_rangetree.ExtendedRangetree_Q1_RT.create()
             r.new_rangetree()
-            r.create_tree(tuple(alltuples))
+            r.create_tree(tuple(self.alltuples_isotope_correction))
             #c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
 
             MAX_UIS = 5
@@ -561,6 +563,7 @@ class Test_speed_integrated(unittest.TestCase):
             #     print "something went wrong"
             #     print inst
 
+    #@attr('comparison') 
     def test_two_table_mysql(self):
             """Compare the two table vs the one table MySQL approach
             
@@ -685,6 +688,7 @@ class Test_speed_integrated(unittest.TestCase):
                 sys.stdout.write(mys)
                 sys.stdout.flush()
 
+    @attr('comparison') 
     def test_mysql_vs_integrated(self):
             """Compare the one table MySQL approach vs the fully integrated Cpp approach
             
@@ -726,7 +730,7 @@ class Test_speed_integrated(unittest.TestCase):
             import c_rangetree
             r = c_rangetree.ExtendedRangetree_Q1_RT.create()
             r.new_rangetree()
-            r.create_tree(tuple(alltuples))
+            r.create_tree(tuple(self.alltuples_isotope_correction))
             #c_integrated.create_tree(tuple(self.alltuples_isotope_correction))
 
             MAX_UIS = 5
