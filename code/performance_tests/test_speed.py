@@ -502,7 +502,7 @@ class Test_speed_integrated(unittest.TestCase):
                 #  - start out from transitions, get non_uislist
 
                 mystart = time.time()
-                newresult = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low,
+                newresult = c_integrated.wrap_all_bitwise(transitions, q1_low, ssrcalc_low,
                     q1_high,  ssrcalc_high, peptide_key,
                     min(MAX_UIS,nr_transitions) , par.q3_window, #q3_low, q3_high,
                     par.ppm, par.isotopes_up_to, isotope_correction, par, r)
@@ -794,7 +794,7 @@ class Test_speed_integrated(unittest.TestCase):
                 # New way to calculate non_uislist 
                 #  - start out from transitions, get non_uislist
                 mystart = time.time()
-                newresult = c_integrated.wrap_all_magic(transitions, q1_low, ssrcalc_low,
+                newresult = c_integrated.wrap_all_bitwise(transitions, q1_low, ssrcalc_low,
                     q1_high,  ssrcalc_high, peptide_key,
                     min(MAX_UIS,nr_transitions) , par.q3_window, #q3_low, q3_high,
                     par.ppm, par.isotopes_up_to, isotope_correction, par, r)

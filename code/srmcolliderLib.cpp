@@ -490,5 +490,59 @@ double calculate_charged_mass(python::tuple clist, int ch)
 }        
 
 }
+
+  namespace pyToC
+  {
+
+    void initialize_param_obj(python::object& par, Common::SRMParameters& params)
+    {
+        params.aions      =  python::extract<bool>(par.attr("aions"));
+        params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+        params.bions      =  python::extract<bool>(par.attr("bions"));
+        params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+        params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+        params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+        params.cions      =  python::extract<bool>(par.attr("cions"));
+        params.xions      =  python::extract<bool>(par.attr("xions"));
+        params.yions      =  python::extract<bool>(par.attr("yions"));
+        params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+        params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+        params.zions      =  python::extract<bool>(par.attr("zions"));
+        params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+        params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
+    }
+
+    void initialize_precursors(python::list& precursors, std::vector<Common::SRMPrecursor>& c_precursors)
+    {
+      for (int i=0; i<python::extract<int>(precursors.attr("__len__")()); i++) {
+        Common::SRMPrecursor p;
+        python::object precursor = python::extract< python::object >(precursors[i]);
+        python::object q1 = python::extract< python::object >(precursor.attr("q1"));
+        // check for None
+        if(q1.ptr() != python::object().ptr() )
+        {
+          p.q1 = python::extract<double>(precursor.attr("q1"));
+        }
+        p.sequence = python::extract<char *>(precursor.attr("modified_sequence"));
+        p.isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
+        p.q1_charge = python::extract<int>(precursor.attr("q1_charge"));
+        p.maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());
+        p.transition_group = python::extract<long>(precursor.attr("transition_group"));
+        c_precursors.push_back(p);
+      }
+    }
+
+    void initialize_transitions(python::tuple& transitions, std::vector<Common::SRMTransition>& c_transitions)
+    {
+      for (int i=0; i<python::extract<int>(transitions.attr("__len__")()); i++) {
+        Common::SRMTransition t;
+        python::tuple tlist = python::extract< python::tuple >(transitions[i]);
+        t.q3 = python::extract< double >(tlist[0]);
+        t.transition_id = python::extract<long>(tlist[1]);
+        c_transitions.push_back(t);
+      }
+    }
+
+  }
 }
 #endif

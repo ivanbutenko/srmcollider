@@ -120,7 +120,7 @@ for precursor in precursors_to_evaluate:
     ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
     ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
     try:
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, precursor.transition_group,  
             min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
     except ValueError: 

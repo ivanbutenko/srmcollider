@@ -46,6 +46,7 @@
 #include <vector>
 
 using namespace SRMCollider::Common;
+using namespace SRMCollider;
 //using namespace std;
 
 namespace SRMCollider {
@@ -55,6 +56,23 @@ struct Transition{
   double q3;
   long srm_id;
 };
+
+  void _pyToC_integratedrunTransitions(python::tuple& transitions, std::vector<Transition>& mytransitions)
+  {
+    /*
+    * Transitions are tuples of the form (q3, srm_id)
+    * convert to our struct.
+    */
+    int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    python::tuple tlist;
+    for (int i=0; i<transitions_length; i++) {
+        tlist = python::extract< python::tuple >(transitions[i]);
+        double q3 = python::extract<double>(tlist[0]);
+        long srm_id = python::extract<long>(tlist[1]);
+        struct Transition entry = {q3, srm_id};
+        mytransitions[i] = entry;
+    }
+  }
 
 /* 
  * Calculate the minimally needed number of transitions needed to get a UIS
@@ -69,7 +87,7 @@ int min_needed(std::vector<Transition>& mytransitions, std::vector<SRMPrecursor>
     int max_uis, double q3window, bool ppm, SRMParameters& params)
 {
 
-    //use the defined COMBINT (default 32bit int) and some magic to do this :-)
+    //use the defined COMBINT (default 32bit int) and some bitwise operation to do this :-)
     COMBINT one;
     COMBINT currenttmp = 0;
     std::vector<COMBINT> newcollperpep;
@@ -142,28 +160,10 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
 
     python::tuple clist;
     int i;
-    long srm_id;
-    double q3;
     char* sequence;
-
-    SRMParameters params;
-    params.aions      =  python::extract<bool>(par.attr("aions"));
-    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    params.bions      =  python::extract<bool>(par.attr("bions"));
-    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    params.cions      =  python::extract<bool>(par.attr("cions"));
-    params.xions      =  python::extract<bool>(par.attr("xions"));
-    params.yions      =  python::extract<bool>(par.attr("yions"));
-    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    params.zions      =  python::extract<bool>(par.attr("zions"));
-    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
-
-    int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
+    int precursor_length = python::extract<int>(precursors.attr("__len__")());
+    python::tuple tlist;
     
     //Check whether we have more transitions than we have bits in our number
     if (transitions_length > COMBLIMIT) {
@@ -173,19 +173,11 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
         return -1;
     }
 
-    /*
-    * Transitions are tuples of the form (q3, srm_id)
-    * convert to our struct.
-    */
-    python::tuple tlist;
+    SRMParameters params;
+    pyToC::initialize_param_obj(par, params);
+
     std::vector<Transition> mytransitions(transitions_length);
-    for (i=0; i<transitions_length; i++) {
-        tlist = python::extract< python::tuple >(transitions[i]);
-        q3 = python::extract<double>(tlist[0]);
-        srm_id = python::extract<long>(tlist[1]);
-        struct Transition entry = {q3, srm_id};
-        mytransitions[i] = entry;
-    }
+    _pyToC_integratedrunTransitions(transitions, mytransitions);
 
     std::vector<SRMPrecursor> myprecursors(precursor_length);
     for (i=0; i<precursor_length; i++) {
@@ -210,7 +202,7 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
  * whether the q3 window is given in ppm (parts per million), default unit is
  * Th which is m/z
  *
- * This function uses "magic" to speed up the calculation: each combination of
+ * This function uses "bitwise operations" to speed up the calculation: each combination of
  * transitions is encoded in an integer, which allows easy storage and
  * computation by bitshits even though the code gets less easy to understand.
  * The default length of the integer is 32 bits thus we can at most handle
@@ -220,12 +212,12 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
  * If there are more transitions provided than allowed, an error will be
  * thrown. 
 */
-void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
+void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
   double c, double d, long thispeptide_key, int max_uis, double q3window,
   bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters params,
   SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& newcollperpep)
 {
-    //use the defined COMBINT (default 32bit int) and some magic to do this :-)
+    //use the defined COMBINT (default 32bit int) and some bitwise operations to do this :-)
     COMBINT one;
     COMBINT currenttmp = 0;
 
@@ -332,27 +324,11 @@ void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
 }
 
 // Python wrapper for wrap_all
-python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b,
+python::list _py_wrap_all_bitwise(python::tuple py_transitions, double a, double b,
   double c, double d, long thispeptide_key, int max_uis, double q3window,
   bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
   SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree)
 {
-
-    SRMParameters params;
-    params.aions      =  python::extract<bool>(par.attr("aions"));
-    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    params.bions      =  python::extract<bool>(par.attr("bions"));
-    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    params.cions      =  python::extract<bool>(par.attr("cions"));
-    params.xions      =  python::extract<bool>(par.attr("xions"));
-    params.yions      =  python::extract<bool>(par.attr("yions"));
-    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    params.zions      =  python::extract<bool>(par.attr("zions"));
-    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     //Check whether we have more transitions than we have bits in our number
     int transitions_length = python::extract<int>(py_transitions.attr("__len__")());
@@ -364,29 +340,21 @@ python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b
         return tlist;
     }
 
-    /*
-    * Transitions are tuples of the form (q3, srm_id)
-    * convert to our struct.
-    */
-    python::tuple tlist;
+    SRMParameters params;
+    pyToC::initialize_param_obj(par, params);
+
     std::vector<Transition> mytransitions(transitions_length);
-    for (int i=0; i<transitions_length; i++) {
-        python::tuple tlist = python::extract< python::tuple >(py_transitions[i]);
-        double q3 = python::extract<double>(tlist[0]);
-        long srm_id = python::extract<long>(tlist[1]);
-        struct Transition entry = {q3, srm_id};
-        mytransitions[i] = entry;
-    }
+    _pyToC_integratedrunTransitions(py_transitions, mytransitions);
 
     std::vector<COMBINT> collisions_per_peptide; 
-    wrap_all_magic(mytransitions, a, b, c, d,
+    wrap_all_bitwise(mytransitions, a, b, c, d,
         thispeptide_key, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
          params, rtree, collisions_per_peptide);
 
     std::vector<int> c_result;
     for(int i =1; i<= max_uis; i++) {
       std::set<COMBINT> combinations;
-      get_non_uis_magic(collisions_per_peptide, transitions_length, i, combinations);
+      SRMCollider::Combinatorics::get_non_uis_bitwise(collisions_per_peptide, transitions_length, i, combinations);
       c_result.push_back(combinations.size());
     }
 
@@ -396,8 +364,6 @@ python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b
       result.append(c_result[i]);
     }
     return result;
-
-
 }
 
 // Expose to Python
@@ -405,7 +371,7 @@ using namespace python;
 BOOST_PYTHON_MODULE(c_integrated)
 {
 
-    def("wrap_all_magic", _py_wrap_all_magic,
+    def("wrap_all_bitwise", _py_wrap_all_bitwise,
             
  "Return the number of non-UIS for all orders up to max_uis\n"
  "Given the transitions and then four numbers giving the coordinate window in\n"
@@ -416,7 +382,7 @@ BOOST_PYTHON_MODULE(c_integrated)
  "whether the q3 window is given in ppm (parts per million), default unit is\n"
  "Th which is m/z\n"
  "\n"
- "This function uses magic to speed up the calculation: each combination of\n"
+ "This function uses bitwise operations to speed up the calculation: each combination of\n"
  "transitions is encoded in an integer, which allows easy storage and\n"
  "computation by bitshits even though the code gets less easy to understand.\n"
  "The default length of the integer is 32 bits thus we can at most handle\n"
@@ -428,7 +394,7 @@ BOOST_PYTHON_MODULE(c_integrated)
  "\n"
  "\n"
  " Signature\n"
- "list wrap_all_magic(python::tuple transitions, double a, double b,\n"
+ "list wrap_all_bitwise(python::tuple transitions, double a, double b,\n"
         "double c, double d, long thispeptide_key, int max_uis, double q3window,\n"
         "bool ppm, int max_nr_isotopes, double isotope_correction)"
     );

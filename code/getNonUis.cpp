@@ -38,7 +38,8 @@
 #include "srmcolliderLib.cpp"
 
 #include "calculate_eUIS.cpp"
-using namespace std;
+//using namespace std;
+using namespace SRMCollider;
 using namespace SRMCollider::Common;
 
 // Function declarations
@@ -60,55 +61,6 @@ bool has_allowed_charge(int fragment_charge, int q1_charge, int maximal_charge)
   // TODO / implement: check each 2+ fragment whether it can hold the charge
 
   return true;
-}
-
-void _pyToC_initialize_param_obj(python::object& par, SRMParameters& params)
-{
-    params.aions      =  python::extract<bool>(par.attr("aions"));
-    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    params.bions      =  python::extract<bool>(par.attr("bions"));
-    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    params.cions      =  python::extract<bool>(par.attr("cions"));
-    params.xions      =  python::extract<bool>(par.attr("xions"));
-    params.yions      =  python::extract<bool>(par.attr("yions"));
-    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    params.zions      =  python::extract<bool>(par.attr("zions"));
-    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
-}
-
-void _pyToC_initialize_precursors(python::list& precursors, std::vector<SRMPrecursor>& c_precursors)
-{
-  for (int i=0; i<python::extract<int>(precursors.attr("__len__")()); i++) {
-    SRMPrecursor p;
-    python::object precursor = python::extract< python::object >(precursors[i]);
-    python::object q1 = python::extract< python::object >(precursor.attr("q1"));
-    // check for None
-    if(q1.ptr() != python::object().ptr() )
-    {
-      p.q1 = python::extract<double>(precursor.attr("q1"));
-    }
-    p.sequence = python::extract<char *>(precursor.attr("modified_sequence"));
-    p.isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
-    p.q1_charge = python::extract<int>(precursor.attr("q1_charge"));
-    p.maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());
-    p.transition_group = python::extract<long>(precursor.attr("transition_group"));
-    c_precursors.push_back(p);
-  }
-}
-
-void _pyToC_initialize_transitions(python::tuple& transitions, std::vector<SRMTransition>& c_transitions)
-{
-  for (int i=0; i<python::extract<int>(transitions.attr("__len__")()); i++) {
-    SRMTransition t;
-    python::tuple tlist = python::extract< python::tuple >(transitions[i]);
-    t.q3 = python::extract< double >(tlist[0]);
-    t.transition_id = python::extract<long>(tlist[1]);
-    c_transitions.push_back(t);
-  }
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -150,9 +102,9 @@ python::dict _find_clashes_calculate_collperpeptide_other_ion_series(
     double* tmp_series = new double[1024];
 
     SRMParameters params;
-    _pyToC_initialize_param_obj(par, params);
-    _pyToC_initialize_precursors(precursors, c_precursors);
-    _pyToC_initialize_transitions(transitions, c_transitions);
+    pyToC::initialize_param_obj(par, params);
+    pyToC::initialize_precursors(precursors, c_precursors);
+    pyToC::initialize_transitions(transitions, c_transitions);
 
     // go through all (potential) interfering precursors and store the
     // colliding SRM ids in a dictionary (they can be found at position 3 and 1
@@ -371,9 +323,9 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
   double* tmp_series = new double[256];
 
   SRMParameters params;
-  _pyToC_initialize_param_obj(par, params);
-  _pyToC_initialize_precursors(precursors, c_precursors);
-  _pyToC_initialize_transitions(transitions, c_transitions);
+  pyToC::initialize_param_obj(par, params);
+  pyToC::initialize_precursors(precursors, c_precursors);
+  pyToC::initialize_transitions(transitions, c_transitions);
 
   std::string curr_ion = "?";
 
@@ -489,7 +441,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  " bool forceChargecheck)\n"
             ""); 
 
-    def("get_non_uis", get_non_uis, 
+    def("get_non_uis", SRMCollider::Combinatorics::get_non_uis, 
  "Function to calculate all non-UIS transitions from a dictionary \n"
  "where for each key (colliding peptide key) the set of transitions\n"
  "of the query peptide are stored that are interfered with is held\n"

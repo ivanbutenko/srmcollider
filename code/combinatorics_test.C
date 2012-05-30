@@ -34,6 +34,8 @@
 #include "combinatorics.h"
 
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
+
+using namespace SRMCollider::Combinatorics;
  
 BOOST_AUTO_TEST_CASE( _py_combinations_TEST)
 {
@@ -108,6 +110,6 @@ BOOST_AUTO_TEST_CASE( _combinations_TEST_2)
   }
 }
 
-BOOST_AUTO_TEST_CASE( _combinations_magic_TEST)
+BOOST_AUTO_TEST_CASE( _combinations_bitwise_TEST)
 {
 }

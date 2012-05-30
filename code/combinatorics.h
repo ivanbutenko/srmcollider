@@ -30,6 +30,9 @@
 
 //using namespace std;
 
+namespace SRMCollider {
+
+namespace Combinatorics {
 /*
 * This function calculates all combinations of M elements
 * drawn without replacement from a set of N elements. Order of elements
@@ -41,8 +44,9 @@
 * result is a python dictionary that holds all combinations, they are
 *   implemented as integers with bitflags set or unset
 */
-void _combinations_magic(int M, int N, COMBINT* mapping,
-        std::set<COMBINT>& result) {
+void _combinations_bitwise(int M, int N, COMBINT* mapping,
+        std::set<COMBINT>& result) 
+{
     // The basic idea is to create an index array of length M that contains
     // numbers between 0 and N. The indices denote the combination produced and
     // we always increment the rightmost index. If it goes above N, we try to
@@ -56,6 +60,13 @@ void _combinations_magic(int M, int N, COMBINT* mapping,
     int j, k;
     int* index = new int[M];
     COMBINT tmpres;
+
+    // Speed measurements
+    //python::dict t; // 0m28.892s
+    //std::map<COMBINT, int> t; // 0m37.133s
+    //std::set t; // 0m19.013s -- thus the std::set.insert is the slowest part here
+    //std::vector<COMBINT> t; // 0m2.831s
+    // do not add = 0m1.227s
 
     //initialize with numbers from 0 to M = range( M )
     for(int k=0;k<M;k++) index[k] = k;
@@ -316,7 +327,7 @@ python::dict get_non_uis(python::dict collisions_per_peptide, int order)
  *
  * It will return a list of all non UIS of the requested order.
  */
-void get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
+void get_non_uis_bitwise(std::vector<COMBINT>& newcollperpep, int max_tr, int
         order, std::set<COMBINT> & result) 
 {
     int onecounter;
@@ -346,10 +357,13 @@ void get_non_uis_magic(std::vector<COMBINT>& newcollperpep, int max_tr, int
         }
         */
 
-        _combinations_magic(order, onecounter, mapping, result);
+        _combinations_bitwise(order, onecounter, mapping, result);
     }
 
     delete [] mapping;
+}
+
+}
 }
 
 #endif

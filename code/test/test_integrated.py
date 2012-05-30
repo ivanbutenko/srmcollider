@@ -154,7 +154,7 @@ class Test_cintegrated(unittest.TestCase):
         ssrcalc_low = 0
         ssrcalc_high = 100
         MAX_UIS=5
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
             MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [12, 66, 220, 495, 790])
@@ -167,7 +167,7 @@ class Test_cintegrated(unittest.TestCase):
         ssrcalc_low = 0
         ssrcalc_high = 100
         MAX_UIS=5
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
             MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [12, 35, 20, 3, 0] )
@@ -180,7 +180,7 @@ class Test_cintegrated(unittest.TestCase):
         ssrcalc_low = 0
         ssrcalc_high = 100
         MAX_UIS=5
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
             MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [10, 10, 5, 1, 0] )
@@ -212,7 +212,7 @@ class Test_cintegrated(unittest.TestCase):
         ssrcalc_low = 0
         ssrcalc_high = 100
         MAX_UIS=5
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
             MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [12, 66, 220, 495, 790])
@@ -225,7 +225,7 @@ class Test_cintegrated(unittest.TestCase):
         ssrcalc_low = 0
         ssrcalc_high = 100
         MAX_UIS=5
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
             MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [12, 35, 20, 3, 0] )
@@ -238,7 +238,7 @@ class Test_cintegrated(unittest.TestCase):
         ssrcalc_low = 0
         ssrcalc_high = 100
         MAX_UIS=5
-        result = c_integrated.wrap_all_magic(transitions, q1 - par.q1_window, 
+        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
             ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, -1,
             MAX_UIS, par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
         self.assertEqual(result, [10, 10, 5, 1, 0] )
