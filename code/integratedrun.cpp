@@ -1,22 +1,11 @@
 /*
- * This file contains functions that allow the user to execute one calculation
- * of UIS or minimal number of transitions needed for a peptide with one call.
- * This means that instead of calling several functions after each other and
- * passing data structures between Python and Cpp, all can be done in Cpp which
- * is faster.
- *
- * Thus it combines the functionality of rangetree.cpp and getNonUis.cpp in one.
- *
-*/
-
-/*
  *
  * Program       : SRMCollider
  * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
  * Date          : 05.02.2011 
  *
  *
- * Copyright (C) 2011 Hannes Roest
+ * Copyright (C) 2011 - 2012 Hannes Roest
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,6 +22,17 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
  *
  */
+
+/*
+ * This file contains functions that allow the user to execute one calculation
+ * of UIS or minimal number of transitions needed for a peptide with one call.
+ * This means that instead of calling several functions after each other and
+ * passing data structures between Python and Cpp, all can be done in Cpp which
+ * is faster.
+ *
+ * Thus it combines the functionality of rangetree.cpp and getNonUis.cpp in one.
+ *
+*/
 
 
 //include our own libraries

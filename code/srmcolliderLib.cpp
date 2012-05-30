@@ -5,7 +5,7 @@
  * Date          : 05.02.2011 
  *
  *
- * Copyright (C) 2011 Hannes Roest
+ * Copyright (C) 2011 - 2012 Hannes Roest
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -36,7 +36,8 @@ struct SRMTransition
   long transition_id;
 };
 
-struct SRMPrecursor{
+struct SRMPrecursor
+{
   char* sequence; 
   double q1;
   long transition_group;

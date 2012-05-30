@@ -1,27 +1,11 @@
 /*
- * This file has the abstraction layer to make calls to the CGAL rangetree and
- * retrieve precursor values from it. There are two functions: build tree and
- * query tree.
- *
- *
- * To install CGAL:
- *
- * sudo apt-get install libcgal-dev 
- * g++ -frounding-math -lCGAL -O3 rangetree.cpp 
- * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/SearchStructures/Chapter_main.html
- * http://graphics.stanford.edu/courses/cs368-00-spring/TA/manuals/CGAL/ref-manual2/SearchStructures/Chapter_main.html
- * Q Public Licence http://www.gnu.org/licenses/license-list.html
- * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/packages.html#part_XIII
-*/
-
-/*
  *
  * Program       : SRMCollider
  * Author        : Hannes Roest <roest@imsb.biol.ethz.ch>
  * Date          : 05.02.2011 
  *
  *
- * Copyright (C) 2011 Hannes Roest
+ * Copyright (C) 2011 - 2012 Hannes Roest
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -38,6 +22,22 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
  *
  */
+
+/*
+ * This file has the abstraction layer to make calls to the CGAL rangetree and
+ * retrieve precursor values from it. There are two functions: build tree and
+ * query tree.
+ *
+ *
+ * To install CGAL:
+ *
+ * sudo apt-get install libcgal-dev 
+ * g++ -frounding-math -lCGAL -O3 rangetree.cpp 
+ * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/SearchStructures/Chapter_main.html
+ * http://graphics.stanford.edu/courses/cs368-00-spring/TA/manuals/CGAL/ref-manual2/SearchStructures/Chapter_main.html
+ * Q Public Licence http://www.gnu.org/licenses/license-list.html
+ * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/packages.html#part_XIII
+*/
 
 //include our own libraries
 #include "srmcollider.h"

@@ -5,7 +5,7 @@
  * Date          : 05.02.2011 
  *
  *
- * Copyright (C) 2011 Hannes Roest
+ * Copyright (C) 2011 - 2012 Hannes Roest
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -55,7 +55,6 @@ void _combinations_magic(int M, int N, COMBINT* mapping,
     int* index = new int[M];
     COMBINT tmpres;
 
-    python::tuple tmptuple;
     //initialize with numbers from 0 to M = range( M )
     for(int k=0;k<M;k++) index[k] = k;
     while (index[0] <= N-M) {
