@@ -33,10 +33,9 @@
 #include "srmcollider.h"
 #include "srmcolliderLib.cpp"
 
-#include "getNonUis.cpp"
-
-
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
+
+using namespace SRMCollider::Common;
  
 BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
 {

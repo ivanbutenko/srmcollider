@@ -5,10 +5,11 @@ cmake_minimum_required(VERSION 2.6)
 
 ## list all your executables here (a corresponding .C file should exist, e.g. Main.C)
 set(my_executables
-testmain
+testgetNonUIS
 testIntegrated
 testRangetree
 testeUIS
+testLibrary
 combinatorics_test
 )
 
@@ -28,9 +29,10 @@ endforeach(i)
 
 
 ENABLE_TESTING()
-ADD_TEST(testmain testmain)
+ADD_TEST(testgetNonUIS testgetNonUIS)
 ADD_TEST(testIntegrated testIntegrated)
 ADD_TEST(testRangetree testRangetree)
 ADD_TEST(testeUIS testeUIS)
+ADD_TEST(testLibrary testLibrary)
 ADD_TEST(combinatorics_test combinatorics_test)
 
