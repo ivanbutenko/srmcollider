@@ -104,64 +104,12 @@ int _calculate_clashes_other_series_sub(const char* sequence, double* tmp,
         int isotope_mod = NOISOTOPEMODIFICATION
         ) ;
 
-int calculate_fragment_masses(const char* sequence, double* tmp, 
-        double* series, double ch, SRMParameters& params, int isotope_mod);
-
-int _calculate_clashes_other_series(const char* sequence, double* tmp, 
-        double* series, double ch, python::object parameters) {
-
-    bool aions      =  python::extract<bool>(parameters.attr("aions"));
-    bool aMinusNH3  =  python::extract<bool>(parameters.attr("aMinusNH3"));
-    bool bions      =  python::extract<bool>(parameters.attr("bions"));
-    bool bMinusH2O  =  python::extract<bool>(parameters.attr("bMinusH2O"));
-    bool bMinusNH3  =  python::extract<bool>(parameters.attr("bMinusNH3"));
-    bool bPlusH2O   =  python::extract<bool>(parameters.attr("bPlusH2O"));
-    bool cions      =  python::extract<bool>(parameters.attr("cions"));
-    bool xions      =  python::extract<bool>(parameters.attr("xions"));
-    bool yions      =  python::extract<bool>(parameters.attr("yions"));
-    bool yMinusH2O  =  python::extract<bool>(parameters.attr("yMinusH2O"));
-    bool yMinusNH3  =  python::extract<bool>(parameters.attr("yMinusNH3"));
-    bool zions      =  python::extract<bool>(parameters.attr("zions"));
-    bool MMinusH2O  =  python::extract<bool>(parameters.attr("MMinusH2O"));
-    bool MMinusNH3  =  python::extract<bool>(parameters.attr("MMinusNH3"));
-
-return _calculate_clashes_other_series_sub(sequence, tmp, 
-        series, ch, aions, aMinusNH3, bions, bMinusH2O,
-        bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-        yMinusNH3, zions, MMinusH2O, MMinusNH3);
-
-}
-
-int _calculate_clashes_other_series_sub(const char* sequence, double* tmp, 
-        double* series, double ch, 
-        bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
-        bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
-        bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
-        bool MMinusH2O , bool MMinusNH3 ,
-        int isotope_mod )
-{
-
-    SRMParameters params;
-    params.aions      =  aions;
-    params.aMinusNH3  =  aMinusNH3;
-    params.bions      =  bions;
-    params.bMinusH2O  =  bMinusH2O;
-    params.bMinusNH3  =  bMinusNH3;
-    params.bPlusH2O   =  bPlusH2O;
-    params.cions      =  cions;
-    params.xions      =  xions;
-    params.yions      =  yions;
-    params.yMinusH2O  =  yMinusH2O;
-    params.yMinusNH3  =  yMinusNH3;
-    params.zions      =  zions;
-    params.MMinusH2O  =  MMinusH2O;
-    params.MMinusNH3  =  MMinusNH3;
-    return calculate_fragment_masses(sequence, tmp, 
-        series, ch, params, isotope_mod);
-}
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
 
 int calculate_fragment_masses(const char* sequence, double* tmp, 
-        double* series, double ch, SRMParameters& params, int isotope_mod) 
+        double* series, double ch, const SRMParameters& params, int isotope_mod) 
 {
 
     int j, start, scounter;
@@ -431,8 +379,62 @@ int calculate_fragment_masses(const char* sequence, double* tmp,
     return frg_cnt;
 }
 
+
+int _calculate_clashes_other_series(const char* sequence, double* tmp, 
+        double* series, double ch, python::object parameters) {
+
+    bool aions      =  python::extract<bool>(parameters.attr("aions"));
+    bool aMinusNH3  =  python::extract<bool>(parameters.attr("aMinusNH3"));
+    bool bions      =  python::extract<bool>(parameters.attr("bions"));
+    bool bMinusH2O  =  python::extract<bool>(parameters.attr("bMinusH2O"));
+    bool bMinusNH3  =  python::extract<bool>(parameters.attr("bMinusNH3"));
+    bool bPlusH2O   =  python::extract<bool>(parameters.attr("bPlusH2O"));
+    bool cions      =  python::extract<bool>(parameters.attr("cions"));
+    bool xions      =  python::extract<bool>(parameters.attr("xions"));
+    bool yions      =  python::extract<bool>(parameters.attr("yions"));
+    bool yMinusH2O  =  python::extract<bool>(parameters.attr("yMinusH2O"));
+    bool yMinusNH3  =  python::extract<bool>(parameters.attr("yMinusNH3"));
+    bool zions      =  python::extract<bool>(parameters.attr("zions"));
+    bool MMinusH2O  =  python::extract<bool>(parameters.attr("MMinusH2O"));
+    bool MMinusNH3  =  python::extract<bool>(parameters.attr("MMinusNH3"));
+
+return _calculate_clashes_other_series_sub(sequence, tmp, 
+        series, ch, aions, aMinusNH3, bions, bMinusH2O,
+        bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
+        yMinusNH3, zions, MMinusH2O, MMinusNH3);
+
+}
+
+int _calculate_clashes_other_series_sub(const char* sequence, double* tmp, 
+        double* series, double ch, 
+        bool aions     , bool aMinusNH3 , bool bions     , bool bMinusH2O ,
+        bool bMinusNH3 , bool bPlusH2O  , bool cions     , bool xions     ,
+        bool yions     , bool yMinusH2O , bool yMinusNH3 , bool zions     ,
+        bool MMinusH2O , bool MMinusNH3 ,
+        int isotope_mod )
+{
+
+    SRMParameters params;
+    params.aions      =  aions;
+    params.aMinusNH3  =  aMinusNH3;
+    params.bions      =  bions;
+    params.bMinusH2O  =  bMinusH2O;
+    params.bMinusNH3  =  bMinusNH3;
+    params.bPlusH2O   =  bPlusH2O;
+    params.cions      =  cions;
+    params.xions      =  xions;
+    params.yions      =  yions;
+    params.yMinusH2O  =  yMinusH2O;
+    params.yMinusNH3  =  yMinusNH3;
+    params.zions      =  zions;
+    params.MMinusH2O  =  MMinusH2O;
+    params.MMinusNH3  =  MMinusNH3;
+    return calculate_fragment_masses(sequence, tmp, 
+        series, ch, params, isotope_mod);
+}
+
 void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charges, std::vector<SRMTransition>& result, 
-  double* tmp, double* series, double & q3_low, double & q3_high, SRMParameters& param)
+  double* tmp, double* series, double q3_low, double q3_high, const SRMParameters& param)
 {
 
   int fragcount, k;
@@ -468,7 +470,8 @@ void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charge
  *
  */
 python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
-        python::list py_charges, double q3_low, double q3_high ) {
+        python::list py_charges, double q3_low, double q3_high ) 
+{
 
     python::tuple clist;
     python::list py_result;
@@ -478,10 +481,6 @@ python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
     std::vector<int> charges;
 
     SRMParameters param;
-
-    long peptide_key;
-    double q1;
-    char* sequence;
 
     double* tmp = new double[1024];
     double* series = new double[1024];
@@ -498,7 +497,7 @@ python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
       precursors.push_back(p);
     }
 
-    for (int i=0; i< precursors.size(); i++) {
+    for (size_t i=0; i< precursors.size(); i++) {
       calculate_transitions_with_charge(precursors[i], charges, result, tmp, series, q3_low, q3_high, param);
     }
 
@@ -513,11 +512,13 @@ python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
     return py_result;
 }        
 
+
 /*
  * Calculate the charged mass for a sequence, supplied in a python tuple in the
  * first place.
 */
-double calculate_charged_mass(python::tuple clist, int ch) {
+double calculate_charged_mass(python::tuple clist, int ch) 
+{
 
     double charged_mass;
     double* tmp = new double[256];

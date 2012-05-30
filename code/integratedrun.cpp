@@ -60,18 +60,13 @@ struct Transition{
   long srm_id;
 };
 
-// Function declarations
-//minimally needed number of transitions to get a UIS (ordered transitions)
-int min_needed(python::tuple transitions, python::tuple precursors,
-    int max_uis, double q3window, bool ppm, python::object par);
-
 //return the number of non UIS present given the transitions and a query window
 //in Q1 and SSRCalc
 // using magic gives a speedup of around 2fold
 void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
   double c, double d, long thispeptide_key, int max_uis, double q3window,
   bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters params,
-  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<int>& c_result);
+  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& result);
 
 python::list wrap_all(python::tuple transitions, double a, double b, double c,
         double d, long thispeptide_key, int max_uis, double q3window, bool ppm);
@@ -85,24 +80,85 @@ python::list wrap_all(python::tuple transitions, double a, double b, double c,
  * the leftmost bit needs to be set to zero all the time, otherwise an infinte
  * loop occurs, thus there is one bit we cannot use.
 */
-int min_needed(python::tuple transitions, python::tuple precursors,
-    int max_uis, double q3window, bool ppm, python::object par)   {
+int min_needed(std::vector<Transition>& mytransitions, std::vector<SRMPrecursor>& precursors,
+    int max_uis, double q3window, bool ppm, SRMParameters& params)
+{
 
     //use the defined COMBINT (default 32bit int) and some magic to do this :-)
     COMBINT one;
     COMBINT currenttmp = 0;
     std::vector<COMBINT> newcollperpep;
 
-    python::tuple clist;
-    int fragcount, i, k, ch, j;
-    long srm_id;
+    int fragcount, i, k, ch;
     double q3, q3used = q3window;
-    char* sequence;
-
-    Transition transition;
+    size_t transitions_length = mytransitions.size();
 
     double* series = new double[1024];
     double* tmp_series = new double[1024];
+
+    //Check whether we have more transitions than we have bits in our number
+    if (transitions_length > COMBLIMIT) {
+        // PyErr_SetString(PyExc_ValueError, 
+        //     "Too many transitions, please adjust limit.");
+        // boost::python::throw_error_already_set();
+        return -1;
+    }
+
+    // Go through all (potential) collisions 
+    //
+    int maxoverlap = 0;
+    for (size_t j=0; j< precursors.size(); j++) 
+    {
+      for (ch=1; ch<=2; ch++) 
+      {
+        // TODO do N15
+        fragcount = SRMCollider::Common::calculate_fragment_masses(
+          precursors[j].sequence, tmp_series, series, ch, params, NOISOTOPEMODIFICATION); //isotope mod is set to 0
+        for(size_t i = 0; i != transitions_length; i++) 
+        {
+          //ppm is 10^-6
+          q3 = mytransitions[i].q3;
+          if(ppm) {q3used = q3window / 1000000.0 * q3; } 
+          // go through all fragments of this precursor
+          for (k=0; k<fragcount; k++) {
+            if(fabs(q3-series[k]) < q3used ) {
+              //left bitshift == 2^i
+              one = 1;
+              currenttmp |= one << i;
+            }
+          }
+        } //loop over all transitions
+      } //end loop over all charge states of this precursor
+      if ( currenttmp ) 
+      {
+        //while we find the transitions from our relative order also in the
+        //peptide we just looked at, increase i
+        one = 1;
+        i = 0;
+        while( currenttmp & one << i ) i++;
+        if( i > maxoverlap ) maxoverlap = i;
+        currenttmp = 0;
+      }
+    }
+
+    delete series;
+    delete tmp_series;
+
+    //we have counted from 0 to N-1, but now want the number of transitions
+    ++maxoverlap;
+    if(maxoverlap > (int)transitions_length) {return -1;}
+    return maxoverlap;
+}
+
+int _py_min_needed(python::tuple transitions, python::tuple precursors,
+    int max_uis, double q3window, bool ppm, python::object par)   
+{
+
+    python::tuple clist;
+    int i;
+    long srm_id;
+    double q3;
+    char* sequence;
 
     SRMParameters params;
     params.aions      =  python::extract<bool>(par.attr("aions"));
@@ -136,7 +192,7 @@ int min_needed(python::tuple transitions, python::tuple precursors,
     * convert to our struct.
     */
     python::tuple tlist;
-    vector<Transition> mytransitions(transitions_length);
+    std::vector<Transition> mytransitions(transitions_length);
     for (i=0; i<transitions_length; i++) {
         tlist = python::extract< python::tuple >(transitions[i]);
         q3 = python::extract<double>(tlist[0]);
@@ -145,48 +201,17 @@ int min_needed(python::tuple transitions, python::tuple precursors,
         mytransitions[i] = entry;
     }
 
-    // Go through all (potential) collisions 
-    //
-    int maxoverlap = 0;
-    for (j=0; j<precursor_length; j++) {
-      // TODO do N15
-        clist = python::extract< python::tuple >(precursors[j]);
-        sequence = python::extract<char *>(clist[1]);
-        for (ch=1; ch<=2; ch++) {
-
-                fragcount = SRMCollider::Common::calculate_fragment_masses(
-                    sequence, tmp_series, series, ch, params, 0); //isotope mod is set to 0
-
-            for(int i = 0; i != transitions_length; i++) {
-                //ppm is 10^-6
-                transition = mytransitions[i];
-                q3 = transition.q3;
-                if(ppm) {q3used = q3window / 1000000.0 * q3; } 
-                    // go through all fragments of this precursor
-                    for (k=0; k<fragcount; k++) {
-                        if(fabs(q3-series[k]) < q3used ) {
-                            //left bitshift == 2^i
-                            one = 1;
-                            currenttmp |= one << i;
-                        }
-                    }
-                } //loop over all transitions
-            } //end loop over all charge states of this precursor
-        if ( currenttmp ) {
-            //while we find the transitions from our relative order also in the
-            //peptide we just looked at, increase i
-            one = 1;
-            i = 0;
-            while( currenttmp & one << i ) i++;
-            if( i > maxoverlap ) maxoverlap = i;
-            currenttmp = 0;
-        }
+    std::vector<SRMPrecursor> myprecursors(precursor_length);
+    for (i=0; i<precursor_length; i++) {
+        tlist = python::extract< python::tuple >(precursors[i]);
+        sequence = python::extract<char *>(tlist[1]);
+        SRMPrecursor p;
+        p.sequence = sequence;
+        p.transition_group = p.q1 = p.maximal_charge = p.ssrcalc = -1;
+        myprecursors[i] = p;
     }
 
-    //we have counted from 0 to N-1, but now want the number of transitions
-    ++maxoverlap;
-    if(maxoverlap > transitions_length) {return -1;}
-    return maxoverlap;
+    return min_needed(mytransitions, myprecursors, max_uis, q3window, ppm, params);
 }
 
 python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b,
@@ -235,11 +260,17 @@ python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b
         mytransitions[i] = entry;
     }
 
-    std::vector<int> c_result; 
-
+    std::vector<COMBINT> collisions_per_peptide; 
     wrap_all_magic(mytransitions, a, b, c, d,
         thispeptide_key, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
-         params, rtree, c_result);
+         params, rtree, collisions_per_peptide);
+
+    std::vector<int> c_result;
+    for(int i =1; i<= max_uis; i++) {
+      std::set<COMBINT> combinations;
+      get_non_uis_magic(collisions_per_peptide, transitions_length, i, combinations);
+      c_result.push_back(combinations.size());
+    }
 
     python::list result;
     for (size_t i = 0; i < c_result.size(); i++)
@@ -274,15 +305,13 @@ python::list _py_wrap_all_magic(python::tuple py_transitions, double a, double b
 void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
   double c, double d, long thispeptide_key, int max_uis, double q3window,
   bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters params,
-  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<int>& c_result)
+  SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& newcollperpep)
 {
     //use the defined COMBINT (default 32bit int) and some magic to do this :-)
     COMBINT one;
     COMBINT currenttmp = 0;
-    std::vector<COMBINT> newcollperpep;
 
     int fragcount, i, k, ch;
-    long srm_id;
     double q3, q3used = q3window;
     char* sequence;
 
@@ -374,17 +403,14 @@ void wrap_all_magic(std::vector<Transition> mytransitions, double a, double b,
                 currenttmp = 0;
             }
 
-
       current++;
     }
 
-    //this takes about 50% or more of the time if we have many collisions_per_pep (10k)
-    //and below 10% if we have few collision_per_pep (0.1k)
-    for(i =1; i<= max_uis; i++) {
-      std::set<COMBINT> combinations;
-      get_non_uis_magic(newcollperpep, transitions_length, i, combinations);
-      c_result.push_back(combinations.size());
-    }
+    delete series;
+    delete tmp_series;
+    delete b_series;
+    delete y_series;
+
 }
 
 // Expose to Python
@@ -420,7 +446,7 @@ BOOST_PYTHON_MODULE(c_integrated)
         "bool ppm, int max_nr_isotopes, double isotope_correction)"
     );
 
-    def("getMinNeededTransitions", min_needed,
+    def("getMinNeededTransitions", _py_min_needed,
             
  "Calculate the minimally needed number of transitions needed to get a UIS\n"
  "given transitions in their preferred order and interfering precursors.\n"

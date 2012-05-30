@@ -106,7 +106,7 @@ void _py_combinations(int M, int N, const python::list &mapping,
 
   // convert to python tuple
   python::tuple tmptuple;
-  for (int i = 0; i < result_vec.size(); i++)
+  for (size_t i = 0; i < result_vec.size(); i++)
   {
 
     std::vector<int> index = result_vec[i];

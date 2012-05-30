@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
                                                                 
 }
 
-BOOST_AUTO_TEST_CASE( three_peptide_test )
+BOOST_AUTO_TEST_CASE( calculate_transitions_with_charge_three_peptide_test )
 {
     /*
     The target is YYLLDYR with these transitions and numbers

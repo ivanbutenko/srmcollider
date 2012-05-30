@@ -30,8 +30,6 @@
 
 #include "rangetree.cpp"
  
-BOOST_AUTO_TEST_CASE( _calculate_clashes_other_series_sub_PEPTIDE )
-{}
 // this tests ExtendedRangetree;
 BOOST_AUTO_TEST_CASE( ExtendedRangetree_TEST )
 {
