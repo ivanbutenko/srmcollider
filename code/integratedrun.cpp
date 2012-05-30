@@ -34,6 +34,8 @@
  *
 */
 
+#ifndef SRMCOLLIDER_INTEGRATED_C
+#define SRMCOLLIDER_INTEGRATED_C
 
 //include our own libraries
 #include "rangetree.cpp"
@@ -48,6 +50,8 @@
 
 #include <vector>
 
+namespace SRMCollider {
+namespace IntegratedRun {
 // Function declarations
 //minimally needed number of transitions to get a UIS (ordered transitions)
 int min_needed(python::tuple transitions, python::tuple precursors,
@@ -97,20 +101,21 @@ int min_needed(python::tuple transitions, python::tuple precursors,
     double* series = new double[1024];
     double* tmp_series = new double[1024];
 
-    bool aions      =  python::extract<bool>(par.attr("aions"));
-    bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    bool bions      =  python::extract<bool>(par.attr("bions"));
-    bool bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    bool bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    bool bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    bool cions      =  python::extract<bool>(par.attr("cions"));
-    bool xions      =  python::extract<bool>(par.attr("xions"));
-    bool yions      =  python::extract<bool>(par.attr("yions"));
-    bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    bool zions      =  python::extract<bool>(par.attr("zions"));
-    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
+    SRMParameters params;
+    params.aions      =  python::extract<bool>(par.attr("aions"));
+    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    params.bions      =  python::extract<bool>(par.attr("bions"));
+    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    params.cions      =  python::extract<bool>(par.attr("cions"));
+    params.xions      =  python::extract<bool>(par.attr("xions"));
+    params.yions      =  python::extract<bool>(par.attr("yions"));
+    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    params.zions      =  python::extract<bool>(par.attr("zions"));
+    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
@@ -145,10 +150,10 @@ int min_needed(python::tuple transitions, python::tuple precursors,
         clist = python::extract< python::tuple >(precursors[j]);
         sequence = python::extract<char *>(clist[1]);
         for (ch=1; ch<=2; ch++) {
-            fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
-                aions, aMinusNH3, bions, bMinusH2O,
-                bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-                yMinusNH3, zions, MMinusH2O, MMinusNH3);
+
+                fragcount = SRMCollider::Common::calculate_fragment_masses(
+                    sequence, tmp_series, series, ch, params, 0); //isotope mod is set to 0
+
             for(int i = 0; i != transitions_length; i++) {
                 //ppm is 10^-6
                 transition = mytransitions[i];
@@ -226,20 +231,21 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
     int iso;
     double q1_low = a; double q1_high = c;
 
-    bool aions      =  python::extract<bool>(par.attr("aions"));
-    bool aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
-    bool bions      =  python::extract<bool>(par.attr("bions"));
-    bool bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
-    bool bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
-    bool bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
-    bool cions      =  python::extract<bool>(par.attr("cions"));
-    bool xions      =  python::extract<bool>(par.attr("xions"));
-    bool yions      =  python::extract<bool>(par.attr("yions"));
-    bool yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
-    bool yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
-    bool zions      =  python::extract<bool>(par.attr("zions"));
-    bool MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
-    bool MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
+    SRMParameters params;
+    params.aions      =  python::extract<bool>(par.attr("aions"));
+    params.aMinusNH3  =  python::extract<bool>(par.attr("aMinusNH3"));
+    params.bions      =  python::extract<bool>(par.attr("bions"));
+    params.bMinusH2O  =  python::extract<bool>(par.attr("bMinusH2O"));
+    params.bMinusNH3  =  python::extract<bool>(par.attr("bMinusNH3"));
+    params.bPlusH2O   =  python::extract<bool>(par.attr("bPlusH2O"));
+    params.cions      =  python::extract<bool>(par.attr("cions"));
+    params.xions      =  python::extract<bool>(par.attr("xions"));
+    params.yions      =  python::extract<bool>(par.attr("yions"));
+    params.yMinusH2O  =  python::extract<bool>(par.attr("yMinusH2O"));
+    params.yMinusNH3  =  python::extract<bool>(par.attr("yMinusNH3"));
+    params.zions      =  python::extract<bool>(par.attr("zions"));
+    params.MMinusH2O  =  python::extract<bool>(par.attr("MMinusH2O"));
+    params.MMinusNH3  =  python::extract<bool>(par.attr("MMinusNH3"));
 
     //Check whether we have more transitions than we have bits in our number
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
@@ -306,10 +312,8 @@ python::list wrap_all_magic(python::tuple transitions, double a, double b,
             sequence = precursor.sequence;
             for (ch=1; ch<=2; ch++) {
 
-                fragcount = _calculate_clashes_other_series_sub(sequence, tmp_series, series, ch,
-                  aions, aMinusNH3, bions, bMinusH2O,
-                  bMinusNH3, bPlusH2O, cions, xions, yions, yMinusH2O,
-                  yMinusNH3, zions, MMinusH2O, MMinusNH3, current->second.isotope_modification);
+                fragcount = SRMCollider::Common::calculate_fragment_masses(
+                    sequence, tmp_series, series, ch, params, current->second.isotope_modification);
 
                 for (i=0; i<transitions_length; i++) {
                     transition = mytransitions[i];
@@ -410,3 +414,7 @@ BOOST_PYTHON_MODULE(c_integrated)
     "int max_uis, double q3window, bool ppm )\n"
             );
 }
+
+}
+}
+#endif

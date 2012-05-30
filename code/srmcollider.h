@@ -29,8 +29,13 @@
 #include <iostream>
 #include <vector>
 #include <set>
+namespace SRMCollider {
+namespace Common {
+}
+}
 
 using namespace std;
+using namespace SRMCollider::Common;
 
 /*
  * http://www.sisweb.com/referenc/source/exactmaa.htm

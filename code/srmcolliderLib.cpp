@@ -29,6 +29,9 @@
 #include "srmcollider.h"
 #include "combinatorics.h"
 
+namespace SRMCollider {
+namespace Common {
+
 struct SRMTransition
 {
   double q1;
@@ -538,4 +541,6 @@ double calculate_charged_mass(python::tuple clist, int ch) {
     return charged_mass;
 }        
 
+}
+}
 #endif

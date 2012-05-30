@@ -39,6 +39,9 @@
  * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/packages.html#part_XIII
 */
 
+#ifndef SRMCOLLIDER_RANGETREE_H
+#define SRMCOLLIDER_RANGETREE_H
+
 //include our own libraries
 #include "srmcollider.h"
 #include <boost/shared_ptr.hpp>
@@ -254,7 +257,8 @@ python::list query_tree(double a, double b, double c, double d, int max_nr_isoto
   namespace ExtendedRangetree
   {
 
-    struct Precursor{
+    struct Precursor
+    {
       char* sequence; 
       long peptide_key;
       long parent_id;
@@ -262,7 +266,8 @@ python::list query_tree(double a, double b, double c, double d, int max_nr_isoto
       int isotope_modification;
     };
 
-    struct Transition{
+    struct Transition
+    {
       double q3;
       long srm_id;
     };
@@ -287,7 +292,8 @@ python::list query_tree(double a, double b, double c, double d, int max_nr_isoto
       }
 
       // Create the rangetree that will be used throughout. This is essential
-      void create_tree(python::tuple pepids) {
+      void create_tree(python::tuple pepids) 
+      {
 
           python::tuple tlist;
           std::vector<Key> InputList;
@@ -409,3 +415,5 @@ class_<SRMCollider::ExtendedRangetree::Rangetree_Q1_RT,
         .def("query_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::query_tree)
     ;
 }
+
+#endif
