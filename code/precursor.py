@@ -1,5 +1,4 @@
 import Residues
-import c_getnonuis
 import DDB
 
 R = Residues.Residues('mono')
@@ -38,6 +37,7 @@ class Precursor:
     self.isotopically_modified  = isotopically_modified  
 
   def calculate_transitions(self, q3_low, q3_high, charges=[1]):
+    import c_getnonuis
     transitions = c_getnonuis.calculate_transitions_ch(
         ((self.q1, self.modified_sequence, self.parent_id),), charges, q3_low, q3_high)
     # fake some srm_id for the transitions, so that the returned transitions will be tuples of (q1, id)
@@ -66,6 +66,9 @@ class Precursor:
     peptide.set_sequence(self.modified_sequence)
     peptide.charge = self.q1_charge
     return peptide
+
+  def fix_mprophet_sequence_bug(self):
+    self.modified_sequence = self.modified_sequence.replace('[C160]', 'C[160]').replace('C[+57]', 'C[160]')
 
 class Precursors:
   """A class that abstracts getting and receiving precursors from the db"""
@@ -146,6 +149,7 @@ class Precursors:
     interfered transitions for a given precursor with given transitions.
     """
     import c_rangetree
+    import c_getnonuis
     q3_low, q3_high = par.get_q3range_transitions()
     #correct rounding errors, s.t. we get the same results as before!
     ssrcalc_low  = precursor.ssrcalc - par.ssrcalc_window + 0.001
