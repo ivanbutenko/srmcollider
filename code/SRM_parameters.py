@@ -22,6 +22,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
  *
 """
+import Residues
+
 class SRM_parameters(object):
 
     def __init__(self): 
@@ -67,6 +69,8 @@ class SRM_parameters(object):
         self.use_sqlite      = None
 
         self.experiment_type = ''
+
+        self.R = Residues.Residues('mono')
 
     def __repr__(self):
         return "SRMParameters: " + self.experiment_type
@@ -319,6 +323,9 @@ class SRM_parameters(object):
       else:
           import MySQLdb
           return MySQLdb.connect(read_default_file=self.mysql_config)
+
+    def calculate_isotope_correction(self):
+      return self.isotopes_up_to * self.R.mass_diffC13 / min(self.parent_charges)
 
 def testcase(testdatabase='srmcollider'):
     par = SRM_parameters()

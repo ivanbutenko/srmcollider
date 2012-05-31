@@ -47,9 +47,8 @@ Order 5, Average non useable UIS 3.86353977514e-06
 """
 
 import sys 
-import c_integrated
-import collider
-import progress
+import c_integrated, collider, progress
+from precursor import Precursors
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
@@ -88,48 +87,31 @@ if par.max_uis ==0:
 
 # Get the precursors
 ###########################################################################
-from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
 precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
+isotope_correction = par.calculate_isotope_correction()
+r_tree = myprecursors.build_extended_rangetree ()
 
-import Residues
-R = Residues.Residues('mono')
-isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-alltuples = [ (p.modified_sequence, p.transition_group, p.parent_id, p.q1_charge, p.q1, p.ssrcalc,0,0,p.isotopically_modified) for p in myprecursors.precursors]
-import c_rangetree
-r = c_rangetree.ExtendedRangetree_Q1_RT.create()
-r.new_rangetree()
-r.create_tree(tuple(alltuples))
-#c_integrated.create_tree(tuple(alltuples))
-
-MAX_UIS = par.max_uis
 progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
 prepare  = []
 for precursor in precursors_to_evaluate:
-
-    ssrcalc = precursor.ssrcalc
-    q1 = precursor.q1
-    p_id = precursor.parent_id
-
-    q3_low, q3_high = par.get_q3range_transitions()
-    transitions = precursor.calculate_transitions(q3_low, q3_high)
-    nr_transitions = len(transitions)
-
+    transitions = precursor.calculate_transitions_from_param(par)
     #correct rounding errors, s.t. we get the same results as before!
-    ssrcalc_low = ssrcalc - par.ssrcalc_window + 0.001
-    ssrcalc_high = ssrcalc + par.ssrcalc_window - 0.001
+    ssrcalc_low = precursor.ssrcalc - par.ssrcalc_window + 0.001
+    ssrcalc_high = precursor.ssrcalc + par.ssrcalc_window - 0.001
     try:
-        result = c_integrated.wrap_all_bitwise(transitions, q1 - par.q1_window, 
-            ssrcalc_low, q1 + par.q1_window,  ssrcalc_high, precursor.transition_group,  
-            min(MAX_UIS,nr_transitions) , par.q3_window, par.ppm, par.isotopes_up_to, isotope_correction, par, r)
+        result = c_integrated.wrap_all_bitwise(transitions,
+            precursor.q1 - par.q1_window, ssrcalc_low, precursor.q1 + par.q1_window,  ssrcalc_high,
+            precursor.transition_group, min(par.max_uis,len(transitions)), par.q3_window, par.ppm,
+            par.isotopes_up_to, isotope_correction, par, r_tree)
     except ValueError: 
       print "Too many transitions for", precursor.modification
       continue
 
-    for order in range(1,min(MAX_UIS+1, nr_transitions+1)): 
-        prepare.append( (result[order-1], collider.choose(nr_transitions, 
-            order), p_id , order, exp_key)  )
+    for order in range(1,min(par.max_uis+1, len(transitions)+1)): 
+        prepare.append( (result[order-1], collider.choose(len(transitions), 
+            order), precursor.parent_id , order, exp_key)  )
     progressm.update(1)
 
 for order in range(1,6):

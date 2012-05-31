@@ -43,6 +43,10 @@ class Precursor:
     # fake some srm_id for the transitions, so that the returned transitions will be tuples of (q1, id)
     return tuple([ (t[0], i) for i,t in enumerate(transitions)])
 
+  def calculate_transitions_from_param(self, par, charges=[1]):
+    q3_low, q3_high = par.get_q3range_transitions()
+    return self.calculate_transitions(q3_low, q3_high)
+
   def included_in_isotopic_range(self, range_low, range_high, par, R):
     for iso in range(par.isotopes_up_to+1):
       if (self.q1 + (R.mass_diffC13 * iso)/self.q1_charge > range_low and 
@@ -135,6 +139,27 @@ class Precursors:
     import c_rangetree
     alltuples = [ (0,0, p.parent_id, p.q1_charge, p.q1, p.ssrcalc) for p in self.precursors]
     r = c_rangetree.Rangetree_Q1_RT.create()
+    r.new_rangetree()
+    r.create_tree(tuple(alltuples))
+    return r
+
+  def build_extended_rangetree(self):
+    """
+    * The tuples have the following structure:
+    *   0 - sequence
+    *   1 - group_id
+    *   2 - parent_id
+    *   3 - q1_charge
+    *   4 - q1
+    *   5 - ssrcalc
+    *   6 
+    *   7 
+    *   8 isotopically modified
+    """
+    import c_rangetree
+    alltuples = [ (p.modified_sequence, p.transition_group, p.parent_id, p.q1_charge, p.q1, p.ssrcalc,0,0,p.isotopically_modified) 
+                 for p in self.precursors]
+    r = c_rangetree.ExtendedRangetree_Q1_RT.create()
     r.new_rangetree()
     r.create_tree(tuple(alltuples))
     return r
