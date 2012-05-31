@@ -56,8 +56,7 @@ Order 5, Average non useable UIS 0.0
 """
 
 import sys 
-import collider
-import progress
+import collider, progress
 
 # count the number of interfering peptides
 count_avg_transitions = False
@@ -109,29 +108,11 @@ if swath_mode:
 ###########################################################################
 # Prepare the collider
 
-import Residues
-R = Residues.Residues('mono')
 db = par.get_db()
 cursor = db.cursor()
 
 if options.insert_mysql:
-    common_filename = par.get_common_filename()
-    superkey = 31
-    if common_filename.split('_')[0] == 'human': superkey = 34
-    query = """
-    insert into srmcollider.experiment  (name, short_description,
-    description, comment1, comment2,comment3,  super_experiment_key, ddb_experiment_key)
-    VALUES (
-        'ludovic_swath', '%s', '%s', '%s', '%s','%s', %s, 0
-    )
-    """ %( common_filename + '_' + par.peptide_table.split('.')[1], 
-          par.experiment_type, par.peptide_table, par.transition_table,
-          #comment3
-          'q1: %s; q3 %s ; isotopes 0,1' % (par.q1_window, par.q3_window),
-          superkey)
-    cursor.execute(query)
-    exp_key = db.insert_id()
-    print "Inserted into mysql db with id ", exp_key
+    assert False # you have to implement this yourself
 
 # Get the precursors
 ###########################################################################
@@ -159,12 +140,11 @@ elif not use_db:
 # range (min_q1,max_q1) with at least one isotope.
 par.query2_add = ''
 if swath_mode and use_db: 
-    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
     temp_precursors = Precursors()
-    temp_precursors.getFromDB(par, db.cursor(), min_q1 - isotope_correction, max_q1)
+    temp_precursors.getFromDB(par, db.cursor(), min_q1 - par.calculate_isotope_correction(), max_q1)
     all_swath_precursors = []
     for p in temp_precursors.precursors:
-      if(p.included_in_isotopic_range(min_q1, max_q1, par, R) ): 
+      if(p.included_in_isotopic_range(min_q1, max_q1, par) ): 
         all_swath_precursors.append(p)
 
 allintertr = []
@@ -174,15 +154,16 @@ prepare  = []
 print "analyzing %s peptides" % len(precursors_to_evaluate)
 for precursor in precursors_to_evaluate:
 
-    q3_low, q3_high = par.get_q3range_transitions()
-    transitions = precursor.calculate_transitions(q3_low, q3_high)
+    transitions = precursor.calculate_transitions_from_param(par)
     nr_transitions = len(transitions)
 
     if use_db and not swath_mode:
+        # Case 1: regular SRMCollider, get transitions from the DB
         precursors_obj = mycollider._get_all_precursors(par, precursor, cursor)
         collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider, 
                 transitions, precursors_obj, par, precursor)
     elif use_db and swath_mode:
+        # Case 2: SRMCollider in SWATH mode, get transitions from the DB (e.g. the memory in this case)
         if par.ssrcalc_window > 1000:
             precursors_obj = [p for p in all_swath_precursors if p.transition_group != precursor.transition_group]
         else:
@@ -193,11 +174,12 @@ for precursor in precursors_to_evaluate:
         collisions_per_peptide = collider.get_coll_per_peptide_from_precursors(mycollider, 
                 transitions, precursors_obj, par, precursor)
     elif not use_db:
-        # Use the rangetree, whether it is swath or not
         if swath_mode:
+        # Case 3: SRMCollider in SWATH mode, get transitions from the rangetree
           collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
               precursor, min_q1, max_q1, transitions, par, rtree)
         else:
+          # Case 4: retular SRMCollider, get transitions from the rangetree
           collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
               precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
               transitions, par, rtree)

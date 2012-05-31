@@ -47,7 +47,7 @@ class Precursor:
     q3_low, q3_high = par.get_q3range_transitions()
     return self.calculate_transitions(q3_low, q3_high)
 
-  def included_in_isotopic_range(self, range_low, range_high, par, R):
+  def included_in_isotopic_range(self, range_low, range_high, par):
     for iso in range(par.isotopes_up_to+1):
       if (self.q1 + (R.mass_diffC13 * iso)/self.q1_charge > range_low and 
           self.q1 + (R.mass_diffC13 * iso)/self.q1_charge < range_high): return True
@@ -97,7 +97,7 @@ class Precursors:
       p = Precursor()
       p.initialize(*res)
       # Only include those precursors that are actually have isotopes in the specified range
-      if(p.included_in_isotopic_range(lower_q1, upper_q1, par, R) ): 
+      if(p.included_in_isotopic_range(lower_q1, upper_q1, par) ): 
         self.precursors.append(p)
 
   def getPrecursorsToEvaluate(self, min_q1, max_q1):

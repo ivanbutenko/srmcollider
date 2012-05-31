@@ -50,7 +50,7 @@ class SRMcollider(object):
       for res in self._get_all_precursors_sub(par, pep, cursor, values, bysequence):
         p = Precursor()
         p.initialize(*res)
-        if(p.included_in_isotopic_range(precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, par, R) ): 
+        if(p.included_in_isotopic_range(precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, par) ): 
           precursors.append(p)
       return precursors
 
