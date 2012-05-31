@@ -131,15 +131,17 @@ class Precursors:
     """
     import c_rangetree
     alltuples = [ (0,0, p.parent_id, p.q1_charge, p.q1, p.ssrcalc) for p in self.precursors]
-    c_rangetree.create_tree(tuple(alltuples))
-    return c_rangetree
+    r = c_rangetree.Rangetree_Q1_RT.create()
+    r.new_rangetree()
+    r.create_tree(tuple(alltuples))
+    return r
 
   def use_GRAVY_scores(self):
     for p in self.precursors:
         p.ssrcalc = p.to_peptide().get_GRAVY()
 
   def get_collisions_per_peptide_from_rangetree(self, precursor, q1_low, q1_high,
-    transitions, par, forceFragmentChargeCheck=False):
+    transitions, par, rtree, forceFragmentChargeCheck=False):
     """Get the collisions per peptide, e.g. a dictionary that contains the
     interfered transitions for a given precursor with given transitions.
     """
@@ -151,7 +153,7 @@ class Precursors:
     isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
 
     # Get the precursor ids of the interfering precursors from the rangetree
-    precursor_ids = c_rangetree.query_tree(
+    precursor_ids = rtree.query_tree(
         q1_low, #precursor.q1 - par.q1_window,
         ssrcalc_low, 
         q1_high, #precursor.q1 + par.q1_window,

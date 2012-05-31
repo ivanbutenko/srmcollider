@@ -132,7 +132,7 @@ class Test_integration_run_uis(unittest.TestCase):
     # around our range or precursors because the precursor window is fixed to
     # (min_q1,max_q1) and no other precursors are considered.
     self.myprecursors.getFromDB(par, cursor, self.min_q1 - par.q1_window, self.max_q1 + par.q1_window)
-    testrange = self.myprecursors.build_rangetree()
+    rtree = self.myprecursors.build_rangetree()
 
     prepare = []
 
@@ -143,7 +143,7 @@ class Test_integration_run_uis(unittest.TestCase):
       nr_transitions = len(transitions)
 
       # Use the rangetree, whether it is swath or not
-      collisions_per_peptide = self.myprecursors.get_collisions_per_peptide_from_rangetree(precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, transitions, par)
+      collisions_per_peptide = self.myprecursors.get_collisions_per_peptide_from_rangetree(precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, transitions, par, rtree)
       non_uis_list = collider.get_nonuis_list(collisions_per_peptide, par.max_uis)
 
       for order in range(1,min(par.max_uis+1, nr_transitions+1)): 
@@ -172,7 +172,7 @@ class Test_integration_run_uis(unittest.TestCase):
     myprecursors = Precursors()
     cursor = self.db.cursor()
     myprecursors.getFromDB(par, cursor, self.min_q1 - par.q1_window, self.max_q1 + par.q1_window)
-    testrange = myprecursors.build_rangetree()
+    rtree = myprecursors.build_rangetree()
     self.precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(self.min_q1, self.max_q1)
     self.assertEqual(len(self.precursors_to_evaluate), 39)
 
@@ -231,7 +231,7 @@ class Test_integration_run_uis(unittest.TestCase):
     myprecursors = Precursors()
     cursor = self.db.cursor()
     myprecursors.getFromDB(par, cursor, self.min_q1 - par.q1_window, self.max_q1 + par.q1_window)
-    testrange = myprecursors.build_rangetree()
+    rtree = myprecursors.build_rangetree()
     self.precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(self.min_q1, self.max_q1)
     self.assertEqual(len(self.precursors_to_evaluate), 39)
 
@@ -240,7 +240,7 @@ class Test_integration_run_uis(unittest.TestCase):
     # around our range or precursors because the precursor window is fixed to
     # (min_q1,max_q1) and no other precursors are considered.
     myprecursors.getFromDB(par, cursor, self.min_q1, self.max_q1)
-    myprecursors.build_rangetree()
+    rtree = myprecursors.build_rangetree()
 
     for precursor in self.precursors_to_evaluate:
 
@@ -249,7 +249,7 @@ class Test_integration_run_uis(unittest.TestCase):
       nr_transitions = len(transitions)
 
       # Use the rangetree, whether it is swath or not
-      collisions_per_peptide = self.myprecursors.get_collisions_per_peptide_from_rangetree(precursor, self.min_q1, self.max_q1, transitions, par)
+      collisions_per_peptide = self.myprecursors.get_collisions_per_peptide_from_rangetree(precursor, self.min_q1, self.max_q1, transitions, par, rtree)
       non_uis_list = collider.get_nonuis_list(collisions_per_peptide, par.max_uis)
 
       for order in range(1,min(par.max_uis+1, nr_transitions+1)): 
