@@ -45,9 +45,9 @@ Example Workflow:
 }}}
 """
 
-import MySQLdb, sys, csv
+import MySQLdb, sys, csv, time
 sys.path.append('code')
-import collider, progress; from Residues import Residues
+import collider, progress, precursor; from Residues import Residues
 #from code import collider, Residues, progress
 
 # some options that can be changed locally for your convenience
@@ -143,6 +143,7 @@ if par.max_uis == 0:
     sys.stderr.write(err) 
     sys.exit()
 
+# determine whether we have the C++ modules available or not
 try:
     import c_getnonuis
     use_cpp = True
@@ -424,7 +425,10 @@ if len(seqdic) > len(pepmap):
 ## START the main loop
 ## {{{
 progressm = progress.ProgressMeter(total=icount+1, unit='peptides')
+get_precursor_time = 0
+get_min_tr_time = 0
 for counter,spectrum in enumerate(library):
+    tmp_time = time.time()
     spectrum.score = -99
     spectrum.min_needed = -1
     # Get the spectrum peaks, sort by intensity
@@ -434,28 +438,33 @@ for counter,spectrum in enumerate(library):
     peaks.sort( lambda x,y: -cmp(x.intensity, y.intensity))
     try: ssrcalc = pepmap[spectrum.sequence]
     except KeyError: ssrcalc = 25
-    pep = {
-        'mod_sequence' :   spectrum.modified_sequence, #name.split('/')[0],
-        'parent_id' :  -1,
-        'q1' :         spectrum.precursorMZ,
-        'q1_charge' :  spectrum.name.split('/')[1],
-        'ssrcalc' :    ssrcalc,
-        'transition_group' :-1,
-    }
+    #
+    #
+    peptide_obj = precursor.Precursor(
+        modified_sequence=spectrum.modified_sequence,
+        parent_id=-1,
+        transition_group=-1,
+        q1=spectrum.precursorMZ,
+        q1_charge=spectrum.name.split('/')[1],
+        ssrcalc=ssrcalc
+    )
     transitions = [ (p.peak, i) for i,p in enumerate(peaks)]
-    if use_experimental_height: transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
+    if use_experimental_height: 
+        transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
-    # some bug in mProphet
-    pep['mod_sequence'] = pep['mod_sequence'].replace('[C160]', 'C[160]').replace('C[+57]', 'C[160]')
+
+    peptide_obj.fix_mprophet_sequence_bug() # fix mProphet-bug (modified cysteins are [C160] instead of C[160]
+
     #
     # Get all interfering precursors (all but the one of the current peptide)
     # If we dont use C++, we need to get the transition_group correct
-    precursors = mycollider._get_all_precursors(par, pep, cursor)
+    precursors = mycollider._get_all_precursors(par, peptide_obj, cursor)
     if not use_cpp: 
-        own_peptide = [p for p in precursors if p[1] == pep['mod_sequence'] ]
-        if len(own_peptide) > 0: pep['transition_group'] = own_peptide[0][2]
-    precursors = [p for p in precursors if p[1] != pep['mod_sequence'] ]
+        own_peptide = [p for p in precursors if p.modified_sequence == peptide_obj.modified_sequence]
+        if len(own_peptide) > 0: peptide_ob.transition_group = own_peptide[0].transition_group
+
+    precursors = [p for p in precursors if p.modified_sequence != peptide_obj.modified_sequence]
     R = Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
     #
@@ -470,15 +479,18 @@ for counter,spectrum in enumerate(library):
             sys.stderr.write(err) 
             sys.exit()
 
+    get_precursor_time += time.time() - tmp_time; tmp_time = time.time()
+
     if not use_experimental_height and use_cpp:
         # We dont have experimental height data and use C++ code
         import c_integrated
-        min_needed = c_integrated.getMinNeededTransitions(tuple(transitions), tuple(precursors), 
+        old_prec = [(0,p.modified_sequence) for p in precursors]
+        min_needed = c_integrated.getMinNeededTransitions(tuple(transitions), tuple(old_prec), 
             par.max_uis, par.q3_window, par.ppm, par)
     elif not use_experimental_height:
         # We dont have experimental height data and cannot use C++ code
         collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
-            transitions, par, pep, cursor)
+            transitions, par, peptide_obj, cursor)
         min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
     else:
         # here we consider the case that we have measured a number of
@@ -502,10 +514,14 @@ for counter,spectrum in enumerate(library):
     spectrum.min_needed = min_needed
     if min_needed != -1: spectrum.score = nr_transitions - min_needed
     if not par.quiet: progressm.update(1)
+    get_min_tr_time += time.time() - tmp_time; tmp_time = time.time()
 
 
 # }}}
 
+totaltime = get_precursor_time + get_min_tr_time
+print "Time for getting the precursors %0.2fs (%.0f%%) vs the time to calculate the minimal nr transitions %0.2fs (%.0f%%)" % (
+    get_precursor_time, 100*get_precursor_time/totaltime, get_min_tr_time, 100*get_min_tr_time/totaltime,)
 ##
 ## PRINT some statistics of our results
 ## For each precursor, peptide and protein print the necessary transitions
@@ -626,7 +642,7 @@ f.close()
 f = open(outfile + '_peptides.csv', 'w')
 w = csv.writer(f)
 for spectrum in library:
-    w.writerow( [spectrum.min_needed, spectrum.name])
+    w.writerow( [spectrum.min_needed, spectrum.name, spectrum.protein])
 
 f.close()
 print "Wrote transition list into file ", outfile

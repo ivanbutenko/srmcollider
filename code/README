@@ -25,7 +25,8 @@
  *
 """
 
-=== Installation === {{{
+=== Installation === 
+{{{
 
 ==== Linux ====  {{{
 
@@ -165,7 +166,8 @@ at yourdomain.org/srmcollider/srmcollider.py
 
 }}}
 
-=== Useage === {{{ 
+=== Useage === 
+{{{ 
 
 ==== Setup ==== 
 
@@ -256,7 +258,8 @@ Changing the constraints for Q1/Q3/RT can be easily done using the --q1_window,
 --q3_window and --ssrcalc_window parameters
 }}}
 
-=== Testing === {{{
+=== Testing === 
+{{{
 
 The easiest way to test which functions are enabled and which ones are not is
 by running the tests. Please use the -s option because it may give you valuable
@@ -278,7 +281,18 @@ To test the real coverage
 
 $ nosetests test --with-coverage --cover-package=DDB,Residues,SRM_parameters,collider,precursor,uis_functions 
 
+To test the functionality of the C++ functions, you can run
+
+cmake .
+make && make test
 
 
  }}}
 
+=== Distributing === 
+{{{
+
+$ python setup.py sdist
+
+
+ }}}
