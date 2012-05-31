@@ -68,9 +68,12 @@ from distutils.extension import Extension
 # if your CGAL libraries are somewhere else, please tell us here
 CGAL_libraries = ''
  
+boost_libdir = ''
+boost_includedir = ''
+
 setup(name="srmcollider",
     url = "http://www.srmcollider.org", 
-    version = "1.2",
+    version = "1.3",
     author = "Hannes Roest",
     requires=["MySQLdb", "sqlite"],
 
@@ -78,18 +81,18 @@ setup(name="srmcollider",
         Extension("c_combinations", ["combinations.cpp"],
             libraries = ["boost_python"]),
         Extension("c_getnonuis", ["getNonUis.cpp"], 
-            include_dirs=["./"],
-            library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/" ],
+            include_dirs=["./", boost_includedir],
+            library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/", boost_libdir],
             runtime_library_dirs=["./", "../"],
             libraries = ["boost_python"]),
         Extension("c_rangetree", ["rangetree.cpp"],
             libraries = ["boost_python", "CGAL"],
-            include_dirs=[CGAL_libraries + '/include/'],
-            library_dirs=[CGAL_libraries +'/lib/'],
+            include_dirs=[CGAL_libraries + '/include/', boost_includedir],
+            library_dirs=[CGAL_libraries +'/lib/', boost_libdir],
             ),
         Extension("c_integrated", ["integratedrun.cpp"], 
-            include_dirs=[CGAL_libraries + '/include/'],
-            library_dirs=[CGAL_libraries +'/lib/'],
+            include_dirs=[CGAL_libraries + '/include/', boost_includedir],
+            library_dirs=[CGAL_libraries +'/lib/', boost_libdir],
             runtime_library_dirs=["./", "../"],
             libraries = ["boost_python", "CGAL"]),
     ],

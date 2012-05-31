@@ -148,10 +148,10 @@ myprecursors.build_transition_group_lookup()
 # (min_q1,max_q1) and no other precursors are considered.
 if not use_db and swath_mode: 
   myprecursors.getFromDB(par, cursor, min_q1, max_q1)
-  testrange = myprecursors.build_rangetree()
+  rtree = myprecursors.build_rangetree()
 elif not use_db:
   #myprecursors.getFromDB(par, cursor, min_q1 - par.q1_window, max_q1 + par.q1_window)
-  testrange = myprecursors.build_rangetree()
+  rtree = myprecursors.build_rangetree()
 
 # In SWATH mode, select all precursors that are relevant for the background at
 # once. Select all precursors between min_q1 - correction and max_q1 and then
@@ -196,11 +196,11 @@ for precursor in precursors_to_evaluate:
         # Use the rangetree, whether it is swath or not
         if swath_mode:
           collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
-              precursor, min_q1, max_q1, transitions, par)
+              precursor, min_q1, max_q1, transitions, par, rtree)
         else:
           collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
               precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
-              transitions, par)
+              transitions, par, rtree)
 
     non_uis_list = collider.get_nonuis_list(collisions_per_peptide, MAX_UIS)
     ## 

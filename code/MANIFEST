@@ -20,7 +20,6 @@ srmcollider.h
 srmcolliderLib.cpp
 test_allcpp.cpp
 uis_functions.py
-webserver_getnonsui.cpp
 cgi-scripts/about.html
 cgi-scripts/collider_config.py
 cgi-scripts/download.html
@@ -59,3 +58,8 @@ testgetNonUIS.C
 testIntegrated.C
 testLibrary.C
 testRangetree.C
+scripts/count_transitions.py
+scripts/prepare_rangetree.py
+scripts/sqliteimport.py
+scripts/trypsinize.py
+Fileparser.py
