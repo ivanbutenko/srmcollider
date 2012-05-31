@@ -36,6 +36,11 @@ from precursor import Precursor
 
 class SRMcollider(object):
 
+    def __init__(self):
+      self.R = Residues.Residues('mono')
+      self.RN15 = Residues.Residues('mono')
+      self.RN15.recalculate_monisotopic_data_for_N15()
+
     def _get_all_precursors(self, par, precursor, cursor, 
          bysequence=False):
       precursors = []
@@ -81,19 +86,25 @@ class SRMcollider(object):
 
     # calculates all fragments of the peptide in Python and compares them to
     # the fragments of the precursors
+    #
+    # Returns "collision objects" that are of type (q3, q1, 0, peptide_key)
     def _get_all_collisions_calculate_new(self, par, pep, cursor, 
       values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
                                           forceFragmentChargeCheck=False):
-        R = Residues.Residues('mono')
-        RN15 = Residues.Residues('mono')
-        RN15.recalculate_monisotopic_data_for_N15()
         q3_low, q3_high = par.get_q3range_collisions()
         return self._get_all_collisions_calculate_sub(
             self._get_all_precursors(par, pep, cursor), 
-            par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
+            par, self.R, q3_low, q3_high, self.RN15, forceFragmentChargeCheck=forceFragmentChargeCheck)
 
-
+    # For a given set of precursors, returns the precursors fragments as tuples
+    # of type (q3, q1, 0, peptide_key)
     def _get_all_collisions_calculate_sub(self, precursors, par, R, q3_low, q3_high, 
+        RN15=None, forceFragmentChargeCheck=False):
+        return self.calculate_fragment_masses (precursors, par, R, q3_low, q3_high, RN15, forceFragmentChargeCheck)
+
+    # For a given set of precursors, returns the precursors fragments as tuples
+    # of type (q3, q1, 0, peptide_key)
+    def calculate_fragment_masses(self, precursors, par, R, q3_low, q3_high, 
         RN15=None, forceFragmentChargeCheck=False):
         for c in precursors:
             # keep the list around for some of the tests
@@ -158,6 +169,29 @@ class SRMcollider(object):
                             collisions_per_peptide[c[3]].append( t[1] )
                     else: collisions_per_peptide[c[3]] = [ t[1] ] 
         return self._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
+
+    # calculates the minimally needed number of transitions for a peptide to be
+    # uniquely identifiable in a background given a list of transitions sorted
+    # by priority (intensity)
+    def getMinNeededTransitions_direct(self, par, transitions, precursors):
+      q3_low, q3_high = par.get_q3range_collisions()
+      collisions = self.calculate_fragment_masses(precursors, par, self.R, q3_low, q3_high, self.RN15)
+
+      nr_transitions = len( transitions )
+      nr_used_tr = min(par.max_uis+1, nr_transitions)
+      mytransitions = transitions[:nr_used_tr]
+      collisions_per_peptide = {}
+      q3_window_used = par.q3_window
+      for t in mytransitions:
+          if par.ppm: q3_window_used = par.q3_window * 10**(-6) * t[0]
+          for c in collisions:
+              if abs( t[0] - c[0] ) <= q3_window_used:
+                  #gets all collisions
+                  if collisions_per_peptide.has_key(c[3]):
+                      if not t[1] in collisions_per_peptide[c[3]]:
+                          collisions_per_peptide[c[3]].append( t[1] )
+                  else: collisions_per_peptide[c[3]] = [ t[1] ] 
+      return self._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
 
     def _sub_getMinNeededTransitions(self, par, transitions, collisions_per_peptide):
         #take the top j transitions and see whether they, as a tuple, are
@@ -262,6 +296,7 @@ def get_coll_per_peptide_from_precursors(self, transitions, precursors, par, pep
                 else: collisions_per_peptide[c[3]] = [ t[1] ] 
     return collisions_per_peptide 
 
+# return a dictionary that contains the list of collisions for each peptide in the background (if there are any)
 def get_coll_per_peptide(self, transitions, par, pep, cursor,
         do_not_calculate=False, forceNonCpp=False, forceFragmentChargeCheck=False):
     if do_not_calculate:
