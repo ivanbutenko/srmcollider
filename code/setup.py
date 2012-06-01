@@ -66,10 +66,10 @@ from distutils.core import setup
 from distutils.extension import Extension
 
 # if your CGAL libraries are somewhere else, please tell us here
-CGAL_libraries = ''
+CGAL_libraries = '.'
  
-boost_libdir = ''
-boost_includedir = ''
+boost_libdir = '.'
+boost_includedir = '.'
 
 setup(name="srmcollider",
     url = "http://www.srmcollider.org", 
