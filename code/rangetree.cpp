@@ -259,7 +259,7 @@ namespace SRMCollider
 
     struct Precursor
     {
-      char* sequence; 
+      std::string sequence; 
       long peptide_key;
       long parent_id;
       int q1_charge;
@@ -300,14 +300,14 @@ namespace SRMCollider
           int i, q1_charge, isotope_modification;
           long parent_id, peptide_key;
           double ssrcalc, q1;
-          char* sequence;
+          std::string sequence;
 
           int pepids_length = python::extract<int>(pepids.attr("__len__")());
           for (i=0; i<pepids_length; i++) 
           {
               tlist = python::extract< python::tuple >(pepids[i]);
 
-              sequence = python::extract<char *>(tlist[0]);
+              sequence = python::extract<std::string>(tlist[0]);
               peptide_key = python::extract<long>(tlist[1]);
               parent_id = python::extract<long>(tlist[2]);
               q1_charge = python::extract<int>(tlist[3]);

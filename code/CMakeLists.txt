@@ -17,7 +17,7 @@ combinatorics_test
 find_package(CGAL)
 
 # cgal requires the -frounding-math option
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frounding-math") 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frounding-math -Wall") 
 include_directories("/usr/include/python2.6")
 
 ## add targets for the executables

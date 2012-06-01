@@ -29,6 +29,8 @@
 #include "srmcollider.h"
 #include "combinatorics.h"
 
+#include <boost/shared_ptr.hpp>
+
 //using namespace std;
 
 namespace SRMCollider {
@@ -36,7 +38,7 @@ namespace Common {
 
 struct SRMTransition
 {
-  double q1;
+  //double q1;
   double q3;
   long transition_id;
 };
@@ -45,15 +47,54 @@ struct SRMParameters;
 
 struct SRMPrecursor
 {
-  char* sequence; 
+
+  std::string sequence; 
   double q1;
   long transition_group;
   int q1_charge;
   int isotope_modification;
-  int maximal_charge;
   double ssrcalc;
 
+    /*
+    struct Precursor
+    {
+      std::string sequence; 
+      long peptide_key;
+      long parent_id;
+      int q1_charge;
+      int isotope_modification;
+    };
+    */
+
   int get_fragment_masses(double* tmp, double* series, double ch, const SRMParameters& params, int isotope_mod);
+
+  void set_maximal_charge(int mcharge) 
+  {
+    maximal_charge_ = mcharge;
+  }
+
+  int get_maximal_charge() 
+  {
+
+    /*
+    def get_maximal_charge(self):
+        """ Count the number of amino acids that can hold a charge: R (Arg), H
+        (His) or K (Lys) and add 1 for the N-terminus"""
+        return self.sequence.count('R') + \
+               self.sequence.count('H') + \
+               self.sequence.count('K') + 1
+    */
+
+    return maximal_charge_;
+  }
+
+  //private:
+  std::vector<boost::shared_ptr<SRMTransition> > transitions;
+
+  int maximal_charge;
+  private:
+
+  int maximal_charge_;
 
 };
 
@@ -104,7 +145,7 @@ struct SRMParameters
  * instead of right to left. Whereas b_series[0] holds the b-1 ion, y_series[0]
  * holds the y-(n-1) ion and y_series[n-1] holds the y-1 ion.
  */
-int calculate_fragment_masses(const char* sequence, double* tmp, 
+int calculate_fragment_masses(const std::string sequence, double* tmp, 
         double* series, double ch, const SRMParameters& params, int isotope_mod) 
 {
 
@@ -396,7 +437,7 @@ void calculate_transitions_with_charge(SRMPrecursor& p, std::vector<int>& charge
       q3 = series[k];
       if (q3 > q3_low && q3 < q3_high)
       {
-        SRMTransition t = {p.q1, q3, p.transition_group};
+        SRMTransition t = {q3, k};
         result.push_back(t);
       }
     }
@@ -439,7 +480,7 @@ python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
       SRMPrecursor p; 
       clist = python::extract< python::tuple >(py_precursors[i]);
       p.q1 = python::extract< double >(clist[0]);
-      p.sequence = python::extract<char *>(clist[1]);
+      p.sequence = python::extract<std::string>(clist[1]);
       p.transition_group = python::extract< long >(clist[2]);
       precursors.push_back(p);
     }
@@ -450,7 +491,7 @@ python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
 
     for (std::vector<SRMTransition>::iterator it = result.begin(); it != result.end(); it++)
     {
-      py_result.append(python::make_tuple(it->q3, it->q1, 0, it->transition_id));
+      py_result.append(python::make_tuple(it->q3, -1, 0, it->transition_id));
     }
 
     delete [] tmp;
@@ -471,7 +512,7 @@ double calculate_charged_mass(python::tuple clist, int ch)
     double* tmp = new double[256];
     double* series = new double[256];
 
-    char* sequence = python::extract<char *>(clist[1]);
+    std::string sequence = python::extract<std::string>(clist[1]);
     SRMParameters params;
     params.bions = true;
     params.yions = false;
@@ -523,7 +564,7 @@ double calculate_charged_mass(python::tuple clist, int ch)
         {
           p.q1 = python::extract<double>(precursor.attr("q1"));
         }
-        p.sequence = python::extract<char *>(precursor.attr("modified_sequence"));
+        p.sequence = python::extract<std::string>(precursor.attr("modified_sequence"));
         p.isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
         p.q1_charge = python::extract<int>(precursor.attr("q1_charge"));
         p.maximal_charge = python::extract<int>(precursor.attr("to_peptide")().attr("get_maximal_charge")());

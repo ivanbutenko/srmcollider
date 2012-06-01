@@ -108,15 +108,13 @@ BOOST_AUTO_TEST_CASE( calculate_transitions_with_charge_three_peptide_test )
 
     */
 
-  char* sequence = (char*)"YYLLDYR";
-  double* series = new double[1024];
-  double* tmp_series = new double[1024];
-  double ch = 2;
-
+  std::string sequence = "YYLLDYR";
   double* b_series = new double[256];
   double* y_series = new double[256];
 
-  SRMPrecursor p = {sequence, 0, 1, 0, 0};
+  SRMPrecursor p;
+  p.sequence = sequence;
+  p.transition_group = 1;
   std::vector<SRMTransition> result;
   std::vector<int> charges;
   charges.push_back(1);

@@ -44,21 +44,23 @@
 
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
  
-void test_helper_get_transitions(char * sequence, std::vector<SRMCollider::IntegratedRun::Transition>& transitions)
+void test_helper_get_transitions(std::string sequence, std::vector<SRMCollider::IntegratedRun::Transition>& transitions)
 {
   // get the transition
   std::vector<int> charges; charges.push_back(1);
   //char* sequence = (char*)"YYLLDYR";
   double* series = new double[1024];
   double* tmp_series = new double[1024];
-  SRMPrecursor p = {sequence, 0, 1, 0, 0};
+  SRMPrecursor p;
+  p.sequence = sequence;
+  p.transition_group = 1;
   std::vector<SRMTransition> srm_transitions;
   SRMParameters tmp_param;
   calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
   for (size_t i = 0; i < srm_transitions.size(); i++) {
     SRMCollider::IntegratedRun::Transition t;
     t.q3 = srm_transitions[i].q3;
-    t.srm_id = srm_transitions[i].transition_id;
+    t.transition_id = srm_transitions[i].transition_id;
     transitions.push_back(t);
   }
   delete tmp_series;
@@ -117,17 +119,19 @@ BOOST_AUTO_TEST_CASE( wrap_all_bitwise_3peptides_TEST)
   // get the transition
   std::vector<SRMCollider::IntegratedRun::Transition> transitions;
   std::vector<int> charges; charges.push_back(1);
-  char* sequence = (char*)"YYLLDYR";
+  std::string sequence = "YYLLDYR";
   double* series = new double[1024];
   double* tmp_series = new double[1024];
-  SRMPrecursor p = {sequence, 0, 1, 0, 0};
+  SRMPrecursor p;
+  p.sequence = sequence;
+  p.transition_group = 1;
   std::vector<SRMTransition> srm_transitions;
   SRMParameters tmp_param;
   calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
   for (size_t i = 0; i < srm_transitions.size(); i++) {
     SRMCollider::IntegratedRun::Transition t;
     t.q3 = srm_transitions[i].q3;
-    t.srm_id = srm_transitions[i].transition_id;
+    t.transition_id = srm_transitions[i].transition_id;
     transitions.push_back(t);
   }
   delete tmp_series;
@@ -201,17 +205,19 @@ BOOST_AUTO_TEST_CASE( get_non_uis_bitwise_3peptides_TEST)
   // get the transition
   std::vector<SRMCollider::IntegratedRun::Transition> transitions;
   std::vector<int> charges; charges.push_back(1);
-  char* sequence = (char*)"YYLLDYR";
+  std::string sequence = "YYLLDYR";
   double* series = new double[1024];
   double* tmp_series = new double[1024];
-  SRMPrecursor p = {sequence, 0, 1, 0, 0};
+  SRMPrecursor p;
+  p.sequence = sequence;
+  p.transition_group = 1;
   std::vector<SRMTransition> srm_transitions;
   SRMParameters tmp_param;
   calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
   for (size_t i = 0; i < srm_transitions.size(); i++) {
     SRMCollider::IntegratedRun::Transition t;
     t.q3 = srm_transitions[i].q3;
-    t.srm_id = srm_transitions[i].transition_id;
+    t.transition_id = srm_transitions[i].transition_id;
     transitions.push_back(t);
   }
   delete tmp_series;
@@ -243,24 +249,24 @@ BOOST_AUTO_TEST_CASE( get_min_needed_3peptides_TEST)
 
   double q3_window = 1.0 / 2.0;
   double ppm = false;
-  double isotopes_up_to = 3;
-  double isotope_correction = 1.0;
-  int peptide_key = 3;
+  //double isotopes_up_to = 3;
+  //double isotope_correction = 1.0;
+  //int peptide_key = 3;
   int max_uis = 5;
   SRMCollider::Common::SRMParameters param;
 
   Py_Initialize();
   SRMCollider::Common::SRMPrecursor prec;
   std::vector<SRMCollider::Common::SRMPrecursor> precursors;
-  prec.sequence = (char *)"GGLIVELGDK";
+  prec.sequence = "GGLIVELGDK";
   prec.transition_group = prec.q1 = prec.maximal_charge = prec.ssrcalc = -1;
   precursors.push_back(prec);
-  prec.sequence = (char *)"NGTDGGLQVAIDAMR";
+  prec.sequence = "NGTDGGLQVAIDAMR";
   prec.transition_group = prec.q1 = prec.maximal_charge = prec.ssrcalc = -1;
   precursors.push_back(prec);
 
   std::vector<SRMCollider::IntegratedRun::Transition> transitions;
-  char* sequence = (char*)"YYLLDYR";
+  std::string sequence = "YYLLDYR";
   test_helper_get_transitions(sequence, transitions);
 
   // get the collisions per peptide

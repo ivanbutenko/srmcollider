@@ -414,7 +414,7 @@ class Test_speed_integrated(unittest.TestCase):
               p = Precursor()
               p.initialize(*res)
               # Only include those precursors that are actually have isotopes in the specified range
-              if(p.included_in_isotopic_range(lower_q1, upper_q1, par, R) ): 
+              if(p.included_in_isotopic_range(lower_q1, upper_q1, par) ): 
                 self.myprecursors.precursors.append(p)
 
             ##### END LEGACY getFromDB
@@ -516,7 +516,7 @@ class Test_speed_integrated(unittest.TestCase):
                 mystart = time.time()
                 collisions_per_peptide_obj = self.myprecursors.get_collisions_per_peptide_from_rangetree(
                     precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
-                    transitions, par)
+                    transitions, par, r)
 
                 ## # if False:
                 ## #     precursor_ids = tuple(c_rangetree.query_tree( q1_low, ssrcalc_low, 
@@ -688,7 +688,7 @@ class Test_speed_integrated(unittest.TestCase):
                 sys.stdout.write(mys)
                 sys.stdout.flush()
 
-    @attr('comparison') 
+    #@attr('comparison') 
     def test_mysql_vs_integrated(self):
             """Compare the one table MySQL approach vs the fully integrated Cpp approach
             

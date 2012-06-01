@@ -185,7 +185,7 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     SRMParameters param;
 
     double q3used = q3window;
-    char* sequence;
+    std::string sequence;
 
     double* tmp = new double[256];
     double* series = new double[256];
@@ -208,7 +208,7 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
     // position 3 and 1 respectively)
     for (j=0; j<precursor_length; j++) {
         clist = python::extract< python::tuple >(precursors[j]);
-        sequence = python::extract<char *>(clist[1]);
+        sequence = python::extract<std::string>(clist[1]);
 
         for (ch=1; ch<=2; ch++) {
             //fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
@@ -243,7 +243,7 @@ python::list _find_clashes_calculate_colldensity(python::tuple transitions,
 
 // we annotate the ion nr k that was produced by a call to calculate_fragment_masses, 
 // the annotated ion is of type "curr_ion"-l (e.g. y7 means curr_ion = "y" and l = 7). 
-void annotate_ion( int& l, int k, const char* sequence, std::string& curr_ion, SRMParameters& params) 
+void annotate_ion( int& l, int k, const std::string sequence, std::string& curr_ion, SRMParameters& params) 
 {
     int scounter, icounter;
     double* tmp = new double[256];
@@ -313,7 +313,7 @@ python::dict _find_clashes_forall_other_series(python::tuple transitions,
 
   long t1;
   double t0, q3used = q3window, q1_used;
-  char* sequence;
+  std::string sequence;
   int max_isotopes = python::extract<int>(par.attr("isotopes_up_to"));
 
   double* series = new double[10*256];

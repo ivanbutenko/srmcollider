@@ -52,15 +52,12 @@ using namespace SRMCollider;
 namespace SRMCollider {
 namespace IntegratedRun {
 
-  struct Transition{
-    double q3;
-    long srm_id;
-  };
+  typedef SRMCollider::Common::SRMTransition Transition;
 
   void _pyToC_integratedrunTransitions(python::tuple& transitions, std::vector<Transition>& mytransitions)
   {
     /*
-    * Transitions are tuples of the form (q3, srm_id)
+    * Transitions are tuples of the form (q3, transition_id)
     * convert to our struct.
     */
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
@@ -68,13 +65,13 @@ namespace IntegratedRun {
     for (int i=0; i<transitions_length; i++) {
         tlist = python::extract< python::tuple >(transitions[i]);
         double q3 = python::extract<double>(tlist[0]);
-        long srm_id = python::extract<long>(tlist[1]);
-        struct Transition entry = {q3, srm_id};
+        long transition_id = python::extract<long>(tlist[1]);
+        Transition entry = {q3, transition_id};
         mytransitions[i] = entry;
     }
   }
 
-  inline void _charged_interference(const char* sequence, double* tmp_series, double* series, const int ch,
+  inline void _charged_interference(const std::string sequence, double* tmp_series, double* series, const int ch,
       const SRMParameters& params, const int isotope_modification, 
       const std::vector<Transition>& mytransitions, const bool ppm, const double q3window, COMBINT& currenttmp)
   {
@@ -174,7 +171,7 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
 
     python::tuple clist;
     int i;
-    char* sequence;
+    std::string sequence;
     int transitions_length = python::extract<int>(transitions.attr("__len__")());
     int precursor_length = python::extract<int>(precursors.attr("__len__")());
     python::tuple tlist;
@@ -196,7 +193,7 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
     std::vector<SRMPrecursor> myprecursors(precursor_length);
     for (i=0; i<precursor_length; i++) {
         tlist = python::extract< python::tuple >(precursors[i]);
-        sequence = python::extract<char *>(tlist[1]);
+        sequence = python::extract<std::string>(tlist[1]);
         SRMPrecursor p;
         p.sequence = sequence;
         p.transition_group = p.q1 = p.maximal_charge = p.ssrcalc = -1;
@@ -234,7 +231,7 @@ void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
     //use the defined COMBINT (default 32bit int) and some bitwise operations to do this :-)
     COMBINT currenttmp = 0;
     int ch;
-    char* sequence;
+    std::string sequence;
 
     SRMCollider::ExtendedRangetree::Precursor precursor;
     std::vector<SRMCollider::ExtendedRangetree::Key> OutputList;
@@ -270,7 +267,8 @@ void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
     // we have duplicate peptide_keys (from the isotopes). But they will
     // produce the same interefering transitions and thus the same entry in the
     // collisions per peptide table.
-    while(current!=OutputList.end()){
+    while(current!=OutputList.end())
+    {
 
       double q1 = current->first[0];
       int charge = current->second.q1_charge;
