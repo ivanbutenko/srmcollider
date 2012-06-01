@@ -107,6 +107,8 @@ BOOST_AUTO_TEST_CASE( wrap_all_bitwise_3peptides_TEST)
   int peptide_key = 3;
   int max_uis = 5;
   SRMCollider::Common::SRMParameters param;
+  param.ppm = ppm;
+  param.q3_window = q3_window;
 
   Py_Initialize();
   boost::python::tuple t1 = boost::python::make_tuple("GGLIVELGDK", 1, 1, 2, 500.0, 25.0, -1,-1, 0);
@@ -119,25 +121,9 @@ BOOST_AUTO_TEST_CASE( wrap_all_bitwise_3peptides_TEST)
 
   // get the transition
   std::vector<SRMCollider::IntegratedRun::Transition> transitions;
-  std::vector<int> charges; charges.push_back(1);
   std::string sequence = "YYLLDYR";
-  double* series = new double[1024];
-  double* tmp_series = new double[1024];
-  SRMPrecursor p;
-  p.sequence = sequence;
-  p.transition_group = 1;
-  p.isotope_modification = 0;
-  std::vector<SRMTransition> srm_transitions;
-  SRMParameters tmp_param;
-  calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
-  for (size_t i = 0; i < srm_transitions.size(); i++) {
-    SRMCollider::IntegratedRun::Transition t;
-    t.q3 = srm_transitions[i].q3;
-    t.transition_id = srm_transitions[i].transition_id;
-    transitions.push_back(t);
-  }
-  delete tmp_series;
-  delete series;
+  test_helper_get_transitions(sequence, transitions);
+  BOOST_CHECK_EQUAL(transitions.size(), 8);
 
   // get the collisions per peptide
   std::vector<COMBINT> collisions_per_peptide; 
@@ -194,6 +180,8 @@ BOOST_AUTO_TEST_CASE( get_non_uis_bitwise_3peptides_TEST)
   int peptide_key = 3;
   int max_uis = 5;
   SRMCollider::Common::SRMParameters param;
+  param.ppm = ppm;
+  param.q3_window = q3_window;
 
   Py_Initialize();
   boost::python::tuple t1 = boost::python::make_tuple("GGLIVELGDK", 1, 1, 2, 500.0, 25.0, -1,-1, 0);
@@ -206,27 +194,9 @@ BOOST_AUTO_TEST_CASE( get_non_uis_bitwise_3peptides_TEST)
 
   // get the transition
   std::vector<SRMCollider::IntegratedRun::Transition> transitions;
-  std::vector<int> charges; charges.push_back(1);
   std::string sequence = "YYLLDYR";
-  double* series = new double[1024];
-  double* tmp_series = new double[1024];
-  SRMPrecursor p;
-  p.sequence = sequence;
-  p.transition_group = 1;
-  p.isotope_modification = 0;
-  std::vector<SRMTransition> srm_transitions;
-  SRMParameters tmp_param;
-  tmp_param.bions = true;
-  tmp_param.yions = true;
-  calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
-  for (size_t i = 0; i < srm_transitions.size(); i++) {
-    SRMCollider::IntegratedRun::Transition t;
-    t.q3 = srm_transitions[i].q3;
-    t.transition_id = srm_transitions[i].transition_id;
-    transitions.push_back(t);
-  }
-  delete tmp_series;
-  delete series;
+  test_helper_get_transitions(sequence, transitions);
+  BOOST_CHECK_EQUAL(transitions.size(), 8);
 
   // get the collisions per peptide
   std::vector<COMBINT> collisions_per_peptide; 
@@ -259,6 +229,8 @@ BOOST_AUTO_TEST_CASE( get_min_needed_3peptides_TEST)
   //int peptide_key = 3;
   int max_uis = 5;
   SRMCollider::Common::SRMParameters param;
+  param.ppm = ppm;
+  param.q3_window = q3_window;
 
   Py_Initialize();
   SRMCollider::Common::SRMPrecursor prec;

@@ -134,6 +134,7 @@ class Test_speed(unittest.TestCase):
         pep = test_shared.runpep1
         transitions = test_shared.runtransitions1
         precursors = test_shared.runprecursors1[240:300]
+        #precursors = test_shared.runprecursors1[2],
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
 
         st = time.time()

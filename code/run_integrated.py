@@ -112,6 +112,7 @@ for precursor in precursors_to_evaluate:
     for order in range(1,min(par.max_uis+1, len(transitions)+1)): 
         prepare.append( (result[order-1], collider.choose(len(transitions), 
             order), precursor.parent_id , order, exp_key)  )
+    #//break;
     progressm.update(1)
 
 for order in range(1,6):
