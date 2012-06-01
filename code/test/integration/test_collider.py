@@ -18,6 +18,9 @@ from Residues import Residues
 import precursor
 from precursor import Precursors
 
+from test_shared import check_crangetree_availability
+
+@check_crangetree_availability
 class Test_integration_run_uis(unittest.TestCase): 
 
   def setUp(self):
@@ -70,6 +73,7 @@ class Test_integration_run_uis(unittest.TestCase):
     self.aparamset = collider.testcase()
 
     self.db = par.get_db()
+
 
     # Get the precursors
     ###########################################################################
@@ -156,7 +160,6 @@ class Test_integration_run_uis(unittest.TestCase):
     self.check_final_report_nonswath(final_report)
 
   def test_runuis_swath(self):
-
     self.assertEqual(len(self.precursors_to_evaluate), 905)
     swath_mode = False
     par = self.par
@@ -181,7 +184,7 @@ class Test_integration_run_uis(unittest.TestCase):
     temp_precursors.getFromDB(par, self.db.cursor(), self.min_q1 - isotope_correction, self.max_q1)
     all_swath_precursors = []
     for p in temp_precursors.precursors:
-      if(p.included_in_isotopic_range(self.min_q1, self.max_q1, par) ): 
+      if(p.included_in_isotopic_range(self.min_q1, self.max_q1, par, R) ): 
         all_swath_precursors.append(p)
 
     for precursor in self.precursors_to_evaluate:
@@ -215,7 +218,6 @@ class Test_integration_run_uis(unittest.TestCase):
     self.check_final_report_swath(final_report)
 
   def test_runuis_swath_rangetree(self):
-
     self.assertEqual(len(self.precursors_to_evaluate), 905)
     swath_mode = False
     par = self.par

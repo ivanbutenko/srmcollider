@@ -12,15 +12,7 @@ from collider import thisthirdstrike
 from test_shared import *
 import test_shared 
 import uis_functions
-
-test_cppcode = True
-try:
-    import c_getnonuis
-except ImportError:
-    test_cppcode = False
-    print "=" * 75, """
-Module c_getnonuis is not available. Please compile it if you want to use it.
-""", "=" * 75
+from test_shared import check_cgetnonuis_availability
 
 class Test_3strikes(unittest.TestCase): 
 
@@ -75,14 +67,14 @@ class Test_3strikes(unittest.TestCase):
         self.assertEqual(len(expanded[3]), 2 )
         self.assertEqual(len(expanded[4]), 0 )
 
-        self.assertTrue((0,1) in expanded[2].keys())
-        self.assertTrue((0,2) in expanded[2].keys())
-        self.assertTrue((0,3) in expanded[2].keys())
-        self.assertTrue((1,2) in expanded[2].keys())
-        self.assertTrue((1,3) in expanded[2].keys())
+        self.assertTrue((0,1) in expanded[2])
+        self.assertTrue((0,2) in expanded[2])
+        self.assertTrue((0,3) in expanded[2])
+        self.assertTrue((1,2) in expanded[2])
+        self.assertTrue((1,3) in expanded[2])
 
-        self.assertTrue((0,1,3) in expanded[3].keys())
-        self.assertTrue((0,1,2) in expanded[3].keys())
+        self.assertTrue((0,1,3) in expanded[3])
+        self.assertTrue((0,1,2) in expanded[3])
 
     def test_example_four_transitions_small_window(self):
         strike3_ssrcalcwindow = 0.3
@@ -98,11 +90,11 @@ class Test_3strikes(unittest.TestCase):
         self.assertEqual(len(expanded[3]), 1 )
         self.assertEqual(len(expanded[4]), 0 )
 
-        self.assertTrue((1,3) not in expanded[2].keys())
-        self.assertTrue((0,1,2) in expanded[3].keys())
+        self.assertTrue((1,3) not in expanded[2])
+        self.assertTrue((0,1,2) in expanded[3])
 
+    @check_cgetnonuis_availability
     def test_cpp_implementation(self):
-        if not test_cppcode: return
         strike3_ssrcalcwindow = 0.3
         ssrcalcvalues  = self.ssrcalcvalues_four_example  
         N = [len(v) for v in ssrcalcvalues]
@@ -114,6 +106,7 @@ class Test_3strikes(unittest.TestCase):
             cpp_result_compare[ tuple(c)] = 0
         self.assertEqual(cpp_result_compare, python_result)
 
+        #print "second cpp impl"
         strike3_ssrcalcwindow = 1.0
         cpp_result = c_getnonuis.calculate_eUIS(N, ssrcalcvalues, strike3_ssrcalcwindow)
         python_result = thisthirdstrike(N, ssrcalcvalues, strike3_ssrcalcwindow)
@@ -121,7 +114,6 @@ class Test_3strikes(unittest.TestCase):
         for c in cpp_result:
             cpp_result_compare[ tuple(c)] = 0
         self.assertEqual(cpp_result_compare, python_result)
-
 
 if __name__ == '__main__':
     unittest.main()

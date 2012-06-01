@@ -22,9 +22,9 @@ try:
 except ImportError:
     print "=" * 75, """
 Module c_integrated is not available. Please compile it if you want to use it.
-If you compiled it, please check the linking and compile errors.
 """, "=" * 75
 
+@check_cintegrated_availability
 class Test_cintegrated(unittest.TestCase): 
 
     def setUp(self):

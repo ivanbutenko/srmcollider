@@ -21,6 +21,29 @@ def ignoreImportError_cget(f):
         except ImportError: pass
     return new
 
+def dummy(): 
+    pass
+def check_cgetnonuis_availability(function):
+    try:
+        import c_getnonuis
+        return function
+    except ImportError:
+        return dummy
+
+def check_crangetree_availability(function):
+    try:
+        import c_rangetree
+        return function
+    except ImportError:
+        return dummy
+
+def check_cintegrated_availability(function):
+    try:
+        import c_integrated
+        return function
+    except ImportError:
+        return dummy
+
 
 
 from precursor import Precursor

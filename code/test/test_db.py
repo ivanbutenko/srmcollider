@@ -14,6 +14,7 @@ from Residues import Residues
 
 from test_shared import *
 import test_shared 
+from test_shared import check_cgetnonuis_availability
 
 test_database = 'hroest'
 mysql_conf_file = "~/.my.cnf.srmcollider"
@@ -389,6 +390,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.assertEqual(1, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 5]))
         self.assertEqual(0, len([k for k,v in collisions_per_peptide.iteritems() if len(v) == 6]))
 
+    @check_cgetnonuis_availability
     @attr('slow') 
     def test_complete_without_isotopes(self):
 
@@ -409,6 +411,7 @@ class Test_collider_mysql(unittest.TestCase):
         find_clashes_small(self, mycollider, cursor, par, pepids)
         do_check_complete(self, mycollider)
 
+    @check_cgetnonuis_availability
     @attr('slow') 
     def test_complete_with_isotopes(self):
 
@@ -491,6 +494,7 @@ class Test_collider_sqlite(unittest.TestCase):
     def tearDown(self):
       self.db.close()
 
+    @check_cgetnonuis_availability
     def test_1(self):
 
         if not self.database_available: return
