@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 2.6)
 
 ## list all your executables here (a corresponding .C file should exist, e.g. Main.C)
 set(my_executables
+testPrecursor
 testgetNonUIS
 testIntegrated
 testRangetree
@@ -30,6 +31,7 @@ endforeach(i)
 
 ENABLE_TESTING()
 ADD_TEST(testgetNonUIS testgetNonUIS)
+ADD_TEST(testPrecursor testPrecursor)
 ADD_TEST(testIntegrated testIntegrated)
 ADD_TEST(testRangetree testRangetree)
 ADD_TEST(testeUIS testeUIS)

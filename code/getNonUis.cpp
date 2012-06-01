@@ -463,7 +463,7 @@ BOOST_PYTHON_MODULE(c_getnonuis)
  "list calculate_transitions_ch(tuple precursors, list charges, double q3_low, double q3_high ) \n"
  );
 
-    def("calculate_charged_mass", SRMCollider::Common::calculate_charged_mass, 
+    def("calculate_charged_mass", SRMCollider::Common::_py_calculate_charged_mass, 
  "Calculate the charged mass for a sequence, supplied in a python tuple in the\n"
  "first place.\n"
  "\n"

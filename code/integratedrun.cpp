@@ -71,7 +71,7 @@ namespace IntegratedRun {
     }
   }
 
-  inline void _charged_interference(const std::string sequence, double* tmp_series, double* series, const int ch,
+  inline void _charged_interference(const std::string& sequence, double* tmp_series, double* series, const int ch,
       const SRMParameters& params, const int isotope_modification, 
       const std::vector<Transition>& mytransitions, const bool ppm, const double q3window, COMBINT& currenttmp)
   {
@@ -82,6 +82,7 @@ namespace IntegratedRun {
 
     int fragcount = SRMCollider::Common::calculate_fragment_masses(
         sequence, tmp_series, series, ch, params, isotope_modification);
+    //std::cout <<" with seq " << sequence << " i got " << fragcount << " vs " << mytransitions.size() << std::endl;
 
     for (size_t i=0; i<mytransitions.size(); i++) {
         transition = mytransitions[i];
@@ -98,6 +99,38 @@ namespace IntegratedRun {
                 }
             }
     } //loop over all transitions
+  }
+
+  inline void _charged_interference(const SRMPrecursor& precursor, const int ch, const SRMParameters& params, 
+      const std::vector<Transition>& mytransitions, COMBINT& currenttmp)
+  {
+    COMBINT one;
+    double q3, q3used = params.q3_window;
+    Transition transition;
+    size_t k;
+
+    std::vector<double> result;
+    result.reserve(1024);
+    precursor.get_fragment_masses(result, ch, params);
+
+    for (size_t i=0; i<mytransitions.size(); i++) {
+        transition = mytransitions[i];
+        q3 = transition.q3;
+        //ppm is 10^-6
+        if(params.ppm) {q3used = params.q3_window / 1000000.0 * q3; } 
+
+            // go through all fragments of this precursor
+            //for (k=0; k<fragcount; k++) 
+            for (k=0; k<result.size(); k++) 
+            {
+                if(fabs(q3-result[k]) < q3used ) {
+                    //left bitshift == 2^i
+                    one = 1;
+                    currenttmp |= one << i;
+                }
+            }
+    } //loop over all transitions
+
   }
 
 /* 
@@ -137,6 +170,7 @@ int min_needed(std::vector<Transition>& mytransitions, std::vector<SRMPrecursor>
     int maxoverlap = 0;
     for (size_t j=0; j< precursors.size(); j++) 
     {
+
       for (ch=1; ch<=2; ch++) 
       {
         // TODO do N15
@@ -224,7 +258,7 @@ int _py_min_needed(python::tuple transitions, python::tuple precursors,
  * thrown. 
 */
 void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
-  double c, double d, long thispeptide_key, int max_uis, double q3window,
+  double c, double d, long thistransitiongr, int max_uis, double q3window,
   bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters params,
   SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& newcollperpep)
 {
@@ -270,31 +304,34 @@ void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
     while(current!=OutputList.end())
     {
 
-      double q1 = current->first[0];
-      int charge = current->second.q1_charge;
+      SRMPrecursor& p = current->second;
+      p.q1 = current->first[0];
+
       bool proceed = false;
       // check whether there are any relevant isotopes, otherwise exclude this hit
       for (iso=0; iso<=max_nr_isotopes; iso++) {
-          if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
-                q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
+          if (p.q1 + (MASS_DIFFC13 * iso)/p.q1_charge > q1_low && 
+              p.q1 + (MASS_DIFFC13 * iso)/p.q1_charge < q1_high) 
           {
               proceed = true;
           }
       }
 
-      if (!proceed || thispeptide_key == current->second.peptide_key) {
+      if (!proceed || thistransitiongr == p.transition_group) {
         // go to next
         current++;
         continue;
       }
 
-      precursor =  current->second;
-      sequence = precursor.sequence;
       for (ch=1; ch<=2; ch++) {
 
-        _charged_interference(sequence, tmp_series, series, ch, params, 
-          current->second.isotope_modification, mytransitions, ppm, q3window, currenttmp);
-
+#if 0
+        // 20 % speed penalty with the std::vector solution
+        //_charged_interference(p, ch, params, mytransitions, currenttmp);
+#else
+        _charged_interference(p.sequence, tmp_series, series, ch, params, 
+          p.isotope_modification, mytransitions, ppm, q3window, currenttmp);
+#endif
       }
 
 
@@ -304,7 +341,7 @@ void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
           currenttmp = 0;
       }
 
-current++;
+      current++;
     }
 
     delete series;
@@ -315,7 +352,7 @@ current++;
 
 // Python wrapper for wrap_all
 python::list _py_wrap_all_bitwise(python::tuple py_transitions, double a, double b,
-  double c, double d, long thispeptide_key, int max_uis, double q3window,
+  double c, double d, long thistransitiongr, int max_uis, double q3window,
   bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
   SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree)
 {
@@ -338,7 +375,7 @@ python::list _py_wrap_all_bitwise(python::tuple py_transitions, double a, double
 
     std::vector<COMBINT> collisions_per_peptide; 
     wrap_all_bitwise(mytransitions, a, b, c, d,
-        thispeptide_key, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
+        thistransitiongr, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
          params, rtree, collisions_per_peptide);
 
     std::vector<int> c_result;
@@ -385,7 +422,7 @@ BOOST_PYTHON_MODULE(c_integrated)
  "\n"
  " Signature\n"
  "list wrap_all_bitwise(python::tuple transitions, double a, double b,\n"
-        "double c, double d, long thispeptide_key, int max_uis, double q3window,\n"
+        "double c, double d, long thistransitiongr, int max_uis, double q3window,\n"
         "bool ppm, int max_nr_isotopes, double isotope_correction)"
     );
 

@@ -45,6 +45,7 @@
 //include our own libraries
 #include "srmcollider.h"
 #include <boost/shared_ptr.hpp>
+#include "srmcolliderLib.cpp"
 
 
 // Including headers from CGAL 
@@ -257,14 +258,7 @@ namespace SRMCollider
   namespace ExtendedRangetree
   {
 
-    struct Precursor
-    {
-      std::string sequence; 
-      long peptide_key;
-      long parent_id;
-      int q1_charge;
-      int isotope_modification;
-    };
+    typedef SRMCollider::Common::SRMPrecursor Precursor;
 
     struct Transition
     {
@@ -308,7 +302,7 @@ namespace SRMCollider
               tlist = python::extract< python::tuple >(pepids[i]);
 
               sequence = python::extract<std::string>(tlist[0]);
-              peptide_key = python::extract<long>(tlist[1]);
+              peptide_key = python::extract<long>(tlist[1]); // transition_group
               parent_id = python::extract<long>(tlist[2]);
               q1_charge = python::extract<int>(tlist[3]);
 
@@ -316,7 +310,13 @@ namespace SRMCollider
               ssrcalc = python::extract<double>(tlist[5]);
               isotope_modification = python::extract<double>(tlist[8]);
 
-              struct Precursor entry = {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
+              Precursor entry;
+              entry.sequence = sequence;
+              entry.transition_group = peptide_key; 
+              entry.q1_charge = q1_charge;
+              //entry.q1 = q1;
+              //entry.ssrcalc = ssrcalc; 
+              entry.isotope_modification = isotope_modification; //= {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
               InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
           }
           my_rangetree->make_tree(InputList.begin(),InputList.end());
@@ -360,7 +360,7 @@ namespace SRMCollider
                 }
             }
 
-            if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
+            if(proceed) {result.append(python::make_tuple( (*current).second.transition_group));}
             current++;
         }
         return result;

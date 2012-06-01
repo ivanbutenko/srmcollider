@@ -54,6 +54,7 @@ void test_helper_get_transitions(std::string sequence, std::vector<SRMCollider::
   SRMPrecursor p;
   p.sequence = sequence;
   p.transition_group = 1;
+  p.isotope_modification = 0;
   std::vector<SRMTransition> srm_transitions;
   SRMParameters tmp_param;
   calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
@@ -125,6 +126,7 @@ BOOST_AUTO_TEST_CASE( wrap_all_bitwise_3peptides_TEST)
   SRMPrecursor p;
   p.sequence = sequence;
   p.transition_group = 1;
+  p.isotope_modification = 0;
   std::vector<SRMTransition> srm_transitions;
   SRMParameters tmp_param;
   calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
@@ -211,8 +213,11 @@ BOOST_AUTO_TEST_CASE( get_non_uis_bitwise_3peptides_TEST)
   SRMPrecursor p;
   p.sequence = sequence;
   p.transition_group = 1;
+  p.isotope_modification = 0;
   std::vector<SRMTransition> srm_transitions;
   SRMParameters tmp_param;
+  tmp_param.bions = true;
+  tmp_param.yions = true;
   calculate_transitions_with_charge(p, charges, srm_transitions, series, tmp_series, 400, 1500, tmp_param);
   for (size_t i = 0; i < srm_transitions.size(); i++) {
     SRMCollider::IntegratedRun::Transition t;
@@ -268,6 +273,7 @@ BOOST_AUTO_TEST_CASE( get_min_needed_3peptides_TEST)
   std::vector<SRMCollider::IntegratedRun::Transition> transitions;
   std::string sequence = "YYLLDYR";
   test_helper_get_transitions(sequence, transitions);
+  BOOST_CHECK_EQUAL(transitions.size(), 8);
 
   // get the collisions per peptide
   std::vector<COMBINT> collisions_per_peptide; 
