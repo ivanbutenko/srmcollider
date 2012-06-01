@@ -330,10 +330,10 @@ for counter,spectrum in enumerate(library):
             par.max_uis, par.q3_window, par.ppm, par)
     elif not use_experimental_height:
         # We dont have experimental height data and cannot use C++ code
-        ##collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
-        ##    transitions, par, peptide_obj, cursor)
-        ##min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
-        min_needed = mycollider.getMinNeededTransitions_direct(par, transitions, precursors)
+        collisions_per_peptide = collider.get_coll_per_peptide(mycollider, 
+            transitions, par, peptide_obj, cursor)
+        min_needed = mycollider._sub_getMinNeededTransitions(par, transitions, collisions_per_peptide)
+        #min_needed = mycollider.getMinNeededTransitions_direct(par, transitions, precursors)
     else:
         # here we consider the case that we have measured a number of
         # transitions experimentally and want to know how many of them are
