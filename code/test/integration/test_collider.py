@@ -181,7 +181,7 @@ class Test_integration_run_uis(unittest.TestCase):
     temp_precursors.getFromDB(par, self.db.cursor(), self.min_q1 - isotope_correction, self.max_q1)
     all_swath_precursors = []
     for p in temp_precursors.precursors:
-      if(p.included_in_isotopic_range(self.min_q1, self.max_q1, par, R) ): 
+      if(p.included_in_isotopic_range(self.min_q1, self.max_q1, par) ): 
         all_swath_precursors.append(p)
 
     for precursor in self.precursors_to_evaluate:
