@@ -313,6 +313,7 @@ namespace SRMCollider
               Precursor entry;
               entry.sequence = sequence;
               entry.transition_group = peptide_key; 
+              entry.parent_id = parent_id;
               entry.q1_charge = q1_charge;
               //entry.q1 = q1;
               //entry.ssrcalc = ssrcalc; 
@@ -360,7 +361,7 @@ namespace SRMCollider
                 }
             }
 
-            if(proceed) {result.append(python::make_tuple( (*current).second.transition_group));}
+            if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
             current++;
         }
         return result;

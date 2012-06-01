@@ -91,6 +91,7 @@ namespace SRMCollider
       std::string sequence; 
       double q1;
       long transition_group;
+      long parent_id;
       int q1_charge;
       int isotope_modification;
       double ssrcalc;
