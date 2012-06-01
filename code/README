@@ -28,7 +28,8 @@
 === Installation === 
 {{{
 
-==== Linux ====  {{{
+==== Linux ====  
+{{{
 
 The SRMCollider is tested on an Ubuntu 10.04 system and all auxiliary programs
 should be easily installable using the package manager apt-get. In principal, a
@@ -43,23 +44,23 @@ In order to compile the C++ extensions, the Boost.Python libraries are
 necessary as well as the CGAL libraries. These can be installed on Ubuntu using
 the command
 
-sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
+$ sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
 
 Then you can try to build the extensions and copy them 
 
-python setup.py build
-sudo python setup.py install
+$ python setup.py build
+$ sudo python setup.py install
 
-For local installs, you can just copy the build .so files into the local
-directory:
-cp build/lib.*/* .
+For local installs, you can just skip the install step and copy the built .so
+files into the local directory:
+$ cp build/lib.*/* .
 
-After that, you should run the tests:
-cd test; python test_independent.py
+After that, you should run the tests (see testing down below)
 
 }}}
 
-==== Windows ==== {{{
+==== Windows ==== 
+{{{
 
 Installing the SRMCollider on Windows is is possible for experienced users only
 since you need many additional programs. Compiling the C++ extensions has not
@@ -96,7 +97,8 @@ binaries are precompiled here https://www.sqlite.org/download.html.
 
 }}}
 
-==== Webserver ==== {{{
+==== Webserver ==== 
+{{{
 
 To install the SRMCollider as a webservice, you need a webserver that supports
 execution of Python scripts. One option would be Apache. Apart from that you
@@ -325,7 +327,8 @@ make && make test
 === Distributing === 
 {{{
 
-$ python setup.py sdist
+$ python setup.py sdist --manifest-only
+$ python setup.py sdist --formats=gztar,zip
 
 
  }}}

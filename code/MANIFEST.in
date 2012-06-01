@@ -1,8 +1,12 @@
-
-include collider.py setup.py create_db.py SRM_parameters.py uis_functions.py
-include run_small.py runcollider.py run_uis.py
-include *.cpp *.h
-include test/*.py
+include collider.py setup.py create_db.py SRM_parameters.py uis_functions.py 
+include precursor.py Fileparser.py
+include runcollider.py run_uis.py
+include scripts/*
+include CMakeLists.txt
+include *.cpp *.h *.C
+include *.C
+include test/*.py test/*/*.py performance_tests/*
+include test/sqltest*.out
 include cgi-scripts/* css/*
-include DDB.py external/progress.py Residues.py
+include DDB.py progress.py Residues.py
 

@@ -75,6 +75,7 @@ setup(name="srmcollider",
     url = "http://www.srmcollider.org", 
     version = "1.3",
     author = "Hannes Roest",
+    author_email = "roest@imsb.biol.ethz.ch",
     requires=["MySQLdb", "sqlite"],
 
     ext_modules=[
