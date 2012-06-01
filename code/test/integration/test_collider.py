@@ -3,22 +3,15 @@ import unittest
 This file tests the functionality of the collider.py module. 
 """
 
-import sys
+import sys, time, test
 sys.path.extend(['.', '..','../..' '../external/', 'external/'])
 sys.path.extend(['test/'])
 import collider
 
-import test
-
-from test_shared import *
 import test_shared 
-import time
+from test_shared import check_crangetree_availability, transitions_def1, collisions_def1
 from Residues import Residues
-
-import precursor
 from precursor import Precursors
-
-from test_shared import check_crangetree_availability
 
 @check_crangetree_availability
 class Test_integration_run_uis(unittest.TestCase): 
@@ -95,7 +88,7 @@ class Test_integration_run_uis(unittest.TestCase):
     for order in range(1,par.max_uis+1):
         sum_all = sum([p[0]*1.0/p[1] for p in prepare if p[3] == order]) 
         nr_peptides = len([p for p in prepare if p[3] == order])
-        if not nr_peptides ==0: print "Order %s, Average non useable UIS %s" % (order, sum_all *1.0/ nr_peptides)
+        #if not nr_peptides ==0: print "Order %s, Average non useable UIS %s" % (order, sum_all *1.0/ nr_peptides)
         final_report[order] = sum_all*1.0/nr_peptides
     return final_report
 
@@ -184,7 +177,7 @@ class Test_integration_run_uis(unittest.TestCase):
     temp_precursors.getFromDB(par, self.db.cursor(), self.min_q1 - isotope_correction, self.max_q1)
     all_swath_precursors = []
     for p in temp_precursors.precursors:
-      if(p.included_in_isotopic_range(self.min_q1, self.max_q1, par, R) ): 
+      if(p.included_in_isotopic_range(self.min_q1, self.max_q1, par) ): 
         all_swath_precursors.append(p)
 
     for precursor in self.precursors_to_evaluate:

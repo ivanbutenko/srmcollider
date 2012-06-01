@@ -3,17 +3,19 @@ This file tests the functionality of the collider.py module.
 """
 from nose.tools import nottest
 from nose.plugins.attrib import attr
-import unittest
 
-import sys
+import sys, time, unittest
 sys.path.extend(['.', '..', '../external/', 'external/'])
 import collider
 
-from test_shared import *
 import test_shared 
-import time
 from Residues import Residues
 from test_shared import check_cgetnonuis_availability
+from test_shared import transitions_def1, collisions_def1 
+from test_shared import transitions_def2, collisions_def2
+from test_shared import transitions_def3, collisions_def3
+from test_shared import transitions_def4, collisions_def4
+from test_shared import transitions_def5, collisions_def5
 
 def get_non_UIS_from_transitions_old(transitions, collisions, par, MAX_UIS, unsorted=False):
     """ Get all combinations that are not UIS """

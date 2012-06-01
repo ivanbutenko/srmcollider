@@ -5,14 +5,13 @@ This file tests the functionality of the collider.py module.
 
 import sys
 sys.path.extend(['.', '..', '../external/', 'external/'])
-import collider
 
-from collider import thisthirdstrike
-
-from test_shared import *
-import test_shared 
 import uis_functions
+from collider import thisthirdstrike
 from test_shared import check_cgetnonuis_availability
+
+try: import c_getnonuis
+except ImportError: pass
 
 class Test_3strikes(unittest.TestCase): 
 
