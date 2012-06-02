@@ -37,6 +37,12 @@
 #include "srmcollider.h"
 #include "srmcolliderLib.cpp"
 
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
+
 #include "calculate_eUIS.cpp"
 //using namespace std;
 using namespace SRMCollider;

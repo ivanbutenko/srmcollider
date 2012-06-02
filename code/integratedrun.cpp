@@ -43,6 +43,12 @@
 #include "combinatorics.h"
 #include "srmcolliderLib.cpp"
 
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
+
 #include <vector>
 
 using namespace SRMCollider::Common;
@@ -261,21 +267,17 @@ namespace SRMCollider
    * If there are more transitions provided than allowed, an error will be
    * thrown. 
   */
-  void wrap_all_bitwise(std::vector<Transition> mytransitions, double a, double b,
+  void wrap_all_bitwise(std::vector<Transition>& mytransitions, double a, double b,
     double c, double d, long thistransitiongr, int max_uis, double q3window,
-    bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters params,
+    bool ppm, int max_nr_isotopes, double isotope_correction, SRMParameters& params,
     SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree, std::vector<COMBINT>& newcollperpep)
   {
       //use the defined COMBINT (default 32bit int) and some bitwise operations to do this :-)
       COMBINT currenttmp = 0;
       int ch;
-      std::string sequence;
 
       SRMCollider::ExtendedRangetree::Precursor precursor;
       std::vector<SRMCollider::ExtendedRangetree::Key> OutputList;
-
-      double* b_series = new double[256];
-      double* y_series = new double[256];
 
       int iso;
       double q1_low = a; double q1_high = c;
@@ -305,6 +307,7 @@ namespace SRMCollider
       // we have duplicate peptide_keys (from the isotopes). But they will
       // produce the same interefering transitions and thus the same entry in the
       // collisions per peptide table.
+
       while(current!=OutputList.end())
       {
 
@@ -350,14 +353,12 @@ namespace SRMCollider
 
       delete series;
       delete tmp_series;
-      delete b_series;
-      delete y_series;
   }
 
   // Python wrapper for wrap_all
-  python::list _py_wrap_all_bitwise(python::tuple py_transitions, double a, double b,
+  python::list _py_wrap_all_bitwise(python::tuple& py_transitions, double a, double b,
     double c, double d, long thistransitiongr, int max_uis, double q3window,
-    bool ppm, int max_nr_isotopes, double isotope_correction, python::object par,
+    bool ppm, int max_nr_isotopes, double isotope_correction, python::object& par,
     SRMCollider::ExtendedRangetree::Rangetree_Q1_RT& rtree)
   {
 

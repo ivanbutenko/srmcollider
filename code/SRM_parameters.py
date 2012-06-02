@@ -106,6 +106,12 @@ class SRM_parameters(object):
         if self.zions      is None: self.zions      =  False
         if self.MMinusH2O  is None: self.MMinusH2O  =  False
         if self.MMinusNH3  is None: self.MMinusNH3  =  False
+
+    def set_q3_range(self, a, b):
+        self.q3_range = [a, b]
+
+    def set_peptide_table(self, p):
+        self.peptide_table = p
  
     def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup

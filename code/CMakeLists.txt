@@ -1,7 +1,7 @@
 project("SRMCollider")
 cmake_minimum_required(VERSION 2.6)
 
-# set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Release)
 
 ## list all your executables here (a corresponding .C file should exist, e.g. Main.C)
 set(my_executables
@@ -12,6 +12,7 @@ testRangetree
 testeUIS
 testLibrary
 combinatorics_test
+run_integrated
 )
 
 
@@ -25,7 +26,7 @@ include_directories("/usr/include/python2.6")
 foreach(i ${my_executables})
   add_executable(${i} ${i}.C)
   ## link executables against OpenMS and also OpenSWATH
-  target_link_libraries(${i} boost_python boost_unit_test_framework python2.6 CGAL)
+  target_link_libraries(${i} boost_python boost_unit_test_framework boost_filesystem python2.6 CGAL)
 endforeach(i)
 
 

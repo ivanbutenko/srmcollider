@@ -28,6 +28,12 @@
 #define COMBINATORICS_H
 #include "srmcollider.h"
 
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
+
 //using namespace std;
 
 namespace SRMCollider 
@@ -35,6 +41,9 @@ namespace SRMCollider
 
   namespace Combinatorics 
   {
+
+    //typedef SRMCollider::Common::COMBINT COMBINT;
+
     /*
     * This function calculates all combinations of M elements
     * drawn without replacement from a set of N elements. Order of elements

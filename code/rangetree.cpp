@@ -44,9 +44,15 @@
 
 //include our own libraries
 #include "srmcollider.h"
-#include <boost/shared_ptr.hpp>
 #include "srmcolliderLib.cpp"
 
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
+
+#include <boost/shared_ptr.hpp>
 
 // Including headers from CGAL 
 #include <CGAL/Cartesian.h>

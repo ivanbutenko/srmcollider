@@ -30,10 +30,13 @@
 #include <vector>
 #include <set>
 
-/*
- * http://www.sisweb.com/referenc/source/exactmaa.htm
- * http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl
-*/
+
+namespace SRMCollider 
+{
+    /*
+     * http://www.sisweb.com/referenc/source/exactmaa.htm
+     * http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl
+    */
 #define MASS_H 1.007825032
 #define MASS_N 14.003074005
 #define MASS_O 15.994914620
@@ -46,19 +49,15 @@
 #define MASS_C13 13.00335484
 #define MASS_DIFFC13 (MASS_C13 - MASS_C)
 
-//assume that there are never more than 32 transitions in an assay :-)
-//please change when an error occurs
+    //assume that there are never more than 32 transitions in an assay :-)
+    //please change when an error occurs
 #define COMBINT uint32_t
 #define COMBLIMIT 32
 
 #define NOISOTOPEMODIFICATION 0
 #define N15_ISOTOPEMODIFICATION 1
 
-// Boost.Python headers
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-namespace python = boost::python;
+}
 
 #endif
 

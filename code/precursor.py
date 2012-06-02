@@ -25,6 +25,9 @@ class Precursor:
     self.missed_cleavages       = missed_cleavages       
     self.isotopically_modified  = isotopically_modified  
 
+  def get_tr(self):
+      return self.transition_group
+
   def initialize(self, modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified):
     self.modified_sequence      = modified_sequence      
     self.transition_group       = transition_group       
@@ -157,12 +160,15 @@ class Precursors:
     *   8 isotopically modified
     """
     import c_rangetree
-    alltuples = [ (p.modified_sequence, p.transition_group, p.parent_id, p.q1_charge, p.q1, p.ssrcalc,0,0,p.isotopically_modified) 
-                 for p in self.precursors]
+    alltuples = self.get_alltuples_extended_rangetree()
     r = c_rangetree.ExtendedRangetree_Q1_RT.create()
     r.new_rangetree()
     r.create_tree(tuple(alltuples))
     return r
+
+  def get_alltuples_extended_rangetree(self):
+    return tuple([ (p.modified_sequence, p.transition_group, p.parent_id, p.q1_charge, p.q1, p.ssrcalc,0,0,p.isotopically_modified) 
+                 for p in self.precursors])
 
   def use_GRAVY_scores(self):
     for p in self.precursors:

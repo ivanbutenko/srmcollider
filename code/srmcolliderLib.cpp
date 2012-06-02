@@ -30,6 +30,12 @@
 #include "combinatorics.h"
 #include <algorithm>
 
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
+
 #include <boost/shared_ptr.hpp>
 
 //using namespace std;
