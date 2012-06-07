@@ -43,7 +43,10 @@ Module c_integrated is not available. Please compile it if you want to use it.
 
 def mysort(x,y):
     if cmp(x[3], y[3]) == 0:
+      if cmp(x[1], y[1]) == 0:
         return cmp(x[0], y[0])
+      else:
+        return cmp(x[1], y[1])
     else: return cmp(x[3], y[3])
 
 from test_shared import _get_unique_pepids
@@ -162,6 +165,7 @@ class Test_speed(unittest.TestCase):
         pep = test_shared.runpep2
         transitions = test_shared.runtransitions2
         precursors = test_shared.runprecursors2
+
         transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
 
         st = time.time()
@@ -183,6 +187,30 @@ class Test_speed(unittest.TestCase):
 
         print ctime, oldtime
         print "Speedup:", oldtime / ctime
+
+    def test_calculatetrans_single(self):
+        pep = test_shared.runpep2
+        transitions = test_shared.runtransitions2
+        precursors = [p for p in test_shared.runprecursors2 if p[2] == 106423]
+
+        transitions = tuple([ (t[0], i) for i,t in enumerate(transitions)])
+
+        st = time.time()
+        collisions = list(collider.SRMcollider._get_all_collisions_calculate_sub(
+                collider.SRMcollider(), precursors, self.par, self.R, self.q3_low, self.q3_high))
+
+        oldtime = time.time() - st
+        st = time.time()
+        tr_new = c_getnonuis.calculate_transitions_ch(tuple(precursors), [1,2], self.q3_low, self.q3_high)
+        ctime = time.time() - st
+
+        tr_new.sort(mysort)
+        collisions.sort(mysort)
+
+        self.assertEqual(len(tr_new), len(collisions))
+        for o,n in zip(collisions, tr_new):
+            for oo,nn in zip(o,n):
+                self.assertTrue(oo - nn < 1e-5)
 
     def test_collperpeptide1(self):
         print '\nTesting collisions_per_peptide'
@@ -285,12 +313,13 @@ class Test_speed(unittest.TestCase):
 
         myprecursors = ((500, 'PEPTIDE', 1, 1, 0), (400, 'CEPC[160]IDM[147]E', 2, 2, 0))
         st = time.time()
-        for i in range(100000):
+        LARGENUMBER = 100000
+        for i in range(LARGENUMBER):
             tr_new = c_getnonuis.calculate_transitions_ch(myprecursors, [1,2], self.q3_low, self.q3_high)
         ctime = time.time() - st
         st = time.time()
         coll = collider.SRMcollider()
-        for i in range(100000):
+        for i in range(LARGENUMBER):
             tr_old = list(collider.SRMcollider._get_all_collisions_calculate_sub(
                         coll, myprecursors, self.par, self.R, self.q3_low, self.q3_high))
         oldtime = time.time() - st
@@ -298,8 +327,12 @@ class Test_speed(unittest.TestCase):
         tr_new.sort(mysort)
         tr_old.sort(mysort)
 
-        self.assertEqual(len(tr_new), len(tr_old) )
-        self.assertEqual(tr_new, tr_old)
+        self.assertEqual(len(tr_new), len(tr_old))
+        for o,n in zip(tr_old, tr_new):
+            for oo,nn in zip(o,n):
+                self.assertTrue(oo - nn < 1e-5)
+
+
         print ctime, oldtime
         print "Speedup:", oldtime / ctime
 
