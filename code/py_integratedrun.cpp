@@ -26,6 +26,7 @@
 //include our own libraries
 #include "integratedrun.cpp"
 #include "srmcolliderLib.cpp"
+#include "rangetree.cpp"
 
 // Boost.Python headers
 #include <boost/python.hpp>

@@ -39,7 +39,7 @@
 
 //include our own libraries
 #include "srmcollider.h"
-#include "rangetree.cpp"
+#include "rangetree.h"
 #include "combinatorics.h"
 #include "srmcolliderLib.h"
 

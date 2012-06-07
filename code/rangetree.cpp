@@ -39,159 +39,80 @@
  * http://www.cgal.org/Manual/latest/doc_html/cgal_manual/packages.html#part_XIII
 */
 
-#ifndef SRMCOLLIDER_RANGETREE_H
-#define SRMCOLLIDER_RANGETREE_H
+#ifndef SRMCOLLIDER_RANGETREE_C
+#define SRMCOLLIDER_RANGETREE_C
 
 //include our own libraries
-#include "srmcollider.h"
-#include "srmcolliderLib.h"
-
-// Boost.Python headers
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-namespace python = boost::python;
-
-#include <boost/shared_ptr.hpp>
-
-// Including headers from CGAL 
-#include <CGAL/Cartesian.h>
-#include <CGAL/Range_segment_tree_traits.h>
-#include <CGAL/Range_tree_k.h>
-
-#include <iostream>
-#include <vector>
-#include <set>
+#include "rangetree.h"
 
 namespace SRMCollider
 {
   namespace SimpleRangetree
   {
-
-    struct Precursor
+    void Rangetree_Q1_RT::new_rangetree  () 
     {
-      long parent_id;
-      int q1_charge;
-    };
+      my_rangetree = boost::shared_ptr<Range_tree_2_type>(new Range_tree_2_type); 
+    }
 
-    typedef CGAL::Cartesian<double> K;
-    typedef CGAL::Range_tree_map_traits_2<K, Precursor> Traits;
-    typedef CGAL::Range_tree_2<Traits> Range_tree_2_type;
-
-    typedef Traits::Key Key;                
-    typedef Traits::Interval Interval;    
-
-    struct Rangetree_Q1_RT 
+    void Rangetree_Q1_RT::create_tree(python::tuple pepids) 
     {
-      static boost::shared_ptr<Rangetree_Q1_RT> create () 
-      { 
-        return boost::shared_ptr<Rangetree_Q1_RT>(new Rangetree_Q1_RT); 
-      }
 
-      void new_rangetree  () 
-      {
-        my_rangetree = boost::shared_ptr<Range_tree_2_type>(new Range_tree_2_type); 
-      }
+        python::tuple tlist;
+        std::vector<Key> InputList;
+        int i, q1_charge;
+        long parent_id;
+        double ssrcalc, q1;
 
-      /* Create the rangetree that will be used throughout. This is essential. The
-       * rangetree will stay in place while this module is loaded.
-       * The tuples have the following structure:
-       *   0
-       *   1 
-       *   2 - parent_id
-       *   3 - q1_charge
-       *   4 - q1
-       *   5 - ssrcalc
-      */
-      void create_tree(python::tuple pepids) 
-      {
+        int pepids_length = python::extract<int>(pepids.attr("__len__")());
+        for (i=0; i<pepids_length; i++) {
+            tlist = python::extract< python::tuple >(pepids[i]);
 
-          python::tuple tlist;
-          std::vector<Key> InputList;
-          int i, q1_charge;
-          long parent_id;
-          double ssrcalc, q1;
+            parent_id = python::extract<long>(tlist[2]);
+            q1_charge = python::extract<int>(tlist[3]);
 
-          int pepids_length = python::extract<int>(pepids.attr("__len__")());
-          for (i=0; i<pepids_length; i++) {
-              tlist = python::extract< python::tuple >(pepids[i]);
+            q1 = python::extract<double>(tlist[4]);
+            ssrcalc = python::extract<double>(tlist[5]);
 
-              parent_id = python::extract<long>(tlist[2]);
-              q1_charge = python::extract<int>(tlist[3]);
-
-              q1 = python::extract<double>(tlist[4]);
-              ssrcalc = python::extract<double>(tlist[5]);
-
-              struct Precursor entry = {parent_id, q1_charge};
-              InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
-          }
-          my_rangetree->make_tree(InputList.begin(),InputList.end());
-      }
-
-      /* Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are
-       * in the defined square defined by these four numbers.
-       * Returns a list with keys that were stored in the tree.
-       *
-       * Requires the maximal number of isotopes to consider and a isotopic correction of the lower window.
-       * The isotope correction of the lower window is an offset that is used to
-       * include all the monoisotopic precursors that might have isotopes between x1
-       * and x2. Since the isotopes are not actively stored, the monoisotopic
-       * precursors have to be selected and then checked whether they have any
-       * potential isotopes that could fall in the (x1,x2) window.
-       * The isotope correction should be computed as:
-       *    nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
-      */
-      python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   
-      {
-        std::vector<Key> OutputList;
-        python::list result;
-
-        double q1, q1_low = a, q1_high = c;
-        int charge, iso;
-        bool proceed;
-        Interval win(Interval(K::Point_2(a-correction,b),K::Point_2(c,d)));
-        my_rangetree->window_query(win, std::back_inserter(OutputList));
-        std::vector<Key>::iterator current=OutputList.begin();
-        while(current!=OutputList.end()){
-
-            q1 = current->first[0];
-            charge = current->second.q1_charge;
-            proceed = false;
-            // check whether there are any relevant isotopes, otherwise exclude this hit
-            for (iso=0; iso<=max_nr_isotopes; iso++) {
-                if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
-                      q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
-                {
-                    proceed = true;
-                }
-            }
-
-            if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
-            current++;
+            struct Precursor entry = {parent_id, q1_charge};
+            InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
         }
-        return result;
+        my_rangetree->make_tree(InputList.begin(),InputList.end());
+    }
 
+    python::list Rangetree_Q1_RT::query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   
+    {
+      std::vector<Key> OutputList;
+      python::list result;
+
+      double q1, q1_low = a, q1_high = c;
+      int charge, iso;
+      bool proceed;
+      Interval win(Interval(K::Point_2(a-correction,b),K::Point_2(c,d)));
+      my_rangetree->window_query(win, std::back_inserter(OutputList));
+      std::vector<Key>::iterator current=OutputList.begin();
+      while(current!=OutputList.end()){
+
+          q1 = current->first[0];
+          charge = current->second.q1_charge;
+          proceed = false;
+          // check whether there are any relevant isotopes, otherwise exclude this hit
+          for (iso=0; iso<=max_nr_isotopes; iso++) {
+              if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
+                    q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
+              {
+                  proceed = true;
+              }
+          }
+
+          if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
+          current++;
       }
+      return result;
 
-      boost::shared_ptr<Range_tree_2_type> my_rangetree;
-    };
+    }
 
     Range_tree_2_type *Range_tree_2 = new Range_tree_2_type;
 
-    // Function declarations
-    void create_tree(python::tuple pepids) ;
-    python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction);
-
-    /* Create the rangetree that will be used throughout. This is essential. The
-     * rangetree will stay in place while this module is loaded.
-     * The tuples have the following structure:
-     *   0
-     *   1 
-     *   2 - parent_id
-     *   3 - q1_charge
-     *   4 - q1
-     *   5 - ssrcalc
-    */
     void create_tree(python::tuple pepids) 
     {
 
@@ -217,19 +138,6 @@ namespace SRMCollider
         Range_tree_2->make_tree(InputList.begin(),InputList.end());
     }
 
-    /* Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are
-     * in the defined square defined by these four numbers.
-     * Returns a list with keys that were stored in the tree.
-     *
-     * Requires the maximal number of isotopes to consider and a isotopic correction of the lower window.
-     * The isotope correction of the lower window is an offset that is used to
-     * include all the monoisotopic precursors that might have isotopes between x1
-     * and x2. Since the isotopes are not actively stored, the monoisotopic
-     * precursors have to be selected and then checked whether they have any
-     * potential isotopes that could fall in the (x1,x2) window.
-     * The isotope correction should be computed as:
-     *    nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
-    */
     python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   
     {
 
@@ -267,122 +175,82 @@ namespace SRMCollider
 
   namespace ExtendedRangetree
   {
-
-    typedef SRMCollider::Common::SRMPrecursor Precursor;
-
-    struct Transition
+    void Rangetree_Q1_RT::new_rangetree  () 
     {
-      double q3;
-      long srm_id;
-    };
+      my_rangetree = boost::shared_ptr<Range_tree_2_type>(new Range_tree_2_type); 
+    }
 
-    typedef CGAL::Cartesian<double> K;
-    typedef CGAL::Range_tree_map_traits_2<K, Precursor> Traits;
-    typedef CGAL::Range_tree_2<Traits> Range_tree_2_type;
-
-    typedef Traits::Key Key;                
-    typedef Traits::Interval Interval;    
-
-    struct Rangetree_Q1_RT 
+    void Rangetree_Q1_RT::create_tree(python::tuple pepids) 
     {
-      static boost::shared_ptr<Rangetree_Q1_RT> create () 
-      { 
-        return boost::shared_ptr<Rangetree_Q1_RT>(new Rangetree_Q1_RT); 
-      }
 
-      void new_rangetree  () 
-      {
-        my_rangetree = boost::shared_ptr<Range_tree_2_type>(new Range_tree_2_type); 
-      }
+        python::tuple tlist;
+        std::vector<Key> InputList;
+        int i, q1_charge, isotope_modification;
+        long parent_id, peptide_key;
+        double ssrcalc, q1;
+        std::string sequence;
 
-      // Create the rangetree that will be used throughout. This is essential
-      void create_tree(python::tuple pepids) 
-      {
+        int pepids_length = python::extract<int>(pepids.attr("__len__")());
+        for (i=0; i<pepids_length; i++) 
+        {
+            tlist = python::extract< python::tuple >(pepids[i]);
 
-          python::tuple tlist;
-          std::vector<Key> InputList;
-          int i, q1_charge, isotope_modification;
-          long parent_id, peptide_key;
-          double ssrcalc, q1;
-          std::string sequence;
+            sequence = python::extract<std::string>(tlist[0]);
+            peptide_key = python::extract<long>(tlist[1]); // transition_group
+            parent_id = python::extract<long>(tlist[2]);
+            q1_charge = python::extract<int>(tlist[3]);
 
-          int pepids_length = python::extract<int>(pepids.attr("__len__")());
-          for (i=0; i<pepids_length; i++) 
-          {
-              tlist = python::extract< python::tuple >(pepids[i]);
+            q1 = python::extract<double>(tlist[4]);
+            ssrcalc = python::extract<double>(tlist[5]);
+            isotope_modification = python::extract<double>(tlist[8]);
 
-              sequence = python::extract<std::string>(tlist[0]);
-              peptide_key = python::extract<long>(tlist[1]); // transition_group
-              parent_id = python::extract<long>(tlist[2]);
-              q1_charge = python::extract<int>(tlist[3]);
-
-              q1 = python::extract<double>(tlist[4]);
-              ssrcalc = python::extract<double>(tlist[5]);
-              isotope_modification = python::extract<double>(tlist[8]);
-
-              Precursor entry;
-              entry.sequence = sequence;
-              entry.transition_group = peptide_key; 
-              entry.parent_id = parent_id;
-              entry.q1_charge = q1_charge;
-              //entry.q1 = q1;
-              //entry.ssrcalc = ssrcalc; 
-              entry.isotope_modification = isotope_modification; //= {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
-              InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
-          }
-          my_rangetree->make_tree(InputList.begin(),InputList.end());
-      }
-
-      /* Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are
-       * in the defined square defined by these four numbers.
-       * Returns a list with keys that were stored in the tree.
-       *
-       * Requires the maximal number of isotopes to consider and a isotopic correction of the lower window.
-       * The isotope correction of the lower window is an offset that is used to
-       * include all the monoisotopic precursors that might have isotopes between x1
-       * and x2. Since the isotopes are not actively stored, the monoisotopic
-       * precursors have to be selected and then checked whether they have any
-       * potential isotopes that could fall in the (x1,x2) window.
-       * The isotope correction should be computed as:
-       *    nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
-      */
-      python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   
-      {
-        std::vector<Key> OutputList;
-        python::list result;
-
-        double q1, q1_low = a, q1_high = c;
-        int charge, iso;
-        bool proceed;
-        Interval win(Interval(K::Point_2(a-correction,b),K::Point_2(c,d)));
-        my_rangetree->window_query(win, std::back_inserter(OutputList));
-        std::vector<Key>::iterator current=OutputList.begin();
-        while(current!=OutputList.end()){
-
-            q1 = current->first[0];
-            charge = current->second.q1_charge;
-            proceed = false;
-            // check whether there are any relevant isotopes, otherwise exclude this hit
-            for (iso=0; iso<=max_nr_isotopes; iso++) {
-                if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
-                      q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
-                {
-                    proceed = true;
-                }
-            }
-
-            if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
-            current++;
+            Precursor entry;
+            entry.sequence = sequence;
+            entry.transition_group = peptide_key; 
+            entry.parent_id = parent_id;
+            entry.q1_charge = q1_charge;
+            //entry.q1 = q1;
+            //entry.ssrcalc = ssrcalc; 
+            entry.isotope_modification = isotope_modification; //= {sequence, peptide_key, parent_id, q1_charge, isotope_modification};
+            InputList.push_back(Key(K::Point_2(q1,ssrcalc), entry));
         }
-        return result;
+        my_rangetree->make_tree(InputList.begin(),InputList.end());
+    }
 
+    python::list Rangetree_Q1_RT::query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   
+    {
+      std::vector<Key> OutputList;
+      python::list result;
+
+      double q1, q1_low = a, q1_high = c;
+      int charge, iso;
+      bool proceed;
+      Interval win(Interval(K::Point_2(a-correction,b),K::Point_2(c,d)));
+      my_rangetree->window_query(win, std::back_inserter(OutputList));
+      std::vector<Key>::iterator current=OutputList.begin();
+      while(current!=OutputList.end()){
+
+          q1 = current->first[0];
+          charge = current->second.q1_charge;
+          proceed = false;
+          // check whether there are any relevant isotopes, otherwise exclude this hit
+          for (iso=0; iso<=max_nr_isotopes; iso++) {
+              if (q1 + (MASS_DIFFC13 * iso)/charge > q1_low && 
+                    q1 + (MASS_DIFFC13 * iso)/charge < q1_high) 
+              {
+                  proceed = true;
+              }
+          }
+
+          if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
+          current++;
       }
+      return result;
 
-      boost::shared_ptr<Range_tree_2_type> my_rangetree;
-    };
+    }
+
 
   }
 }
-
 
 #endif

@@ -35,11 +35,11 @@
 #include "srmcollider.h"
 #include "srmcolliderLib.h"
 #include "combinatorics.h"
+#include "integratedrun.h"
+#include "rangetree.h"
 
 #include "getNonUis.cpp"
-#include "integratedrun.h"
 #include "py_integratedrun.cpp"
-#include "rangetree.cpp"
 
 int main(int argc, const char ** argv)
 {

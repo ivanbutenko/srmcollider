@@ -21,7 +21,7 @@ set(my_sources
   combinatorics.h
   srmcolliderLib.cpp
   integratedrun.cpp
-  #rangetree.cpp
+  rangetree.cpp
 )
 
 find_package(CGAL)

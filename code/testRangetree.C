@@ -28,7 +28,7 @@
 #include <boost/test/unit_test.hpp>
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
 
-#include "rangetree.cpp"
+#include "rangetree.h"
  
 // this tests ExtendedRangetree;
 BOOST_AUTO_TEST_CASE( ExtendedRangetree_TEST )
