@@ -30,16 +30,16 @@
 
 #include <boost/test/unit_test.hpp>
 #include <boost/filesystem.hpp>
-#include <iostream>
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
+#include "srmcolliderLib.h"
+#include "combinatorics.h"
 
 #include "getNonUis.cpp"
-#include "integratedrun.cpp"
+#include "integratedrun.h"
+#include "py_integratedrun.cpp"
 #include "rangetree.cpp"
-
 
 int main(int argc, const char ** argv)
 {
@@ -54,11 +54,13 @@ int main(int argc, const char ** argv)
 
   python::object ignored;
 
+  std::cout << "Will try to import all the modules" << std::endl;
   python::object mMainModule = python::import("__main__");
   python::object precursor = boost::python::import("precursor");
   python::object collider = boost::python::import("collider");
   python::object MySQLdb = boost::python::import("MySQLdb");
   python::object par = collider.attr("SRM_parameters")();
+  std::cout << "Imported all the modules successfully, trying to get a db cusor..." << std::endl;
 
   double min_q1 = 700; 
   double max_q1 = 715; 
@@ -69,16 +71,17 @@ int main(int argc, const char ** argv)
   int max_nr_isotopes = 3;
   bool ppm = false;
 
-  //python::set(par, "peptide_table", "hroest.srmPeptides_yeast")
-
   ignored = par.attr("set_peptide_table")("hroest.srmPeptides_yeast");
   ignored = par.attr("set_q3_range")(400, 1400);
   ignored = par.attr("set_default_vars")();
+  ignored = par.attr("set_mysql_config")("~/.my.cnf.orl");
   python::object db = par.attr("get_db")();
   python::object cursor = db.attr("cursor")();
+  std::cout << "Got a db cursor, trying to get precursors from the db..." << std::endl;
 
   python::object myprecursors = precursor.attr("Precursors")();
   myprecursors.attr("getFromDB")(par, cursor, min_q1 - q1_window, max_q1 + q1_window);
+  std::cout << "Got all precursors from the db, trying to build a rangetree..." << std::endl;
 
   python::list precursors_to_evaluate = python::extract<python::list>(myprecursors.attr("getPrecursorsToEvaluate")(min_q1, max_q1));
   double isotope_correction = python::extract<double>(par.attr("calculate_isotope_correction")());
@@ -88,6 +91,7 @@ int main(int argc, const char ** argv)
   SRMCollider::ExtendedRangetree::Rangetree_Q1_RT rangetree;
   rangetree.new_rangetree();
   rangetree.create_tree(alltuples);
+  std::cout << "Built a rangetree, starting calculations..." << std::endl;
 
   SRMParameters params;
   SRMCollider::pyToC::initialize_param_obj(par, params);

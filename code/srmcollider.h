@@ -26,10 +26,6 @@
 #ifndef SRMCOLLIDER_H
 #define SRMCOLLIDER_H
 
-#include <iostream>
-#include <vector>
-#include <set>
-
 
 namespace SRMCollider 
 {

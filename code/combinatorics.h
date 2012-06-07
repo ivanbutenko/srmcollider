@@ -34,6 +34,9 @@
 #include <boost/python/def.hpp>
 namespace python = boost::python;
 
+#include <vector>
+#include <set>
+
 //using namespace std;
 
 namespace SRMCollider 

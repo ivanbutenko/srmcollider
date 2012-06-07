@@ -36,10 +36,8 @@
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
-
-#include "getNonUis.cpp"
-#include "integratedrun.cpp"
+#include "srmcolliderLib.h"
+#include "integratedrun.h"
 #include "rangetree.cpp"
 
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 

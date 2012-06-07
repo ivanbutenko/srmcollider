@@ -113,6 +113,9 @@ class SRM_parameters(object):
     def set_peptide_table(self, p):
         self.peptide_table = p
  
+    def set_mysql_config(self, c):
+        self.mysql_config = c
+
     def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup
         group = OptionGroup(parser, "General Options",

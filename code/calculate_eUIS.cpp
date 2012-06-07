@@ -26,12 +26,13 @@
 #ifndef SRMCOLLIDE_EUIS_H
 #define SRMCOLLIDE_EUIS_H
 
-//include our own libraries
-#include "srmcollider.h"
-#include "srmcolliderLib.cpp"
+#include <vector>
 
-using namespace std;
-using namespace SRMCollider::Common;
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
 
 bool SortIntDoublePairSecond(const std::pair<int,double>& left, const std::pair<int,double>& right)
 {
@@ -133,7 +134,7 @@ void calculate_eUIS(std::vector<int>& N, std::vector<std::vector<double> >& c_ss
           for(i=k+1; i < M; i++) 
           {
               if(discarded_indices[sort_idx[i]]) continue;
-              if(!(fabs(myssr[k] - myssr[i]) > ssrwindow))
+              if(!(std::fabs(myssr[k] - myssr[i]) > ssrwindow))
               {
                 nonuis.push_back(sort_idx[i]);
               }
@@ -188,7 +189,6 @@ void calculate_eUIS(std::vector<int>& N, std::vector<std::vector<double> >& c_ss
 // Python wrapper for calculate_eUIS
 python::list py_calculate_eUIS(python::list myN, python::list py_ssrcalcvalues, double ssrwindow) 
 {
-
     python::list result;
     std::vector<std::vector<int> > all_nonuis;
 

@@ -44,7 +44,7 @@
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
+#include "srmcolliderLib.h"
 
 // Boost.Python headers
 #include <boost/python.hpp>
@@ -58,6 +58,10 @@ namespace python = boost::python;
 #include <CGAL/Cartesian.h>
 #include <CGAL/Range_segment_tree_traits.h>
 #include <CGAL/Range_tree_k.h>
+
+#include <iostream>
+#include <vector>
+#include <set>
 
 namespace SRMCollider
 {
@@ -380,47 +384,5 @@ namespace SRMCollider
   }
 }
 
-// Expose to Python
-using namespace python;
-BOOST_PYTHON_MODULE(c_rangetree)
-{
-
-    def("create_tree", SRMCollider::SimpleRangetree::create_tree, 
- "Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are \n"
- "in the defined square defined by these four numbers. \n"
- "Returns a list with keys that were stored in the tree. \n"
- "\n"
- "\n"
- " Signature\n"
- "list query_tree(double a, double b, double c, double d)\n"
-            "");
-    def("query_tree", SRMCollider::SimpleRangetree::query_tree,
-            
- "Create the rangetree that will be used throughout. This is essential. The \n"
- "rangetree will stay in place while this module is loaded. \n"
- "\n"
- "\n"
- " Signature\n"
- "void create_tree(tuple pepids) \n"
-            "");
-
-class_<SRMCollider::SimpleRangetree::Rangetree_Q1_RT,
-  boost::shared_ptr<SRMCollider::SimpleRangetree::Rangetree_Q1_RT> >("Rangetree_Q1_RT",init<>())
-        .def("create",&SRMCollider::SimpleRangetree::Rangetree_Q1_RT::create )
-        .staticmethod("create")
-        .def("new_rangetree",&SRMCollider::SimpleRangetree::Rangetree_Q1_RT::new_rangetree)
-        .def("create_tree",&SRMCollider::SimpleRangetree::Rangetree_Q1_RT::create_tree)
-        .def("query_tree",&SRMCollider::SimpleRangetree::Rangetree_Q1_RT::query_tree)
-    ;
-
-class_<SRMCollider::ExtendedRangetree::Rangetree_Q1_RT,
-  boost::shared_ptr<SRMCollider::ExtendedRangetree::Rangetree_Q1_RT> >("ExtendedRangetree_Q1_RT",init<>())
-        .def("create",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create )
-        .staticmethod("create")
-        .def("new_rangetree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::new_rangetree)
-        .def("create_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create_tree)
-        .def("query_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::query_tree)
-    ;
-}
 
 #endif

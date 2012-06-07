@@ -33,9 +33,11 @@
  * Furthermore, we provide interfaces for some of the shared library functions.
 */
 
+#include <vector>
 //include our own libraries
 #include "srmcollider.h"
 #include "srmcolliderLib.cpp"
+#include "combinatorics.h"
 
 // Boost.Python headers
 #include <boost/python.hpp>
@@ -44,15 +46,13 @@
 namespace python = boost::python;
 
 #include "calculate_eUIS.cpp"
+
 //using namespace std;
-using namespace SRMCollider;
-using namespace SRMCollider::Common;
 
 namespace SRMCollider
 {
   namespace getNonUIS
   {
-
     // Function declarations
 
     // checks whether the current fragment has an allowed charge
@@ -99,8 +99,8 @@ namespace SRMCollider
         python::tuple tlist;
         python::list tmplist;
 
-        std::vector<SRMPrecursor> c_precursors;
-        std::vector<SRMTransition> c_transitions;
+        std::vector<SRMCollider::Common::SRMPrecursor> c_precursors;
+        std::vector<SRMCollider::Common::SRMTransition> c_transitions;
 
         int transitions_length = python::extract<int>(transitions.attr("__len__")());
         int precursor_length = python::extract<int>(precursors.attr("__len__")());
@@ -112,7 +112,7 @@ namespace SRMCollider
         double* series = new double[1024];
         double* tmp_series = new double[1024];
 
-        SRMParameters params;
+        SRMCollider::Common::SRMParameters params;
         pyToC::initialize_param_obj(par, params);
         pyToC::initialize_precursors(precursors, c_precursors);
         pyToC::initialize_transitions(transitions, c_transitions);
@@ -121,7 +121,7 @@ namespace SRMCollider
         // colliding SRM ids in a dictionary (they can be found at position 3 and 1
         // respectively).
         for (j=0; j<precursor_length; j++) {
-            SRMPrecursor & precursor = c_precursors[j];
+            SRMCollider::Common::SRMPrecursor & precursor = c_precursors[j];
 
             for (ch=1; ch<=2; ch++) {
                 fragcount = calculate_fragment_masses(precursor.sequence, tmp_series, series, ch,
@@ -193,7 +193,7 @@ namespace SRMCollider
         int precursor_length = python::extract<int>(precursors.attr("__len__")());
         int fragcount, i, j, k, ch;
 
-        SRMParameters param;
+        SRMCollider::Common::SRMParameters param;
 
         double q3used = q3window;
         std::string sequence;
@@ -254,7 +254,7 @@ namespace SRMCollider
 
     // we annotate the ion nr k that was produced by a call to calculate_fragment_masses, 
     // the annotated ion is of type "curr_ion"-l (e.g. y7 means curr_ion = "y" and l = 7). 
-    void annotate_ion( int& l, int k, const std::string sequence, std::string& curr_ion, SRMParameters& params) 
+    void annotate_ion( int& l, int k, const std::string sequence, std::string& curr_ion, SRMCollider::Common::SRMParameters& params) 
     {
         int scounter, icounter;
         double* tmp = new double[256];
@@ -262,7 +262,7 @@ namespace SRMCollider
         bool done = false;
 
         // get the number of amino acids in the sequence
-        SRMParameters tmp_params;
+        SRMCollider::Common::SRMParameters tmp_params;
         tmp_params.bions = false;
         scounter = calculate_fragment_masses(sequence, tmp, series, 1, tmp_params, NOISOTOPEMODIFICATION);
         scounter++;
@@ -314,8 +314,8 @@ namespace SRMCollider
       python::tuple tlist;
       python::list tmplist;
 
-      std::vector<SRMPrecursor> c_precursors;
-      std::vector<SRMTransition> c_transitions;
+      std::vector<SRMCollider::Common::SRMPrecursor> c_precursors;
+      std::vector<SRMCollider::Common::SRMTransition> c_transitions;
 
       int transitions_length = python::extract<int>(transitions.attr("__len__")());
       int precursor_length = python::extract<int>(precursors.attr("__len__")());
@@ -330,7 +330,7 @@ namespace SRMCollider
       double* series = new double[10*256];
       double* tmp_series = new double[256];
 
-      SRMParameters params;
+      SRMCollider::Common::SRMParameters params;
       pyToC::initialize_param_obj(par, params);
       pyToC::initialize_precursors(precursors, c_precursors);
       pyToC::initialize_transitions(transitions, c_transitions);
@@ -341,7 +341,7 @@ namespace SRMCollider
       // and store the colliding SRM ids in a dictionary (they can be found at
       // position 3 and 1 respectively)
       for (j=0; j<precursor_length; j++) {
-          SRMPrecursor & precursor = c_precursors[j];
+          SRMCollider::Common::SRMPrecursor & precursor = c_precursors[j];
           sequence = c_precursors[j].sequence;
 
         for (ch=1; ch<=2; ch++) 
@@ -462,7 +462,7 @@ namespace SRMCollider
      );
 
 
-        def("calculate_transitions_ch", _py_calculate_transitions_with_charge,
+        def("calculate_transitions_ch", SRMCollider::Common::_py_calculate_transitions_with_charge,
      "Function to calculate all transitions of a list of precursor peptides and \n"
      "allows to select the charge states of these precursors.\n"
      "Precursors are tuples of the form (q1, sequence, peptide_key).\n"

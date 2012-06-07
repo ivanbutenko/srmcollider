@@ -24,168 +24,16 @@
  */
 
 //include our own libraries
-#ifndef SRMCOLLIDERLIB_H
-#define SRMCOLLIDERLIB_H
-#include "srmcollider.h"
-#include "combinatorics.h"
-#include <algorithm>
+#ifndef SRMCOLLIDERLIB_C
+#define SRMCOLLIDERLIB_C
+#include "srmcolliderLib.h"
 
-// Boost.Python headers
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-namespace python = boost::python;
-
-#include <boost/shared_ptr.hpp>
-
-//using namespace std;
-
+// TODO throw cpp exception
 namespace SRMCollider 
 {
   namespace Common 
   {
 
-    struct SRMTransition
-    {
-      double q3;
-      long transition_id;
-    };
-
-    struct SRMParameters
-    {
-      bool aions      ;
-      bool aMinusNH3  ;
-      bool bions      ;
-      bool bMinusH2O  ;
-      bool bMinusNH3  ;
-      bool bPlusH2O   ;
-      bool cions      ;
-      bool xions      ;
-      bool yions      ;
-      bool yMinusH2O  ;
-      bool yMinusNH3  ;
-      bool zions      ;
-      bool MMinusH2O  ;
-      bool MMinusNH3  ;
-
-      bool ppm  ;
-      double q3_window  ;
-
-      SRMParameters()
-      {
-          // default values
-          aions      = false;
-          aMinusNH3  = false;
-          bions      = true;
-          bMinusH2O  = false;
-          bMinusNH3  = false;
-          bPlusH2O   = false;
-          cions      = false;
-          xions      = false;
-          yions      = true;
-          yMinusH2O  = false;
-          yMinusNH3  = false;
-          zions      = false;
-          MMinusH2O  = false;
-          MMinusNH3  = false;
-      }
-    };
-
-    struct SRMPrecursor
-    {
-
-      std::string sequence; 
-      double q1;
-      long transition_group;
-      long parent_id;
-      int q1_charge;
-      int isotope_modification;
-      double ssrcalc;
-
-      SRMPrecursor()
-      {
-        isotope_modification = 0;
-        q1_charge = 1;
-      }
-
-      int get_fragment_masses(double* tmp, double* series, double ch, const SRMParameters& params, int isotope_mod);
-
-      /* 
-       * Function to calculate the b and y fragment series given a peptide sequence 
-       * Note that the y series is calculated "backwards" starting from left to right
-       * instead of right to left. Whereas b_series[0] holds the b-1 ion, y_series[0]
-       * holds the y-(n-1) ion and y_series[n-1] holds the y-1 ion.
-       */
-      // more OO, but signficantly slower (20% total) than the raw fragment
-      void get_fragment_masses(std::vector<double>& result, double ch, const SRMParameters& params) const;
-
-      double calculate_charged_mass() 
-      {
-          std::vector<double> result;
-          SRMParameters params;
-          params.MMinusH2O = true;
-          params.yions = false;
-          params.bions = false;
-          get_fragment_masses(result, 1, params);
-       
-          // In order to get the full mass, we get the (M-H2O)+ ion and then add H2O
-          // to it.
-          return (result[0] + MASS_H + MASS_OH + MASS_H* this->q1_charge ) / this->q1_charge  ;
-      }        
-
-      void set_maximal_charge(int mcharge) 
-      {
-        maximal_charge_ = mcharge;
-      }
-
-      int get_maximal_charge() 
-      {
-        return \
-          std::count(sequence.begin(), sequence.end(), 'R') + 
-          std::count(sequence.begin(), sequence.end(), 'H') + 
-          std::count(sequence.begin(), sequence.end(), 'K');
-      }
-
-      void calculate_transitions_with_charge(std::vector<int>& charges, std::vector<SRMTransition>& result, 
-        double q3_low, double q3_high, const SRMParameters& param)
-      {
-
-        size_t k;
-        double q3;
-        std::vector<double> series;
-
-        for (std::vector<int>::iterator ch_it = charges.begin(); ch_it != charges.end(); ch_it++) {
-          get_fragment_masses(series, (*ch_it), param);
-
-          // go through all fragments of this precursor
-          for (k=0; k<series.size(); k++) {
-            q3 = series[k];
-            if (q3 > q3_low && q3 < q3_high)
-            {
-              SRMTransition t = {q3, k};
-              result.push_back(t);
-            }
-          }
-        }
-
-      }
-
-      //private:
-      std::vector<boost::shared_ptr<SRMTransition> > transitions;
-
-      int maximal_charge;
-      private:
-
-      int maximal_charge_;
-
-    };
-
-    /* 
-     * Function to calculate the b and y fragment series given a peptide sequence 
-     * Note that the y series is calculated "backwards" starting from left to right
-     * instead of right to left. Whereas b_series[0] holds the b-1 ion, y_series[0]
-     * holds the y-(n-1) ion and y_series[n-1] holds the y-1 ion.
-     */
     int calculate_fragment_masses(const std::string& sequence, double* tmp, 
             double* series, double ch, const SRMParameters& params, int isotope_mod) 
     {
@@ -456,6 +304,57 @@ namespace SRMCollider
         return frg_cnt;
     }
 
+    double SRMPrecursor::calculate_charged_mass() 
+    {
+        std::vector<double> result;
+        SRMParameters params;
+        params.MMinusH2O = true;
+        params.yions = false;
+        params.bions = false;
+        get_fragment_masses(result, 1, params);
+     
+        // In order to get the full mass, we get the (M-H2O)+ ion and then add H2O
+        // to it.
+        return (result[0] + MASS_H + MASS_OH + MASS_H* this->q1_charge ) / this->q1_charge  ;
+    }        
+
+    void SRMPrecursor::set_maximal_charge(int mcharge) 
+    {
+      maximal_charge_ = mcharge;
+    }
+
+    int SRMPrecursor::get_maximal_charge() 
+    {
+      return \
+        std::count(sequence.begin(), sequence.end(), 'R') + 
+        std::count(sequence.begin(), sequence.end(), 'H') + 
+        std::count(sequence.begin(), sequence.end(), 'K');
+    }
+
+    void SRMPrecursor::calculate_transitions_with_charge(std::vector<int>& charges, std::vector<SRMTransition>& result, 
+      double q3_low, double q3_high, const SRMParameters& param)
+  {
+
+    size_t k;
+    double q3;
+    std::vector<double> series;
+
+    for (std::vector<int>::iterator ch_it = charges.begin(); ch_it != charges.end(); ch_it++) {
+      get_fragment_masses(series, (*ch_it), param);
+
+      // go through all fragments of this precursor
+      for (k=0; k<series.size(); k++) {
+        q3 = series[k];
+        if (q3 > q3_low && q3 < q3_high)
+        {
+          SRMTransition t = {q3, k};
+          result.push_back(t);
+        }
+      }
+    }
+
+  }
+
     int SRMPrecursor::get_fragment_masses(double* tmp, double* series, double ch, const SRMParameters& params, int isotope_mod) 
     {
       return calculate_fragment_masses(sequence, tmp, series, ch, params, isotope_mod);
@@ -478,17 +377,14 @@ namespace SRMCollider
       p.calculate_transitions_with_charge(charges, result, q3_low, q3_high, param);
     }
 
-    /* 
-     * Function to calculate all transitions of a list of precursor peptides and
-     * allows to select the charge states of these precursors.
-     * Precursors are tuples of the form (q1, sequence, peptide_key).
-     * It will return a list of tuples that are of the form 
-     * (q3, q1, 0, peptide_key) 
-     *
-     * Input
-     * precursors: (q1, sequence, peptide_key)
-     *
-     */
+  }
+
+}
+
+namespace SRMCollider 
+{
+  namespace Common
+  {
     python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
             python::list py_charges, double q3_low, double q3_high ) 
     {
@@ -549,8 +445,7 @@ namespace SRMCollider
         p.q1_charge = ch;
         return p.calculate_charged_mass();
     }        
-
-    }
+  }
 
   namespace pyToC
   {

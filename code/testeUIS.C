@@ -31,9 +31,10 @@
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
+#include "srmcolliderLib.h"
 
-#include "calculate_eUIS.cpp"
+void calculate_eUIS(std::vector<int>& N, std::vector<std::vector<double> >& c_ssrcalcvalues,
+    double ssrwindow, std::vector<std::vector<int> >& all_nonuis);
 
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
  

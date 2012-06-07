@@ -31,7 +31,7 @@
 
 //include our own libraries
 #include "srmcollider.h"
-#include "srmcolliderLib.cpp"
+#include "srmcolliderLib.h"
 
 #include "getNonUis.cpp"
 
