@@ -45,7 +45,9 @@ import collider
 import c_getnonuis
 import sharedhtml as shared
 from precursor import Precursor
-from srmcollider_website_helper import sanitize_peptide_input, getSRMParameter, get_ssrcalc_values, unique_values, write_csv_row
+from srmcollider_website_helper import getSRMParameter, get_ssrcalc_values
+from srmcollider_website_helper import unique_values, write_csv_row
+from srmcollider_website_helper import SRMColliderController
 
 backw_compatible = True
 
@@ -54,100 +56,40 @@ c = db.cursor()
 cursor = c
 R = Residues('mono')
 
-def print_collding_peptides(collisions_per_peptide, precdic, ii, fragments):
-    coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
+controller = SRMColliderController()
+controller.initialize(db_used=db_used, default_org_prefix=default_org_prefix,
+    db_tables_map=db_tables_map)
 
-    print """
-    <a title="Show Tables" href="javascript:toggleDisplay('col_peptides_%s')">
-        <h3>Interfering peptides <small><small>(Click to fold)</small></small> </h3>
-
-    </a>""" % ii
-
-    #helper functions
-    def sortpep_by_ssr(x,y):
-        if len(x[1]) != len(y[1]): return -cmp( len(x[1]), len(y[1]) )
-        #by SSRCalc
-        return cmp( precdic[x[0]].ssrcalc, precdic[y[0]].ssrcalc) 
-    def sortpep_by_q1(x,y):
-        #by difference in q1
-        return cmp( abs(precdic[x[0]].q1 - pep['q1']), abs(precdic[y[0]].q1 - pep['q1'])) 
-
-    coll.sort( sortpep_by_ssr )
-    print "<table class='col_table' id='col_peptides_%i'>" % ii
-    print "<tr> <td>Q1</td> <td>RT</td> <td>Sequence</td>  <td>Transitions</td> </tr>"
-    for c in coll:
-        # Q1, RT, Sequence, Transitions
-        precursor = precdic[c[0]]
-        print "<tr><td>"
-        print round(precursor.q1, 2)
-        print "</td><td>"
-        print precursor.ssrcalc
-        print "</td><td>"
-        print precursor.modified_sequence
-        print "</td><td>"
-        for t in c[1]:
-            print fragments[t].annotation
-        print ' <br />'
-        print "</td></tr>"
-    print "</table>"
-
-def print_unuseable(unuseable, nonunique, ii):
-    print """
-    <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
-        <h3>All transitions with Collisions <small><small>(Click to fold)</small></small> </h3>
-
-    </a>""" % ii
-    print "<table class='col_table' id='col_transitions_%s'>" % ii
-    print "<tr> <td>Type / Q3</td> <td>Colliding (Q1, Q3) / SSRCalc / Type / Sequence / Isotope </td> </tr>"
-    unuseable.sort( lambda x,y: cmp(len(nonunique[x.fragment_count]), len(nonunique[y.fragment_count])))
-    for peak in unuseable: 
-        if backw_compatible and len(nonunique[ peak.fragment_count ]) == 0: continue
-        print "<tr><td>"
-        print peak.annotation
-        print peak.pQ3
-        print "</td><td>"
-        this_interference = nonunique[ peak.fragment_count ]
-        this_interference.sort( lambda x,y: cmp(x[1], y[1]))
-        for c in this_interference:
-            print '(%s,%s)' % (round(c[1], 2), round(c[0], 2)) # print Q1/Q3
-            print c[7] # print ssrcalc
-            print c[4] +'_' + str(c[5]) # print type + fragment nr
-            if c[8] != 0:
-                print c[6], 'isotope', c[8], ' </br>'
-            else: print c[6], ' </br>'
-
-        print "</td></tr>"
-    print "</table>"
-
-def print_transition_overview(fragments, nonunique, ii, nonunique_obj):
-    print "<h3>Transition Overview</h3>" 
-    #print "<a title="Show Tables" href="javascript:toggleDisplay('col_transitions2_%s')"> " % ii
-    #print "<h3>Transition Overview<small><small> (Click to fold)</small></small> </h3>" 
-    #print '</a>' 
-    print "<table border='1' class='col_table' id='col_transitions2_%s'>" % ii
-    #print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> <td>Graph</td> </tr>"
-    print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> </tr>"
-    fragments.sort( lambda x,y: cmp(len(nonunique[x.fragment_count]), len(nonunique[y.fragment_count])))
-    for peak in fragments: 
-        interferences = nonunique_obj[peak.fragment_count]
-        print "<tr><td>"
-        print peak.annotation
-        if True: # debug
-            print "</td><td>"
-            print peak.fragment_count
-        print "</td><td>"
-        print peak.pQ3
-        print "</td><td>%s" % len(nonunique[ peak.fragment_count ])
-        # print "</td><td>"
-        # print [ (i.q3, i.ssrcalc) for i in interferences]
-        # print "</td><td>"
-        # print "<a href='/tmp/test' >Graph</a>"
-        print "</td></tr>"
-    print "</table>"
+def get_html_ions():
+  ions = ['aions'      ,
+         'aMinusNH3'  ,
+         'bions'      ,
+         'bMinusH2O'  ,
+         'bMinusNH3'  ,
+         'bPlusH2O'   ,
+         'cions'      ,
+         'xions'      ,
+         'yions'      ,
+         'yMinusH2O'  ,
+         'yMinusNH3'  ,
+         'zions'      ,
+         'MMinusH2O'  ,
+         'MMinusNH3'  ,
+         ]
+  html_ions = ''
+  for ion in ions:
+      #<label class="mylabel" for="%s">%s</label>
+      check = ''
+      if ion in ['bions', 'yions']: check = 'checked="yes" '
+      html_ions += """
+      <input %(check)s type="checkbox" name="%(ion)s" value="s(ion)s"> %(ion)s<br>
+      """ %  {'ion' : ion, 'check' : check}
+  return html_ions
 
 def print_header(input_sequences):
-
-    # Print headers, link to csv file and table of content
+    """
+    Print headers, link to csv file and table of content
+    """
     unique = unique_values(input_sequences)
     # print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
     # print "<br/>"
@@ -160,58 +102,6 @@ def print_header(input_sequences):
     print """<a title="Toggle all" href="javascript:toggleAll()">
     Toggle all <small>Click to fold/unfold all</small>
     </a>"""
-
-def main(myinput, q1_w, q3_w, ssr_w, db, q3_high, q3_low, genome, isotope, uis, ions, 
-         missed, oxMet, Deamid, chargeCheck):
-    local_cursor = db.cursor()
-
-    # create unique files
-    thisrandom = "".join( [string.ascii_letters[ int(random.random() * len(string.ascii_letters) )] for i in range(10)])
-    myCSVFile         = myCSVFile_         + thisrandom + '.csv'
-    myCSVFile_rel     = myCSVFile_rel_     + thisrandom + '.csv'
-    myUIS_CSVFile     = myUIS_CSVFile_     + thisrandom + '.csv'
-    myUIS_CSVFile_rel = myUIS_CSVFile_rel_ + thisrandom + '.csv'
-
-    # sanitize input: all input is already sanitized except myinput and genome
-    seqs, input_sequences = sanitize_peptide_input(myinput)
-    del myinput
-
-    # get the used db tables
-    table_used = map_db_tables(genome)
-
-    #Now all input should be sane
-    if genome in genomes_that_require_N15_data: 
-        R.recalculate_monisotopic_data_for_N15()
-
-    #prepare a csv
-    f = open( myCSVFile, 'w')
-    csv_writer = csv.writer(f, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    csv_writer.writerow( ['sequence', 'q1', 'q3', 'type', 'charge'] )
-    fuis = open( myUIS_CSVFile, 'w')
-    writer_uis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    writer_uis.writerow(['Sequence', 'UIS Order', 'Q3', 'Annotation', '(For higher order UIS, the pattern Q3/Annotation repeats)'])
-
-    # get a parameter object
-    par = getSRMParameter(q1_w, q3_w, ssr_w, q3_high, q3_low, isotope, ions,
-         missed, oxMet, Deamid, db_used, default_org_prefix, table_used)
-    par.genome = genome
-
-    print shared.resultInterpretation
-    if uis > 0:
-        if uis > 5:
-            print "I will only calculate UIS up to order 5 \
-                    (otherwise your Excel might break)." #and we dont want that.
-            exit()
-        print "<a href ='%s'>Download csv file with UIS</a>" % myUIS_CSVFile_rel
-        print "<br/>"
-
-    print_header(input_sequences)
-
-    print shared.toggleDisplay # Javascript function to toggle a div
-
-    do_analysis(input_sequences, seqs, q3_low, q3_high, par, writer_uis, local_cursor, uis)
-    fuis.close()
-    f.close()
 
 def print_peptide_header(current_sequence, precursor, par, nr_interferences):
     print "<h2 id='%s'>Peptide %s</h2>" % (current_sequence, current_sequence)
@@ -248,34 +138,132 @@ def print_peptide_header(current_sequence, precursor, par, nr_interferences):
 
     print "</div>"
 
-def getNonuniqueObjects(nonunique):
-    class Dummy(): pass
+def print_transition_overview(fragments, ii, nonunique_obj):
+    print "<h3>Transition Overview</h3>" 
+    ## #print "<a title="Show Tables" href="javascript:toggleDisplay('col_transitions2_%s')"> " % ii
+    ## #print "<h3>Transition Overview<small><small> (Click to fold)</small></small> </h3>" 
+    ## #print '</a>' 
+    print "<table border='1' class='col_table' id='col_transitions2_%s'>" % ii
+    ## #print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> <td>Graph</td> </tr>"
+    print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> </tr>"
+    fragments.sort( lambda x,y: cmp(len(nonunique_obj[x.fragment_count]), len(nonunique_obj[y.fragment_count])))
+    for peak in fragments: 
+        interferences = nonunique_obj[peak.fragment_count]
+        print "<tr><td>"
+        print peak.annotation
+        if False: # debug
+            print "</td><td>"
+            print peak.fragment_count
+        print "</td><td>"
+        print peak.pQ3
+        print "</td><td>%s" % len(nonunique_obj[ peak.fragment_count ])
+        # print "</td><td>"
+        # print [ (i.q3, i.ssrcalc) for i in interferences]
+        # print "</td><td>"
+        # print "<a href='/tmp/test' >Graph</a>"
+        print "</td></tr>"
+    print "</table>"
 
-    # Syntax
-    ## tmplist.append( python::make_tuple(series[k],
-    ## q1_used, 0, peptide_key, curr_ion, snumber, precursor.attr("modified_sequence"), ssrcalc, isotope_nr, ch));
+def print_collding_peptides(collisions_per_peptide, precursors_obj, ii, fragments):
+    precdic = dict( [ (p.transition_group, p) for p in precursors_obj] )
+    coll = [(k,v) for k,v in collisions_per_peptide.iteritems()]
 
-    res = {}
-    for key in nonunique:
-        nonunique_obj = []
-        for n in nonunique[key]:
-            o = Dummy()
-            o.q3            = n[0]
-            o.q1            = n[1]
-            o.dummy         = n[2]
-            o.peptide_key   = n[3]
-            o.ion_type      = n[4]
-            o.ion_number    = n[5]
-            o.sequence      = n[6]
-            o.ssrcalc       = n[7]
-            o.isotope_nr    = n[8]
-            o.charge        = n[9]
-            nonunique_obj.append(o)
-        res[key] = nonunique_obj
-    return res
+    print """
+    <a title="Show Tables" href="javascript:toggleDisplay('col_peptides_%s')">
+        <h3>Interfering peptides <small><small>(Click to fold)</small></small> </h3>
 
-def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, local_cursor, uis):
- 
+    </a>""" % ii
+
+    #helper functions
+    def sortpep_by_ssr(x,y):
+        if len(x[1]) != len(y[1]): return -cmp( len(x[1]), len(y[1]) )
+        #by SSRCalc
+        return cmp( precdic[x[0]].ssrcalc, precdic[y[0]].ssrcalc) 
+    def sortpep_by_q1(x,y):
+        #by difference in q1
+        return cmp( abs(precdic[x[0]].q1 - pep['q1']), abs(precdic[y[0]].q1 - pep['q1'])) 
+
+    coll.sort( sortpep_by_ssr )
+    print "<table class='col_table' id='col_peptides_%i'>" % ii
+    print "<tr> <td>Q1</td> <td>RT</td> <td>Sequence</td>  <td>Transitions</td> </tr>"
+    for c in coll:
+        # Q1, RT, Sequence, Transitions
+        precursor = precdic[c[0]]
+        print "<tr><td>"
+        print round(precursor.q1, 2)
+        print "</td><td>"
+        print precursor.ssrcalc
+        print "</td><td>"
+        print precursor.modified_sequence
+        print "</td><td>"
+        for t in c[1]:
+            print fragments[t].annotation
+        print ' <br />'
+        print "</td></tr>"
+    print "</table>"
+
+def print_transition_detail(unuseable, nonunique_obj, ii):
+    print """
+    <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
+        <h3>All transitions with Collisions <small><small>(Click to fold)</small></small> </h3>
+
+    </a>""" % ii
+    print "<table class='col_table' id='col_transitions_%s'>" % ii
+    print "<tr> <td>Type / Q3</td> <td>Colliding (Q1, Q3) / SSRCalc / Type / Sequence / Isotope </td> </tr>"
+
+    unuseable.sort( lambda x,y: cmp(len(nonunique_obj[x.fragment_count]), len(nonunique_obj[y.fragment_count])))
+    for peak in unuseable: 
+        if backw_compatible and len(nonunique_obj[ peak.fragment_count ]) == 0: continue
+        print "<tr><td>"
+        print peak.annotation
+        print peak.pQ3
+        print "</td><td>"
+
+        this_interference = nonunique_obj[ peak.fragment_count ]
+        this_interference.sort( lambda x,y: cmp(x.q1, y.q1))
+        for c in this_interference:
+            print '(%s,%s)' % (round(c.q1, 2), round(c.q3, 2)) # print Q1/Q3
+            print c.ssrcalc # print ssrcalc
+            print c.ion_type +'_' + str(c.ion_number) # print type + fragment nr
+            if c.isotope_nr != 0:
+                print c.sequence, 'isotope', c.isotope_nr, ' </br>'
+            else: print c.sequence, ' </br>'
+
+        print "</td></tr>"
+    print "</table>"
+
+def main(par):
+    local_cursor = db.cursor()
+
+    # create unique files and prepare a csv
+    thisrandom = "".join( [string.ascii_letters[ int(random.random() * len(string.ascii_letters) )] for i in range(10)])
+    myUIS_CSVFile     = myUIS_CSVFile_     + thisrandom + '.csv'
+    myUIS_CSVFile_rel = myUIS_CSVFile_rel_ + thisrandom + '.csv'
+    fuis = open( myUIS_CSVFile, 'w')
+    writer_uis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    writer_uis.writerow(['Sequence', 'UIS Order', 'Q3', 'Annotation', '(For higher order UIS, the pattern Q3/Annotation repeats)'])
+
+    #Now all input should be sane
+    if par.genome in genomes_that_require_N15_data: 
+        R.recalculate_monisotopic_data_for_N15()
+
+    print shared.resultInterpretation
+    if par.uis > 0:
+        if par.uis > 5:
+            print "I will only calculate UIS up to order 5 \
+                    (otherwise your Excel might break)." #and we dont want that.
+            exit()
+        print "<a href ='%s'>Download csv file with UIS</a>" % myUIS_CSVFile_rel
+        print "<br/>"
+
+    print_header(par.input_sequences)
+    print shared.toggleDisplay # Javascript function to toggle a div
+
+    do_analysis(par.input_sequences, par.seqs, par, writer_uis, local_cursor)
+    fuis.close()
+
+def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
+    """
     ###########################################################################
     # Do analysis
     # 1. Find SSRCalc values for all peptides
@@ -285,7 +273,10 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, local_cursor,
     # 5. For each transition, find the precursors that interfere 
     # 6. Print information
     ###########################################################################
+    """
 
+    q3_low, q3_high = par.q3_range
+    uis = par.uis
     pepmap = get_ssrcalc_values(seqs, input_sequences, default_ssrcalc, local_cursor, ssrcalc_path)
     toggle_all_str = '<script language="javascript"> function toggleAll(){ '
     mycollider = collider.SRMcollider()
@@ -309,8 +300,7 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, local_cursor,
         fragments.reverse()
         fragments.extend(list( peptide.get_fragment_objects(peptide.b_series, 
             'b', 1, R, q3_low, q3_high)))
-        for fcount, f in enumerate(fragments): 
-            f.fragment_count = fcount
+        for fcount, f in enumerate(fragments): f.fragment_count = fcount
 
         transitions = [ (f.q3, f.fragment_count) for f in fragments]
         if len( transitions ) == 0: continue # no transitions in this window
@@ -320,52 +310,34 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, local_cursor,
         #  Create precursor and use db to find all interfering precursors
         #
         precursor = Precursor(modified_sequence = current_sequence, parent_id = -1,
-            q1 = peptide.charged_mass, q1_charge = 2, 
-            ssrcalc = ssrcalc, transition_group = -1)
+            q1 = peptide.charged_mass, q1_charge = 2, ssrcalc = ssrcalc, transition_group = -1)
+        precursor.seq_id = seq_id
         precursors_obj = mycollider._get_all_precursors(par, precursor, cursor, bysequence=True)
-        precursor_obj_dic = dict( [ (p.transition_group, p) for p in precursors_obj] )
 
         # 
         # Step 4 and 5: Find interferences per precursor, then find
         # interferences per transition (see the two readouts in the html)
-
+        #
         collisions_per_peptide = \
         c_getnonuis.calculate_collisions_per_peptide_other_ion_series(
             tuple(transitions), precursors_obj, par, q3_low, q3_high,
-            par.q3_window, par.ppm, chargeCheck) 
+            par.q3_window, par.ppm, par.chargeCheck) 
 
         nonunique = c_getnonuis._find_clashes_forall_other_series( 
             tuple(transitions), precursors_obj, par, q3_low, q3_high,
-            par.q3_window, par.ppm, peptide.charged_mass - par.q1_window, chargeCheck)
+            par.q3_window, par.ppm, peptide.charged_mass - par.q1_window, par.chargeCheck)
 
         # also add those that have no interference
         for fragment in fragments: 
             if not fragment.fragment_count in nonunique:
                 nonunique[fragment.fragment_count] = []
-        nonunique_obj = getNonuniqueObjects(nonunique)
+        nonunique_obj = controller.getNonuniqueObjects(nonunique)
 
         # 
         # Step 6: printing
-
-        non_uis = []
-        if uis > 0:
-            # write the csv containint the uis
-            write_csv_row(fragments, collisions_per_peptide, current_sequence, uis, wuis)
-
-        #print nonunique
-        useable = []
-        unuseable = []
-        for fragment in fragments: 
-            if fragment.fragment_count in nonunique:
-                unuseable.append(fragment)
-            else: 
-                useable.append(fragment)
-                unuseable.append(fragment)
-
-        print_peptide_header(current_sequence, precursor, par, len(precursors_obj) ) 
-        print_transition_overview(unuseable, nonunique, seq_id, nonunique_obj)
-        print_collding_peptides(collisions_per_peptide, precursor_obj_dic, seq_id, fragments)
-        print_unuseable(unuseable, nonunique, seq_id)
+        #
+        do_all_print(fragments, collisions_per_peptide, 
+                 wuis, precursor, par, precursors_obj, nonunique_obj)
         toggle_all_str += "toggleDisplay('col_peptides_%s'); toggleDisplay('col_transitions_%s');\n" % (seq_id,seq_id)
 
     toggle_all_str += "};</script>"
@@ -375,22 +347,15 @@ def do_analysis(input_sequences, seqs, q3_low, q3_high, par, wuis, local_cursor,
         window.onload = toggleAll();
     </script>"""
 
-
-sample_peptides = """
-AFGIPVNTFSSEVVTLWYR
-AIPAPHEILTSNVVTR
-VTDISTGIYK
-GYSENPVENSQFLTEYVATR
-ETLVGFMTEYVATR
-IQDPQMTGYVSTR
-ATMVGTPYWMAPEIVNQK
-TNSFVGTEEYLAPEVIR
-TNSFVGTEEYIAPEVIR
-LINSIADTFVGTSTYMSPER
-"""
-sample_peptides_html = ''
-for s in sample_peptides.split():
-    sample_peptides_html += s + '<br/>'
+def do_all_print(fragments, collisions_per_peptide, 
+    wuis, precursor, par, precursors_obj, nonunique_obj):
+    uis = par.uis
+    current_sequence = precursor.modified_sequence
+    if uis > 0: write_csv_row(fragments, collisions_per_peptide, current_sequence, uis, wuis)
+    print_peptide_header(current_sequence, precursor, par, len(precursors_obj) ) 
+    print_transition_overview(fragments[:], precursor.seq_id, nonunique_obj)
+    print_collding_peptides(collisions_per_peptide, precursors_obj, precursor.seq_id, fragments)
+    print_transition_detail(fragments[:], nonunique_obj, precursor.seq_id)
 
 ###########################################################################
 ###########################################################################
@@ -401,67 +366,22 @@ print shared.header
 print shared.warm_welcome
 print "<div class='main'>"
 
+
+
+sample_peptides_html = controller.get_sample_peptides_html()
 form = cgi.FieldStorage()   # FieldStorage object to
 if form.has_key('peptides'):
-    peptides = form.getvalue('peptides')
-    q1_w = float(form.getvalue('q1_window') )
-    q3_w = float(form.getvalue('q3_window') )
-    ssr_w = float(form.getvalue('ssr_window') )
-    high = float(form.getvalue('high_mass') )
-    low = float(form.getvalue('low_mass') )
-    genome = form.getvalue('genome') 
-    isotope = int(form.getvalue('isotope') )
-    uis = int(form.getvalue('uis') )
-    ions = {'aions'    : bool(form.getvalue('aions'      )),
-            'aMinusNH3': bool(form.getvalue('aMinusNH3'  )),
-            'bions'    : bool(form.getvalue('bions'      )),
-            'bMinusH2O': bool(form.getvalue('bMinusH2O'  )),
-            'bMinusNH3': bool(form.getvalue('bMinusNH3'  )),
-            'bPlusH2O' : bool(form.getvalue('bPlusH2O'   )),
-            'cions'    : bool(form.getvalue('cions'      )),
-            'xions'    : bool(form.getvalue('xions'      )),
-            'yions'    : bool(form.getvalue('yions'      )),
-            'yMinusH2O': bool(form.getvalue('yMinusH2O'  )),
-            'yMinusNH3': bool(form.getvalue('yMinusNH3'  )),
-            'zions'    : bool(form.getvalue('zions'      )),
-            'MMinusH2O': bool(form.getvalue('MMinusH2O'  )),
-            'MMinusNH3': bool(form.getvalue('MMinusNH3'  )),
-           }
-    missed = int(form.getvalue('missed') )
-    oxMet =  bool(form.getvalue('oxMet') )
-    Deamid = bool(form.getvalue('Deamid') )
-    chargeCheck = bool(form.getvalue('chargeCheck') )
+    par = controller.parse_srmcollider_form(form)
     start = time.time()
-    main( peptides, q1_w, q3_w, ssr_w, db, high, low, genome, isotope, uis, ions,
-        missed, oxMet, Deamid, chargeCheck)
+    main(par)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
-  ions = ['aions'      ,
-         'aMinusNH3'  ,
-         'bions'      ,
-         'bMinusH2O'  ,
-         'bMinusNH3'  ,
-         'bPlusH2O'   ,
-         'cions'      ,
-         'xions'      ,
-         'yions'      ,
-         'yMinusH2O'  ,
-         'yMinusNH3'  ,
-         'zions'      ,
-         'MMinusH2O'  ,
-         'MMinusNH3'  ,
-         ]
-  html_ions = ''
-  for ion in ions:
-      #<label class="mylabel" for="%s">%s</label>
-      check = ''
-      if ion in ['bions', 'yions']: check = 'checked="yes" '
-      html_ions += """
-      <input %(check)s type="checkbox" name="%(ion)s" value="s(ion)s"> %(ion)s<br>
-      """ %  {'ion' : ion, 'check' : check}
+
+  html_ions = get_html_ions()
+
   print shared.toggleDisplay # Javascript function to toggle a div
   print """
-<form action="/srmcollider/srmcollider.py" method="post">
+<form action="/srmcollider_test/srmcollider.py" method="post">
     <p class='input_field'>
         <label for="peptides">Please enter the peptide sequences here:</label><br />
         <textarea id="pep_input" name="peptides" rows="20"></textarea>
@@ -515,7 +435,6 @@ else:
         </select>
     </p>
 
-
     <p class='input_field'>
         <label class="mylabel" for="uis">Find UIS up to order* </label>
         <input class="number_input" type="text" name="uis" value="2"> 
@@ -552,7 +471,6 @@ else:
     </p>
 
     <INPUT type="submit" value="Send"> 
-
  </form>
 <p>
 * This will print out a list of all UIS combinations of transitions for all
