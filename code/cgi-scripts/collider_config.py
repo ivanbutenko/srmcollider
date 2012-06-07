@@ -71,16 +71,8 @@ genome_select = """
     <option value="human">Human (tryptic)</option>
 """
 
-def map_db_tables(genome):
-    # Determine which database should be used, needs to correspond to the
-    # "genome_select" variable above.
-    if genome == 'yeast':
-        table_used =  'yeast_oxMetDeamid_miss1'
-    elif genome == 'human':
-        table_used =  'human_oxMetDeamid_miss1'
-    else: 
-        print "Genome not recognized";
-        exit()
-    return table_used
-
+db_tables_map = {
+  'yeast': 'yeast_oxMetDeamid_miss1',
+  'human': 'human_oxMetDeamid_miss1',
+}
 
