@@ -156,42 +156,4 @@ namespace SRMCollider
 
 }
 
-// Boost.Python headers
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-namespace python = boost::python;
-
-namespace SRMCollider 
-{
-  namespace Common
-  {
-    /* 
-     * Function to calculate all transitions of a list of precursor peptides and
-     * allows to select the charge states of these precursors.
-     * Precursors are tuples of the form (q1, sequence, peptide_key).
-     * It will return a list of tuples that are of the form 
-     * (q3, q1, 0, peptide_key) 
-     *
-     * Input
-     * precursors: (q1, sequence, peptide_key)
-     *
-     */
-    python::list _py_calculate_transitions_with_charge(python::tuple py_precursors,
-            python::list py_charges, double q3_low, double q3_high );
-
-    double _py_calculate_charged_mass(python::tuple clist, int ch) ;
-  }
-
-  namespace pyToC
-  {
-
-    void initialize_param_obj(python::object& par, Common::SRMParameters& params);
-
-    void initialize_precursors(python::list& precursors, std::vector<Common::SRMPrecursor>& c_precursors);
-
-    void initialize_transitions(python::tuple& transitions, std::vector<Common::SRMTransition>& c_transitions);
-
-  }
-}
 #endif

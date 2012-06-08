@@ -28,6 +28,8 @@
 #include "srmcolliderLib.cpp"
 #include "rangetree.cpp"
 
+#include "py_srmcolliderLib.h"
+
 // Boost.Python headers
 #include <boost/python.hpp>
 #include <boost/python/module.hpp>
@@ -92,7 +94,7 @@ namespace SRMCollider
           myprecursors[i] = p;
       }
 
-      int result;
+      int result = -1;
       try
       {
         result = min_needed(mytransitions, myprecursors, max_uis, q3window, ppm, params);

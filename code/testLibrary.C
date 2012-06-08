@@ -32,6 +32,7 @@
 //include our own libraries
 #include "srmcollider.h"
 #include "srmcolliderLib.h"
+#include "py_srmcolliderLib.h"
 
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
 
