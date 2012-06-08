@@ -28,7 +28,6 @@
 #define SRMCOLLIDERLIB_C
 #include "srmcolliderLib.h"
 
-// TODO throw cpp exception
 namespace SRMCollider 
 {
   namespace Common 
@@ -63,39 +62,30 @@ namespace SRMCollider
                     case 'M': 
                         if(!(sequence[start+2] == '1' && 
                              sequence[start+3] == '4' && 
-                             sequence[start+4] == '7' )) {
-                            PyErr_SetString(PyExc_ValueError, 
-                                "Unknown modification for methionine");
-                            boost::python::throw_error_already_set();
-                            return -1;
-                            }
+                             sequence[start+4] == '7' )) 
+                        {
+                          throw AANotFound("Unknown modification for methionine");
+                        }
                         res_mass = 147.03540462; break;
                     case 'C': 
                         if(!(sequence[start+2] == '1' && 
                              sequence[start+3] == '6' && 
-                             sequence[start+4] == '0' )) {
-                            PyErr_SetString(PyExc_ValueError, 
-                                "Unknown modification for cysteine");
-                            boost::python::throw_error_already_set();
-                            return -1;
+                             sequence[start+4] == '0' )) 
+                        {
+                          throw AANotFound("Unknown modification for cystein");
                         }
                         res_mass = 160.030653721; break;
                     case 'N': 
                         if(!(sequence[start+2] == '1' && 
                              sequence[start+3] == '1' && 
-                             sequence[start+4] == '5' )) {
-                            PyErr_SetString(PyExc_ValueError, 
-                                "Unknown modification for asparagine");
-                            boost::python::throw_error_already_set();
-                            return -1;
+                             sequence[start+4] == '5' )) 
+                        {
+                          throw AANotFound("Unknown modification for asparagine");
                         }
                         res_mass = 115.026945583; break;
 
                     default: 
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown modification ");
-                        boost::python::throw_error_already_set();
-                        return -1;
+                          throw AANotFound("Unknown modification");
                 }
                 //'M[147]':  131.04049 + mass_O), # oxygen
                 //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
@@ -133,10 +123,7 @@ namespace SRMCollider
                     case 'X': res_mass = 113.08406; break;
                     case 'Y': res_mass = 163.06333; break;
                     default: 
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown amino acid ");
-                        boost::python::throw_error_already_set();
-                        return -1;
+                          throw AANotFound("Unknown amino acid");
                 }
 
                 acc_mass += res_mass;
@@ -158,39 +145,30 @@ namespace SRMCollider
                     case 'M': 
                         if(!(sequence[start+2] == '1' && 
                              sequence[start+3] == '4' && 
-                             sequence[start+4] == '7' )) {
-                            PyErr_SetString(PyExc_ValueError, 
-                                "Unknown modification for methionine");
-                            boost::python::throw_error_already_set();
-                            return -1;
-                            }
+                             sequence[start+4] == '7' )) 
+                        {
+                          throw AANotFound("Unknown modification for methionine");
+                        }
                         res_mass = 148.0324344260; break;
                     case 'C': 
                         if(!(sequence[start+2] == '1' && 
                              sequence[start+3] == '6' && 
-                             sequence[start+4] == '0' )) {
-                            PyErr_SetString(PyExc_ValueError, 
-                                "Unknown modification for cysteine");
-                            boost::python::throw_error_already_set();
-                            return -1;
+                             sequence[start+4] == '0' )) 
+                        {
+                          throw AANotFound("Unknown modification for cysteine");
                         }
                         res_mass = 161.027683399; break;
                     case 'N': 
                         if(!(sequence[start+2] == '1' && 
                              sequence[start+3] == '1' && 
-                             sequence[start+4] == '5' )) {
-                            PyErr_SetString(PyExc_ValueError, 
-                                "Unknown modification for asparagine");
-                            boost::python::throw_error_already_set();
-                            return -1;
+                             sequence[start+4] == '5' )) 
+                        {
+                          throw AANotFound("Unknown modification for asparagine");
                         }
                         res_mass = 116.023977918; break;
 
                     default: 
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown modification ");
-                        boost::python::throw_error_already_set();
-                        return -1;
+                          throw AANotFound("Unknown modification");
                 }
                 //'M[147]':  131.04049 + mass_O), # oxygen
                 //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
@@ -229,10 +207,7 @@ namespace SRMCollider
                     case 'Y': res_mass = 164.060363426; break;
 
                     default: 
-                        PyErr_SetString(PyExc_ValueError, 
-                            "Unknown amino acid ");
-                        boost::python::throw_error_already_set();
-                        return -1;
+                          throw AANotFound("Unknown amino acid");
                 }
 
                 acc_mass += res_mass;

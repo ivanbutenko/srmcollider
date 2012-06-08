@@ -124,8 +124,18 @@ namespace SRMCollider
             SRMCollider::Common::SRMPrecursor & precursor = c_precursors[j];
 
             for (ch=1; ch<=2; ch++) {
+              try{
                 fragcount = calculate_fragment_masses(precursor.sequence, tmp_series, series, ch,
                       params, precursor.isotope_modification);
+              }
+              catch (SRMCollider::Common::AANotFound& error)
+              {
+                PyErr_SetString(PyExc_ValueError, error.message.c_str());
+                boost::python::throw_error_already_set();
+                delete [] series;
+                delete [] tmp_series;
+                return collisions_per_peptide;
+              }
 
                 if(forceChargeCheck && !has_allowed_charge(ch, precursor.q1_charge, precursor.maximal_charge) )
                 {continue;}
@@ -223,7 +233,19 @@ namespace SRMCollider
 
             for (ch=1; ch<=2; ch++) {
                 //fragcount = _calculate_clashes(sequence, b_series, y_series, ch);
+              try
+              {
                 fragcount = calculate_fragment_masses(sequence, tmp, series, ch, param, NOISOTOPEMODIFICATION);
+              }
+              catch (SRMCollider::Common::AANotFound& error)
+              {
+                PyErr_SetString(PyExc_ValueError, error.message.c_str());
+                boost::python::throw_error_already_set();
+                delete [] series;
+                delete [] tmp;
+                python::list result;
+                return result;
+              }
 
                 for (i=0; i<transitions_length; i++) {
 
@@ -346,8 +368,19 @@ namespace SRMCollider
 
         for (ch=1; ch<=2; ch++) 
         {
-          fragcount = calculate_fragment_masses(sequence, tmp_series, series, ch,
+          try
+          {
+            fragcount = calculate_fragment_masses(sequence, tmp_series, series, ch,
               params, NOISOTOPEMODIFICATION);
+          }
+          catch (SRMCollider::Common::AANotFound& error)
+          {
+            PyErr_SetString(PyExc_ValueError, error.message.c_str());
+            boost::python::throw_error_already_set();
+            delete [] series;
+            delete [] tmp_series;
+            return result;
+          }
 
           if(forceChargeCheck && !has_allowed_charge(ch, precursor.q1_charge, precursor.maximal_charge) )
           {continue;}

@@ -92,7 +92,18 @@ namespace SRMCollider
           myprecursors[i] = p;
       }
 
-      return min_needed(mytransitions, myprecursors, max_uis, q3window, ppm, params);
+      int result;
+      try
+      {
+        result = min_needed(mytransitions, myprecursors, max_uis, q3window, ppm, params);
+      }
+      catch (SRMCollider::Common::AANotFound& error)
+      {
+        PyErr_SetString(PyExc_ValueError, error.message.c_str());
+        boost::python::throw_error_already_set();
+        return result;
+      }
+      return result;
   }
 
 
@@ -120,9 +131,20 @@ namespace SRMCollider
       _pyToC_integratedrunTransitions(py_transitions, mytransitions);
 
       std::vector<COMBINT> collisions_per_peptide; 
-      wrap_all_bitwise(mytransitions, a, b, c, d,
-          thistransitiongr, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
-           params, rtree, collisions_per_peptide);
+
+      try
+      {
+        wrap_all_bitwise(mytransitions, a, b, c, d,
+            thistransitiongr, max_uis, q3window, ppm, max_nr_isotopes, isotope_correction, 
+             params, rtree, collisions_per_peptide);
+      }
+      catch (SRMCollider::Common::AANotFound& error)
+      {
+        PyErr_SetString(PyExc_ValueError, error.message.c_str());
+        boost::python::throw_error_already_set();
+        python::list result;
+        return result;
+      }
 
       std::vector<int> c_result;
       for(int i =1; i<= max_uis; i++) {

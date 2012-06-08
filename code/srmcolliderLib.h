@@ -27,22 +27,26 @@
 #ifndef SRMCOLLIDERLIB_H
 #define SRMCOLLIDERLIB_H
 #include "srmcollider.h"
-#include <algorithm>
 #include <vector>
+#include <string>
 
 #include <boost/shared_ptr.hpp>
 
-// Boost.Python headers
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-namespace python = boost::python;
-
-// TODO throw cpp exception
 namespace SRMCollider 
 {
   namespace Common 
   {
+    struct AANotFound
+    {
+
+      AANotFound(std::string m)
+      {
+        message = m;
+      }
+
+      std::string message;
+
+    };
 
     struct SRMTransition
     {
@@ -151,6 +155,12 @@ namespace SRMCollider
   }
 
 }
+
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
 
 namespace SRMCollider 
 {
