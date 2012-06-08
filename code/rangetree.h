@@ -176,6 +176,8 @@ namespace SRMCollider
       // Create the rangetree that will be used throughout. This is essential
       void create_tree(python::tuple pepids);
 
+      void create_tree(std::vector<Precursor> precursors);
+
       /* Query the rangetree. Format is (x1,y1,x2,y2), returns all entries that are
        * in the defined square defined by these four numbers.
        * Returns a list with keys that were stored in the tree.
@@ -190,6 +192,7 @@ namespace SRMCollider
        *    nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
       */
       python::list query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction);
+      std::vector< Precursor* > query_tree_c(double a, double b, double c, double d, int max_nr_isotopes, double correction);
 
       boost::shared_ptr<Range_tree_2_type> my_rangetree;
     };

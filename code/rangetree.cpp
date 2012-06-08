@@ -217,13 +217,36 @@ namespace SRMCollider
         my_rangetree->make_tree(InputList.begin(),InputList.end());
     }
 
-    python::list Rangetree_Q1_RT::query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)   
+    void Rangetree_Q1_RT::create_tree(std::vector<Precursor> precursors) 
+    {
+        std::vector<Key> InputList;
+        for (size_t i=0; i<precursors.size(); i++) 
+        {
+            Precursor& entry = precursors[i];
+            InputList.push_back(Key(K::Point_2(entry.q1,entry.ssrcalc), entry));
+        }
+        my_rangetree->make_tree(InputList.begin(),InputList.end());
+    }
+
+    python::list Rangetree_Q1_RT::query_tree(double a, double b, double c, double d, int max_nr_isotopes, double correction)
+    {
+      python::list result;
+      std::vector< Precursor* > c_res = query_tree_c(a, b, c, d, max_nr_isotopes, correction);
+      for (std::vector< Precursor* >::iterator it = c_res.begin(); it != c_res.end(); it++)
+      {
+        Precursor* p = *it;
+        result.append(python::make_tuple(p->parent_id));
+      }
+      return result;
+    }
+
+    std::vector< Precursor* > Rangetree_Q1_RT::query_tree_c(double a, double b, double c, double d, int max_nr_isotopes, double correction)
     {
       std::vector<Key> OutputList;
-      python::list result;
+      std::vector< Precursor* > result;
 
-      double q1, q1_low = a, q1_high = c;
       int charge, iso;
+      double q1, q1_low = a, q1_high = c;
       bool proceed;
       Interval win(Interval(K::Point_2(a-correction,b),K::Point_2(c,d)));
       my_rangetree->window_query(win, std::back_inserter(OutputList));
@@ -242,13 +265,11 @@ namespace SRMCollider
               }
           }
 
-          if(proceed) {result.append(python::make_tuple( (*current).second.parent_id));}
+          if(proceed) {result.push_back( &current->second);}
           current++;
       }
       return result;
-
     }
-
 
   }
 }

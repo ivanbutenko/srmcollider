@@ -111,6 +111,25 @@ namespace SRMCollider
         q1_charge = 1;
       }
 
+      SRMPrecursor(
+        std::string sequence_, 
+        double q1_,
+        long transition_group_,
+        long parent_id_,
+        int q1_charge_,
+        int isotope_modification_,
+        double ssrcalc_
+      )
+      {
+        sequence = sequence_;
+        q1 = q1_;
+        transition_group = transition_group_;
+        parent_id =  parent_id_;
+        q1_charge = q1_charge_;
+        isotope_modification = isotope_modification_;
+        ssrcalc = ssrcalc_;
+      }
+
       int get_fragment_masses(double* tmp, double* series, double ch, const SRMParameters& params, int isotope_mod);
 
       /* 

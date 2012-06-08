@@ -65,7 +65,8 @@ class_<SRMCollider::ExtendedRangetree::Rangetree_Q1_RT,
         .def("create",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create )
         .staticmethod("create")
         .def("new_rangetree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::new_rangetree)
-        .def("create_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create_tree)
+        //.def("create_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create_tree) // doesnt work any more since we overloaded create_tree
+        .def("create_tree", static_cast<void (SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::*)(python::tuple)> (&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::create_tree) )
         .def("query_tree",&SRMCollider::ExtendedRangetree::Rangetree_Q1_RT::query_tree)
     ;
 }
