@@ -42,10 +42,6 @@
 #ifndef SRMCOLLIDER_RANGETREE_H
 #define SRMCOLLIDER_RANGETREE_H
 
-//include our own libraries
-#include "srmcollider.h"
-#include "srmcolliderLib.h"
-
 // Boost.Python headers
 #include <boost/python.hpp>
 #include <boost/python/module.hpp>
@@ -59,9 +55,11 @@ namespace python = boost::python;
 #include <CGAL/Range_segment_tree_traits.h>
 #include <CGAL/Range_tree_k.h>
 
-#include <iostream>
 #include <vector>
-#include <set>
+
+//include our own libraries
+#include "srmcollider.h"
+#include "srmcolliderLib.h"
 
 namespace SRMCollider
 {
@@ -198,6 +196,4 @@ namespace SRMCollider
 
   }
 }
-
-
 #endif

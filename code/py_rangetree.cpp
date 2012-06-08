@@ -27,7 +27,6 @@
 #include "srmcolliderLib.cpp"
 #include "py_srmcolliderLib.h"
 
-
 // Expose to Python
 using namespace python;
 BOOST_PYTHON_MODULE(c_rangetree)

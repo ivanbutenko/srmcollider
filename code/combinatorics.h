@@ -28,14 +28,9 @@
 #define COMBINATORICS_H
 #include "srmcollider.h"
 
-// Boost.Python headers
-#include <boost/python.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-namespace python = boost::python;
-
 #include <vector>
 #include <set>
+#include <stdint.h>
 
 //using namespace std;
 
@@ -182,6 +177,63 @@ namespace SRMCollider
 
     }
 
+    /*
+     * Function to calculate all non-UIS transitions from a dictionary
+     * where for each key (colliding peptide key) the set of transitions
+     * of the query peptide are stored that are interfered with is held
+     * (collisions_per_peptide vector).
+     * Note that this vector contains integers that represent the combinations.
+     *
+     * It will return a list of all non UIS of the requested order.
+     */
+    void get_non_uis_bitwise(std::vector<COMBINT>& newcollperpep, int max_tr, int
+            order, std::set<COMBINT> & result) 
+    {
+        int onecounter;
+        COMBINT tmparr;
+        COMBINT mask;
+        COMBINT* mapping = new COMBINT[max_tr];
+
+        for (uint i=0; i<newcollperpep.size(); i++) {
+
+            //count the number of binary ones in the bitarray
+            mask = 1;
+            onecounter = 0;
+            tmparr = newcollperpep[i];
+
+            //we know that there cannot be bits populated past max nr transitions
+            for(int j=0; j<max_tr; j++) {
+                //true if nonzero
+                if(tmparr & mask) 
+                    mapping[onecounter++] = mask;
+                mask <<=1;
+            }
+
+            /* The other way to do it
+             * we shift the tmparr to the right
+            for(int j=0; tmparr != 0; tmparr >>= 1) {
+                onecounter += tmparr & mask;
+            }
+            */
+
+            _combinations_bitwise(order, onecounter, mapping, result);
+        }
+
+        delete [] mapping;
+    }
+  }
+}
+
+// Boost.Python headers
+#include <boost/python.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+namespace python = boost::python;
+
+namespace SRMCollider
+{
+  namespace Combinatorics
+  {
     /*
     * This function calculates all combinations of M elements
     * drawn without replacement from a set of N elements. Order of elements
@@ -332,50 +384,6 @@ namespace SRMCollider
 
     }
 
-    /*
-     * Function to calculate all non-UIS transitions from a dictionary
-     * where for each key (colliding peptide key) the set of transitions
-     * of the query peptide are stored that are interfered with is held
-     * (collisions_per_peptide vector).
-     * Note that this vector contains integers that represent the combinations.
-     *
-     * It will return a list of all non UIS of the requested order.
-     */
-    void get_non_uis_bitwise(std::vector<COMBINT>& newcollperpep, int max_tr, int
-            order, std::set<COMBINT> & result) 
-    {
-        int onecounter;
-        COMBINT tmparr;
-        COMBINT mask;
-        COMBINT* mapping = new COMBINT[max_tr];
-
-        for (uint i=0; i<newcollperpep.size(); i++) {
-
-            //count the number of binary ones in the bitarray
-            mask = 1;
-            onecounter = 0;
-            tmparr = newcollperpep[i];
-
-            //we know that there cannot be bits populated past max nr transitions
-            for(int j=0; j<max_tr; j++) {
-                //true if nonzero
-                if(tmparr & mask) 
-                    mapping[onecounter++] = mask;
-                mask <<=1;
-            }
-
-            /* The other way to do it
-             * we shift the tmparr to the right
-            for(int j=0; tmparr != 0; tmparr >>= 1) {
-                onecounter += tmparr & mask;
-            }
-            */
-
-            _combinations_bitwise(order, onecounter, mapping, result);
-        }
-
-        delete [] mapping;
-    }
   }
 }
 

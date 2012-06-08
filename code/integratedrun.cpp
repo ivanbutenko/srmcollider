@@ -43,14 +43,9 @@
 #include "combinatorics.h"
 #include "srmcolliderLib.h"
 
-#include <iostream>
-#include <vector>
-#include <set>
-
 #include <vector>
 
 using namespace SRMCollider::Common;
-using namespace SRMCollider;
 //using namespace std;
 
 namespace SRMCollider 
