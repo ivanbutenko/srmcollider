@@ -536,7 +536,7 @@ class Test_three_peptide_example(unittest.TestCase):
 
       self.assertTrue( abs(nonunique[2][0][0] - 565.8035) < self.EPSILON )
       self.assertEqual( nonunique[2][0][4], 'y')
-      self.assertEqual( nonunique[2][0][5], 4)
+      self.assertEqual( nonunique[2][0][5], 11)
       self.assertEqual( nonunique[2][0][6], 'NGTDGGLQVAIDAMR') # sequence
       self.assertEqual( nonunique[2][0][-1], 2) # charge
 
@@ -584,15 +584,17 @@ class Test_three_peptide_example(unittest.TestCase):
       self.assertEqual( len( nonunique[5] ), 3)
       self.assertEqual( len( nonunique[6] ), 1)
 
+      # we have one interference with 3
       self.assertTrue( abs(nonunique[3][0][0] - 456.756009652) < self.EPSILON )
       self.assertTrue( abs(nonunique[3][0][1] - 500.787837374) < self.EPSILON )
       self.assertEqual( nonunique[3][0][2], 0) # empty
       self.assertEqual( nonunique[3][0][3], 665) # peptide key
       self.assertEqual( nonunique[3][0][4], 'x')
-      self.assertEqual( nonunique[3][0][5], 2)
+      self.assertEqual( nonunique[3][0][5], 8)
       self.assertEqual( nonunique[3][0][6], 'GGLIVELGDK') # sequence
       self.assertEqual( nonunique[3][0][-1], 2) # charge
 
+      # we have two interferences with 4
       self.assertTrue( abs(nonunique[4][0][0] - 443.22541272) < self.EPSILON )
       self.assertTrue( abs(nonunique[4][0][1] - 506.58461326) < self.EPSILON )
       self.assertEqual( nonunique[4][0][2], 0) # empty
@@ -602,17 +604,40 @@ class Test_three_peptide_example(unittest.TestCase):
       self.assertEqual( nonunique[4][0][6], 'NGTDGGLQVAIDAMR') # sequence
       self.assertEqual( nonunique[4][0][-1], 2) # charge
 
+      self.assertTrue( abs(nonunique[4][1][0] - 443.7267378235) < self.EPSILON )
+      self.assertTrue( abs(nonunique[4][1][1] - 506.58461326 ) < self.EPSILON )
+      self.assertEqual( nonunique[4][1][2], 0) # empty
+      self.assertEqual( nonunique[4][1][3], 618) # peptide key
+      self.assertEqual( nonunique[4][1][4], 'z')
+      self.assertEqual( nonunique[4][1][5], 8)
+      self.assertEqual( nonunique[4][1][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[4][1][-1], 2) # charge
+
+      # we have three interferences with 5
+      self.assertTrue( abs(nonunique[5][0][0] - 557.280912722) < self.EPSILON )
+      self.assertEqual( nonunique[5][0][4], 'a')
+      self.assertEqual( nonunique[5][0][5], 12)
+      self.assertEqual( nonunique[5][0][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[5][0][-1], 2) # charge
+
       self.assertTrue( abs(nonunique[5][1][0] - 550.28240465) < self.EPSILON )
       self.assertEqual( nonunique[5][1][4], 'x')
-      self.assertEqual( nonunique[5][1][5], 5)
+      self.assertEqual( nonunique[5][1][5], 10)
       self.assertEqual( nonunique[5][1][6], 'NGTDGGLQVAIDAMR') # sequence
       self.assertEqual( nonunique[5][1][-1], 2) # charge
 
+      self.assertTrue( abs(nonunique[5][2][0] - 557.2902278235) < self.EPSILON )
+      self.assertEqual( nonunique[5][2][4], 'z')
+      self.assertEqual( nonunique[5][2][5], 11)
+      self.assertEqual( nonunique[5][2][6], 'NGTDGGLQVAIDAMR') # sequence
+      self.assertEqual( nonunique[5][2][-1], 2) # charge
+
+      # we have one interference with 6
       self.assertTrue( abs(nonunique[6][0][0] - 665.327537823 ) < self.EPSILON )
       self.assertEqual( nonunique[6][0][2], 0) # empty
       self.assertEqual( nonunique[6][0][3], 618) # peptide key
       self.assertEqual( nonunique[6][0][4], 'z')
-      self.assertEqual( nonunique[6][0][5], 2)
+      self.assertEqual( nonunique[6][0][5], 13)
       self.assertEqual( nonunique[6][0][6], 'NGTDGGLQVAIDAMR') # sequence
       self.assertEqual( nonunique[6][0][-1], 2) # charge
 

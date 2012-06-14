@@ -317,6 +317,13 @@ namespace SRMCollider
 
         l++; // ion series starts at 1, thus add one
 
+        // need to reverse the backwards series x,y,z
+        if (curr_ion == "y" || curr_ion == "x" || curr_ion == "z"
+            || curr_ion == "yMinusNH3" || curr_ion == "yMinusH2O")
+        {
+            l = scounter -l;
+        }
+
         delete [] tmp;
         delete [] series;
     }

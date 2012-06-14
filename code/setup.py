@@ -36,6 +36,7 @@ sudo apt-get install python-dev
 sudo apt-get install libboost-dev
 sudo apt-get install libcgal-dev
 sudo apt-get install libboost-python-dev 
+sudo apt-get install python-matplotlib
 
 #or all at the same time
 sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
