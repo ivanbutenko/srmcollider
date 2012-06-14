@@ -103,7 +103,20 @@ def print_header(input_sequences):
     Toggle all <small>Click to fold/unfold all</small>
     </a>"""
 
-def print_peptide_header(current_sequence, precursor, par, nr_interferences):
+def prepare_extern_graph(data, q1, ssrcalc, name):
+    thisrandom = "".join( [string.ascii_letters[ int(random.random() * len(string.ascii_letters) )] for i in range(10)])
+    filename_part = 'srmcollider_data_%s_peptide' % (thisrandom)
+    filename = '/tmp/' + filename_part
+    f = open(filename, 'w')
+    for d in data:
+        f.write('%s\t%s\n' % (d[0], d[1]) )
+    f.close()
+    args = "data=%s&mz=%s&rt=%s&pepname=%s" % (
+        filename_part, q1, ssrcalc, name)
+    return args
+
+def print_peptide_header(current_sequence, precursor, par, precursors_obj):
+    nr_interferences = len(precursors_obj)
     print "<h2 id='%s'>Peptide %s</h2>" % (current_sequence, current_sequence)
     print "<div class='pep_property'>"
 
@@ -116,6 +129,7 @@ def print_peptide_header(current_sequence, precursor, par, nr_interferences):
       <td>SSRCalc window</td> 
       <td>Interfering precursors</td> 
       <td>Background</td> 
+      <td>Graph</td> 
       </tr>"""
     #<td>Interferences</td> 
     print "<tr><td>"
@@ -132,21 +146,28 @@ def print_peptide_header(current_sequence, precursor, par, nr_interferences):
     print nr_interferences
     print "</td><td>"
     print par.genome
+    print "</td><td>"
+    args = prepare_extern_graph([ (c.q1, c.ssrcalc) for c in precursors_obj],
+      precursor.q1, precursor.ssrcalc, precursor.modified_sequence)
+    print "<a rel='lightbox' href='plot_graph_dynamic.py?%s' >Graph</a>" % args
     print "</td><tr>" 
     print "</table>"
 
 
     print "</div>"
 
-def print_transition_overview(fragments, ii, nonunique_obj):
+
+def print_transition_overview(fragments, precursor, nonunique_obj):
+    ii = precursor.seq_id
     print "<h3>Transition Overview</h3>" 
     ## #print "<a title="Show Tables" href="javascript:toggleDisplay('col_transitions2_%s')"> " % ii
     ## #print "<h3>Transition Overview<small><small> (Click to fold)</small></small> </h3>" 
     ## #print '</a>' 
     print "<table border='1' class='col_table' id='col_transitions2_%s'>" % ii
-    ## #print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> <td>Graph</td> </tr>"
-    print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> </tr>"
+    print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> <td>Graph</td> </tr>"
+    ## #print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> </tr>"
     fragments.sort( lambda x,y: cmp(len(nonunique_obj[x.fragment_count]), len(nonunique_obj[y.fragment_count])))
+    thisrandom = "".join( [string.ascii_letters[ int(random.random() * len(string.ascii_letters) )] for i in range(10)])
     for peak in fragments: 
         interferences = nonunique_obj[peak.fragment_count]
         print "<tr><td>"
@@ -159,8 +180,11 @@ def print_transition_overview(fragments, ii, nonunique_obj):
         print "</td><td>%s" % len(nonunique_obj[ peak.fragment_count ])
         # print "</td><td>"
         # print [ (i.q3, i.ssrcalc) for i in interferences]
-        # print "</td><td>"
-        # print "<a href='/tmp/test' >Graph</a>"
+        print "</td><td>"
+        this_interference = nonunique_obj[ peak.fragment_count ]
+        args = prepare_extern_graph( [ (c.q3, c.ssrcalc) for c in this_interference], 
+          peak.q3, precursor.ssrcalc, "%s_%s" % (precursor.modified_sequence, peak.annotation) )
+        print "<a rel='lightbox' href='plot_graph_dynamic.py?%s' >Graph</a>" % args
         print "</td></tr>"
     print "</table>"
 
@@ -352,8 +376,8 @@ def do_all_print(fragments, collisions_per_peptide,
     uis = par.uis
     current_sequence = precursor.modified_sequence
     if uis > 0: write_csv_row(fragments, collisions_per_peptide, current_sequence, uis, wuis)
-    print_peptide_header(current_sequence, precursor, par, len(precursors_obj) ) 
-    print_transition_overview(fragments[:], precursor.seq_id, nonunique_obj)
+    print_peptide_header(current_sequence, precursor, par, precursors_obj ) 
+    print_transition_overview(fragments[:], precursor, nonunique_obj)
     print_collding_peptides(collisions_per_peptide, precursors_obj, precursor.seq_id, fragments)
     print_transition_detail(fragments[:], nonunique_obj, precursor.seq_id)
 
