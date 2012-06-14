@@ -40,7 +40,6 @@ import os
 
 sys.path.append(SRMCOLLIDER_HOME)
 import DDB
-from Residues import Residues
 import collider
 import c_getnonuis
 import sharedhtml as shared
@@ -52,9 +51,6 @@ from srmcollider_website_helper import SRMColliderController
 backw_compatible = True
 
 db = MySQLdb.connect(read_default_file=default_mysql)
-c = db.cursor()
-cursor = c
-R = Residues('mono')
 
 controller = SRMColliderController()
 controller.initialize(db_used=db_used, default_org_prefix=default_org_prefix,
@@ -155,7 +151,6 @@ def print_peptide_header(current_sequence, precursor, par, precursors_obj):
 
 
     print "</div>"
-
 
 def print_transition_overview(fragments, precursor, nonunique_obj):
     ii = precursor.seq_id
@@ -267,10 +262,6 @@ def main(par):
     writer_uis = csv.writer(fuis, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     writer_uis.writerow(['Sequence', 'UIS Order', 'Q3', 'Annotation', '(For higher order UIS, the pattern Q3/Annotation repeats)'])
 
-    #Now all input should be sane
-    if par.genome in genomes_that_require_N15_data: 
-        R.recalculate_monisotopic_data_for_N15()
-
     print shared.resultInterpretation
     if par.uis > 0:
         if par.uis > 5:
@@ -305,38 +296,23 @@ def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
     toggle_all_str = '<script language="javascript"> function toggleAll(){ '
     mycollider = collider.SRMcollider()
 
-    for seq_id, current_sequence in enumerate(input_sequences):
+    for seq_id, peptide in enumerate(controller.peptides):
         #
-        # Step 1 : find the SSRCalc values for this sequence
+        # Step 2 : find the SSRCalc values for this sequence
         #
-        try: ssrcalc = pepmap[filter(str.isalpha, current_sequence)]
+        try: ssrcalc = pepmap[filter(str.isalpha, peptide.sequence)]
         except KeyError: ssrcalc = 25
-
-        #
-        # Step 2 : calculate b/y ion series of the target and get the transitions
-        #
-        peptide = DDB.Peptide()
-        peptide.set_sequence(current_sequence)
-        peptide.charge = 2
-        peptide.create_fragmentation_pattern(R)
-        fragments = list(peptide.get_fragment_objects(reversed(peptide.y_series),
-            'y', 1, R, q3_low, q3_high))
-        fragments.reverse()
-        fragments.extend(list( peptide.get_fragment_objects(peptide.b_series, 
-            'b', 1, R, q3_low, q3_high)))
-        for fcount, f in enumerate(fragments): f.fragment_count = fcount
-
-        transitions = [ (f.q3, f.fragment_count) for f in fragments]
+        transitions = [ (f.q3, f.fragment_count) for f in peptide.fragments]
         if len( transitions ) == 0: continue # no transitions in this window
 
         #
         # Step 3 : find all potentially interfering precursors
         #  Create precursor and use db to find all interfering precursors
         #
-        precursor = Precursor(modified_sequence = current_sequence, parent_id = -1,
+        precursor = Precursor(modified_sequence = peptide.sequence, parent_id = -1,
             q1 = peptide.charged_mass, q1_charge = 2, ssrcalc = ssrcalc, transition_group = -1)
         precursor.seq_id = seq_id
-        precursors_obj = mycollider._get_all_precursors(par, precursor, cursor, bysequence=True)
+        precursors_obj = mycollider._get_all_precursors(par, precursor, local_cursor, bysequence=True)
 
         # 
         # Step 4 and 5: Find interferences per precursor, then find
@@ -352,7 +328,7 @@ def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
             par.q3_window, par.ppm, peptide.charged_mass - par.q1_window, par.chargeCheck)
 
         # also add those that have no interference
-        for fragment in fragments: 
+        for fragment in peptide.fragments: 
             if not fragment.fragment_count in nonunique:
                 nonunique[fragment.fragment_count] = []
         nonunique_obj = controller.getNonuniqueObjects(nonunique)
@@ -360,7 +336,7 @@ def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
         # 
         # Step 6: printing
         #
-        do_all_print(fragments, collisions_per_peptide, 
+        do_all_print(peptide.fragments, collisions_per_peptide, 
                  wuis, precursor, par, precursors_obj, nonunique_obj)
         toggle_all_str += "toggleDisplay('col_peptides_%s'); toggleDisplay('col_transitions_%s');\n" % (seq_id,seq_id)
 
@@ -395,7 +371,7 @@ print "<div class='main'>"
 sample_peptides_html = controller.get_sample_peptides_html()
 form = cgi.FieldStorage()   # FieldStorage object to
 if form.has_key('peptides'):
-    par = controller.parse_srmcollider_form(form)
+    par = controller.parse_srmcollider_form(form, genomes_that_require_N15_data)
     start = time.time()
     main(par)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)

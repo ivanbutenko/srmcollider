@@ -2,6 +2,38 @@ import os, csv
 import collider
 import c_getnonuis
 
+import DDB
+from Residues import Residues
+
+"""
+Expected input format
+
+
+Format A)
+[Sequence]
+[Sequence]
+[...]
+
+ex:
+MTMDRK
+MMDRK
+MTMRK
+
+Format B)
+
+Name: [Sequence]
+Charge: [Charge]
+[Q1] [LibraryIntensity] [Annotation] [FragmentCharge]
+
+ex:
+
+Name: MTMDRK
+Charge: 2
+701 20 b6 2
+801 100 y7 4
+
+"""
+
 class NonUnique():
 
     def __init__(self):
@@ -16,11 +48,115 @@ class NonUnique():
             self.isotope_nr    = None
             self.charge        = None
 
+class PeptideParser():
+
+    def __init__(self, R):
+        self.R  = R
+
+    def parse_stack(self, stack):
+        assert len(stack) > 2
+        peptide = DDB.Peptide()
+        s = stack[0][5:].strip() 
+        peptide.charge = int(stack[1][7:].strip())
+        sanitized = "".join( [i for i in s if (str.isalnum(i) or i in [ '[', ']']  )] )
+        peptide.set_sequence(sanitized)
+        peptide.fragments = []
+        cnt = 0
+        for tr in stack[2:]:
+            if len(tr.strip()) == 0: continue
+            newtr = tr.split()
+            ann = "".join( [i for i in newtr[2] if (str.isalnum(i))] )
+            fr = DDB.Fragment(float(newtr[0]), ann, int(newtr[3]) )
+            fr.library_intensity = float(newtr[1])
+            fr.fragment_count = cnt
+            cnt += 1
+            peptide.fragments.append(fr)
+        # to make sure that it has a charged mass!
+        peptide.create_fragmentation_pattern(self.R)
+        return peptide
+
+    def parse_transition_list(self, data):
+        peptides = []
+        stack = []
+        for line in data.splitlines(True):
+            if len(line.strip() ) == 0: continue 
+            if line[:5] == 'Name:':
+              if len(stack) > 0:
+                peptide = self.parse_stack(stack)
+                peptides.append(peptide)
+              #
+              stack = [line]
+            else: stack.append(line)
+
+        if len(stack) > 0:
+          peptide = self.parse_stack(stack)
+          peptides.append(peptide)
+
+        return peptides
+
+    def sanitize_peptide_input(self, myinput):
+
+        seqs = "'"
+        input_sequences = []
+        peptides = []
+        for inp in myinput.split():
+            #only alphanumeric and [ ]
+            sanitized = "".join( [i for i in inp if (str.isalnum(i) or i in [ '[', ']']  )] )
+            #to look ssrcalc up in the db, we need no modifications
+            if len(sanitized) == 0: continue
+            seqs += filter(str.isalpha, inp) + "','"
+            input_sequences.append(sanitized.upper())
+
+            peptide = DDB.Peptide()
+            peptide.set_sequence(sanitized)
+            peptide.fragments = []
+
+            peptides.append(peptide)
+
+        seqs = seqs[:-2]
+        return seqs, input_sequences
+
+    def calculate_default_fragmenation(self, peptides, par):
+
+        q3_low, q3_high = par.q3_range
+        for peptide in peptides:
+            peptide.charge = 2
+            peptide.create_fragmentation_pattern(self.R)
+            fragments = list(peptide.get_fragment_objects(reversed(peptide.y_series),
+                'y', 1, self.R, q3_low, q3_high))
+            fragments.reverse()
+            fragments.extend(list( peptide.get_fragment_objects(peptide.b_series, 
+                'b', 1, self.R, q3_low, q3_high)))
+            for fcount, f in enumerate(fragments): f.fragment_count = fcount
+            peptide.fragments = fragments
+
+    def get_seqs(self, peptides):
+        seqs = "'"
+        input_sequences = []
+        for p in peptides:
+            seqs += filter(str.isalpha, p.sequence) + "','"
+            input_sequences.append(p.sequence.upper())
+        seqs = seqs[:-2]
+        return seqs, input_sequences
+
+    def get_sql_sequences(self, peptides):
+        seqs = "'"
+        for p in peptides:
+            seqs += filter(str.isalpha, p.sequence) + "','"
+        seqs = seqs[:-2]
+        return seqs
+
+    def get_upper_modified_sequences(self, peptides):
+        input_sequences = []
+        for p in peptides:
+            input_sequences.append(p.sequence.upper())
+        return input_sequences
 
 class SRMColliderController():
 
     def __init__(self):
-        pass
+        self.peptides = []
+        self.R = Residues('mono')
 
     def initialize(self, db_used, default_org_prefix, db_tables_map):
         self.db_used = db_used
@@ -45,8 +181,8 @@ class SRMColliderController():
             sample_peptides_html += s + '<br/>'
         return sample_peptides_html 
 
-    def parse_srmcollider_form(self, form):
-        peptides = form.getvalue('peptides')
+    def parse_srmcollider_form(self, form, genomes_that_require_N15_data):
+        peptides_raw = form.getvalue('peptides')
         q1_w = float(form.getvalue('q1_window') )
         q3_w = float(form.getvalue('q3_window') )
         ssr_w = float(form.getvalue('ssr_window') )
@@ -108,32 +244,33 @@ class SRMColliderController():
         if missed == 1:
             par.query2_add += ' and missed_cleavages <= 1 '
 
-
         par.chargeCheck = chargeCheck
         par.genome = genome
         par.uis = uis
 
-        # sanitize input: all input is already sanitized except myinput and genome
-        seqs, input_sequences = self.sanitize_peptide_input(peptides)
+        # check whether we need to recalculate the residues for N15
+        if genome in genomes_that_require_N15_data: 
+            self.R.recalculate_monisotopic_data_for_N15()
+
+        parser = PeptideParser(self.R)
+
+        # try to parse transition list. If it doesnt work, try to parse the
+        # input as single peptide sequences.
+        try:
+          self.peptides = parser.parse_transition_list(peptides_raw)
+          seqs, input_sequences = parser.get_seqs(self.peptides)
+        except AssertionError:
+          self.peptides = []
+
+        if len(self.peptides) == 0:
+            # sanitize input: all input is already sanitized except myinput and genome
+            seqs, input_sequences = parser.sanitize_peptide_input(peptides_raw)
+            parser.calculate_default_fragmenation(self.peptides, par)
+
         par.seqs = seqs
         par.input_sequences = input_sequences
 
         return par
-
-    def sanitize_peptide_input(self, myinput):
-
-        seqs = "'"
-        input_sequences = []
-        for inp in myinput.split():
-            #only alphanumeric and [ ]
-            sanitized = "".join( [i for i in inp if (str.isalnum(i) or i in [ '[', ']']  )] )
-            #to look ssrcalc up in the db, we need no modifications
-            if len(sanitized) == 0: continue
-            seqs += filter(str.isalpha, inp) + "','"
-            input_sequences.append(sanitized.upper())
-        seqs = seqs[:-2]
-
-        return seqs, input_sequences
 
     def getNonuniqueObjects(self, nonunique):
 
