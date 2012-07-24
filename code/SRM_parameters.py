@@ -68,6 +68,9 @@ class SRM_parameters(object):
         self.sqlite_database = None
         self.use_sqlite      = None
 
+        self.max_mods        = None
+        self.max_MC          = None # missed cleavages
+
         self.experiment_type = ''
 
         self.R = Residues.Residues('mono')
@@ -91,6 +94,8 @@ class SRM_parameters(object):
         if self.sqlite_database is None: self.sqlite_database = ''
         if self.use_sqlite      is None: self.use_sqlite = False
         if self.quiet           is None: self.quiet = False
+        if self.max_mods        is None: self.max_mods = 0
+        if self.max_MC          is None: self.max_MC = 0
 
         if self.bions      is None: self.bions      =  True
         if self.yions      is None: self.yions      =  True
@@ -200,6 +205,7 @@ class SRM_parameters(object):
         #
         # is default since isotopes are not in the database any more
         self.query2_add += " " 
+        self.query2_add += " and modifications <= %s and missed_cleavages <= %s" % (int(self.max_mods), int(self.max_MC))
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
