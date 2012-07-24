@@ -8,6 +8,11 @@ header =  """
   <title>SRM Collider</title> 
   <link href="/stylesheets/srmcollider.css" media="screen" rel="stylesheet" type="text/css" /> 
   <link href="/stylesheets/%s.css" media="screen" rel="stylesheet" type="text/css" /> 
+
+  <script src="http://www.srmcollider.org//lightbox/js/jquery-1.7.2.min.js"></script>
+  <script src="http://www.srmcollider.org//lightbox/js/lightbox.js"></script>
+  <link href="http://www.srmcollider.org/lightbox/css/lightbox.css" rel="stylesheet" />
+
 </head> 
 
 <body>
@@ -26,7 +31,7 @@ topdiv = """
     SRM Collider
     </div>
     <div class="version">
-    version 1.3
+    version 1.4
     </br>
     Hannes Roest 2012
     </div>
