@@ -87,7 +87,7 @@ group.add_option("--csv", dest="csv", default=False, action='store_true',
  'PrecursorMz',
  'LibraryIntensity',
  'ProductMz'.
-All other fields are ignored.
+All other fields except 'protein_name' are ignored.
 """
                 )
 group.add_option("--srmatlas_tsv", dest="srmatlas_tsv", default=False, action='store_true',
@@ -174,14 +174,10 @@ if not options.csv and not options.srmatlas_tsv:
     import speclib_db_lib
     sptxt = libfile + ".splib"
     pepidx = libfile + ".pepidx"
+    file_used = sptxt
 
     print "Experiment Type"
     print ' '*5, 'Check transitions from a spectral library with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using spectral library: %s' % sptxt
-    print ' '*5, 'Using background organism: %s' % args[1]
-
     #peak into file, see how many peptides there are 
     for i,l in enumerate(open(pepidx)): pass
     if i > 10000: 
@@ -196,19 +192,21 @@ if not options.csv and not options.srmatlas_tsv:
 elif options.csv: 
     print "Experiment Type"
     print ' '*5, 'Check transitions from a csv transitions list with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using csv file library: %s' % libfile
-    print ' '*5, 'Using background organism: %s' % args[1]
+    file_used = libfile
     library = parse_mprophet_methodfile(libfile)
 elif options.srmatlas_tsv: 
     print "Experiment Type"
     print ' '*5, 'Check transitions from a csv transitions list with'
-    print ' '*5, par.thresh
-    print ' '*5, 'Da for the q3 transitions.'
-    print ' '*5, 'Using csv file library: %s' % libfile
-    print ' '*5, 'Using background organism: %s' % args[1]
+    file_used = libfile
     library = parse_srmatlas_file(libfile)
+
+print ' '*5, par.thresh
+print ' '*5, 'Da for the q3 transitions.'
+print ' '*5, 'Using file : %s' % file_used
+print ' '*5, 'Using background organism: %s' % args[1]
+print ' '*5,  "with %s modifications and %s missed cleavages" % (par.max_mods, par.max_MC)
+
+
 
 if use_experimental_height:
     infile = options.exp_resultfile

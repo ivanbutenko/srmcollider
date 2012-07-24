@@ -33,6 +33,13 @@
  * out from a FASTA file, you should use the trypsinize.py script in the script
  * folder. Afterwards, use SSRCalc to calculate hydrophobicity and you can use
  * the input from the SSRCalc program directly with this script.
+ * 
+ * The input in a TSV file should be the following
+
+MTGSVDRPDQNR	12	      8.56	      8.6
+MTGSVDRPDQNRGER	15	      7.83	      7.8
+
+ * where the first and the third line will be used (sequence and SSRCalc value).
  *
 """
 

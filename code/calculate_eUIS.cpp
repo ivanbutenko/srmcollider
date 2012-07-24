@@ -27,6 +27,8 @@
 #define SRMCOLLIDE_EUIS_H
 
 #include <vector>
+#include <algorithm>
+#include <numeric>
 
 // Boost.Python headers
 #include <boost/python.hpp>

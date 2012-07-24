@@ -33,7 +33,7 @@ topdiv = """
     <div class="version">
     version 1.4
     </br>
-    Hannes Roest 2012
+    Hannes R&ouml;st 2012
     </div>
     <div class="navigation">
     %s
