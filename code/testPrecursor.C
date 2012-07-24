@@ -25,15 +25,15 @@
 
 #define BOOST_TEST_DYN_LINK
 #define BOOST_TEST_MODULE MyTest
- 
 #include <boost/test/unit_test.hpp>
+#define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
+
 #include <iostream>
 
 //include our own libraries
 #include "srmcollider.h"
 #include "srmcolliderLib.h"
-
-#define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
+#include "srmcolliderLib.cpp"
 
 using namespace SRMCollider::Common;
 using namespace std;

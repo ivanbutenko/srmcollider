@@ -25,10 +25,21 @@ set(my_sources
 )
 
 find_package(CGAL)
+find_package(PythonLibs REQUIRED)
+message("Include dirs of Python: " ${PYTHON_INCLUDE_DIRS} )
+message("Libs of Python: " ${PYTHON_LIBRARIES} )
+
+find_package(Boost COMPONENTS filesystem system unit_test_framework python REQUIRED)
+message("Include dirs of boost: " ${Boost_INCLUDE_DIRS} )
+message("Libs of boost: " ${Boost_LIBRARIES} )
+
+include_directories(
+  ${Boost_INCLUDE_DIRS}
+  ${PYTHON_INCLUDE_DIRS}
+)
 
 # cgal requires the -frounding-math option
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frounding-math -Wall") 
-include_directories("/usr/include/python2.6")
 
 add_library(SRMCollider SHARED ${my_sources})
 #add_library(SRMCollider STATIC ${my_sources})
@@ -37,8 +48,8 @@ add_library(SRMCollider SHARED ${my_sources})
 foreach(i ${my_executables})
   add_executable(${i} ${i}.C)
   ## link executables against OpenMS and also OpenSWATH
-  target_link_libraries(${i} boost_python boost_unit_test_framework boost_filesystem python2.6 CGAL SRMCollider)
-  #target_link_libraries(${i} boost_python boost_unit_test_framework boost_filesystem python2.6 CGAL)
+  target_link_libraries(${i} boost_python boost_unit_test_framework
+    boost_filesystem boost_system python2.7 CGAL SRMCollider)
 endforeach(i)
 
 ENABLE_TESTING()
