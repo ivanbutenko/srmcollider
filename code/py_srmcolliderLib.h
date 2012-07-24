@@ -139,10 +139,15 @@ namespace SRMCollider
         Common::SRMPrecursor p;
         python::object precursor = python::extract< python::object >(precursors[i]);
         python::object q1 = python::extract< python::object >(precursor.attr("q1"));
+        python::object ssrcalc = python::extract< python::object >(precursor.attr("ssrcalc"));
         // check for None
         if(q1.ptr() != python::object().ptr() )
         {
           p.q1 = python::extract<double>(precursor.attr("q1"));
+        }
+        if(ssrcalc.ptr() != python::object().ptr() )
+        {
+          p.ssrcalc = python::extract<double>(precursor.attr("ssrcalc"));
         }
         p.sequence = python::extract<std::string>(precursor.attr("modified_sequence"));
         p.isotope_modification = python::extract<int>(precursor.attr("isotopically_modified"));
