@@ -3,35 +3,23 @@ import collider
 import c_getnonuis
 
 import DDB
+
 from Residues import Residues
+
 
 """
 Expected input format
-
-
-Format A)
-[Sequence]
-[Sequence]
-[...]
-
-ex:
-MTMDRK
-MMDRK
-MTMRK
-
-Format B)
 
 Name: [Sequence]
 Charge: [Charge]
 [Q1] [LibraryIntensity] [Annotation] [FragmentCharge]
 
-ex:
-
-Name: MTMDRK
+Name: NLQGSNGGYAWEDEIK
 Charge: 2
-701 20 b6 2
-801 100 y7 4
-
+1167.53227 10 y10 1
+890.42602 12 y7 1
+504.26700 1 y4 1
+962.43323 4 b10 1
 """
 
 class NonUnique():
@@ -128,6 +116,7 @@ class PeptideParser():
             fragments.extend(list( peptide.get_fragment_objects(peptide.b_series, 
                 'b', 1, self.R, q3_low, q3_high)))
             for fcount, f in enumerate(fragments): f.fragment_count = fcount
+            for fcount, f in enumerate(fragments): f.library_intensity = -1
             peptide.fragments = fragments
 
     def get_seqs(self, peptides):
@@ -265,6 +254,11 @@ class SRMColliderController():
         if len(self.peptides) == 0:
             # sanitize input: all input is already sanitized except myinput and genome
             seqs, input_sequences = parser.sanitize_peptide_input(peptides_raw)
+            for s in input_sequences: 
+                peptide = DDB.Peptide(); 
+                peptide.set_sequence(s)
+                peptide.charge = 2
+                self.peptides.append(peptide)
             parser.calculate_default_fragmenation(self.peptides, par)
 
         par.seqs = seqs

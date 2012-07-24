@@ -48,7 +48,8 @@ from srmcollider_website_helper import getSRMParameter, get_ssrcalc_values
 from srmcollider_website_helper import unique_values, write_csv_row
 from srmcollider_website_helper import SRMColliderController
 
-backw_compatible = True
+backw_compatible = False
+rounding_precision = 4
 
 db = MySQLdb.connect(read_default_file=default_mysql)
 
@@ -162,7 +163,6 @@ def print_transition_overview(fragments, precursor, nonunique_obj):
     print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> <td>Graph</td> </tr>"
     ## #print "<tr> <td>Transition </td> <td>Q3</td>  <td>Interferences</td> </tr>"
     fragments.sort( lambda x,y: cmp(len(nonunique_obj[x.fragment_count]), len(nonunique_obj[y.fragment_count])))
-    thisrandom = "".join( [string.ascii_letters[ int(random.random() * len(string.ascii_letters) )] for i in range(10)])
     for peak in fragments: 
         interferences = nonunique_obj[peak.fragment_count]
         print "<tr><td>"
@@ -221,6 +221,42 @@ def print_collding_peptides(collisions_per_peptide, precursors_obj, ii, fragment
         print "</td></tr>"
     print "</table>"
 
+def print_uniqueness_analysis(collisions_per_peptide, peptide):
+    if len([0 for f in peptide.fragments if f.library_intensity > 0]) == 0: return
+
+    nonunique_set = set([ tuple(v) for k,v in collisions_per_peptide.iteritems()])
+    transitions_order = [ (f.fragment_count, f.library_intensity, f) for f in peptide.fragments]
+    transitions_order.sort( lambda x,y: -cmp(x[1], y[1]))
+    ii = 0
+    print "<h3>Uniqueness of Top n transitions</h3>" 
+    print "<table border='1' class='col_table' id='x_col_transitions2_%s'>" % ii
+    print "<tr> <td>Transitions</td><td>Nr transitions</td> <td>Combined Uniqueness</td> </tr>"
+    for i in range(len(transitions_order)):
+      #print [f for f in peptide.fragments if f.fragment_count ==  transitions_order[i][0]]
+      mytransitions = tuple(sorted( [t[0] for t in transitions_order[:i+1]]))
+      tr = [t[2] for t in transitions_order[:i+1]]
+
+
+      # mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
+      # unuseable = False
+      # for k,v in collisions_per_peptide.iteritems():
+      #     if tuple(sorted(v)[:j]) == mytransitions: unuseable=True
+      # if not unuseable: min_needed = j
+
+      unuseable = False
+      for k,v in collisions_per_peptide.iteritems():
+          if tuple(sorted(v)[:i+1]) == mytransitions: unuseable=True
+
+      print "<tr><td>"
+      print " + ".join([t.annotation for t in tr])
+      print "</td><td>%s</td><td>" % (i+1)
+      if unuseable:
+        print "No"
+      else:
+        print "Yes"
+      print "</td></tr>"
+    print "</table>"
+
 def print_transition_detail(unuseable, nonunique_obj, ii):
     print """
     <a title="Show Tables" href="javascript:toggleDisplay('col_transitions_%s')"> 
@@ -235,13 +271,14 @@ def print_transition_detail(unuseable, nonunique_obj, ii):
         if backw_compatible and len(nonunique_obj[ peak.fragment_count ]) == 0: continue
         print "<tr><td>"
         print peak.annotation
-        print peak.pQ3
+        print round(peak.q3, rounding_precision)
         print "</td><td>"
 
         this_interference = nonunique_obj[ peak.fragment_count ]
-        this_interference.sort( lambda x,y: cmp(x.q1, y.q1))
+        if backw_compatible: this_interference.sort( lambda x,y: cmp(x.q1, y.q1))
+        else: this_interference.sort( lambda x,y: cmp(x.q3, y.q3))
         for c in this_interference:
-            print '(%s,%s)' % (round(c.q1, 2), round(c.q3, 2)) # print Q1/Q3
+            print '(%s,%s)' % (round(c.q1, rounding_precision), round(c.q3, rounding_precision)) # print Q1/Q3
             print c.ssrcalc # print ssrcalc
             print c.ion_type +'_' + str(c.ion_number) # print type + fragment nr
             if c.isotope_nr != 0:
@@ -336,7 +373,7 @@ def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
         # 
         # Step 6: printing
         #
-        do_all_print(peptide.fragments, collisions_per_peptide, 
+        do_all_print(peptide, collisions_per_peptide, 
                  wuis, precursor, par, precursors_obj, nonunique_obj)
         toggle_all_str += "toggleDisplay('col_peptides_%s'); toggleDisplay('col_transitions_%s');\n" % (seq_id,seq_id)
 
@@ -347,13 +384,15 @@ def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
         window.onload = toggleAll();
     </script>"""
 
-def do_all_print(fragments, collisions_per_peptide, 
+def do_all_print(peptide, collisions_per_peptide, 
     wuis, precursor, par, precursors_obj, nonunique_obj):
+    fragments = peptide.fragments
     uis = par.uis
     current_sequence = precursor.modified_sequence
     if uis > 0: write_csv_row(fragments, collisions_per_peptide, current_sequence, uis, wuis)
     print_peptide_header(current_sequence, precursor, par, precursors_obj ) 
     print_transition_overview(fragments[:], precursor, nonunique_obj)
+    print_uniqueness_analysis(collisions_per_peptide, peptide)
     print_collding_peptides(collisions_per_peptide, precursors_obj, precursor.seq_id, fragments)
     print_transition_detail(fragments[:], nonunique_obj, precursor.seq_id)
 
