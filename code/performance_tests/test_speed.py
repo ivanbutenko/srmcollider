@@ -375,7 +375,7 @@ class Test_speed_integrated(unittest.TestCase):
         try:
             import MySQLdb
             #db_l = MySQLdb.connect(read_default_file="~/.my.cnf.local")
-            db = MySQLdb.connect(read_default_file="~/.my.cnf.orl")
+            db = MySQLdb.connect(read_default_file="~/.srm.cnf")
             cursor = db.cursor()
             self.cursor = cursor
 

@@ -36,6 +36,8 @@
 void calculate_eUIS(std::vector<int>& N, std::vector<std::vector<double> >& c_ssrcalcvalues,
     double ssrwindow, std::vector<std::vector<int> >& all_nonuis);
 
+#include "calculate_eUIS.cpp"
+
 #define EPS_05 boost::test_tools::fraction_tolerance(1.e-5) 
  
 BOOST_AUTO_TEST_CASE( eUIS_test)

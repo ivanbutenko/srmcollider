@@ -93,7 +93,7 @@ from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
 if options.GRAVY: myprecursors.use_GRAVY_scores()
-myprecursors.build_rangetree()
+rtree = myprecursors.build_rangetree()
 precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()
 myprecursors.build_transition_group_lookup()
@@ -126,7 +126,8 @@ for precursor in precursors_to_evaluate:
 
     computed_collisions = myprecursors.get_collisions_per_peptide_from_rangetree(
         precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
-        transitions, par)
+        transitions, par, rtree)
+
     collisions_per_peptide = computed_collisions 
 
     non_useable_combinations = c_getnonuis.get_non_uis( collisions_per_peptide, myorder)

@@ -361,6 +361,8 @@ def testcase(testdatabase='srmcollider'):
     par.bions      =  True
     par.yions      =  True
     par.isotopes_up_to = 0
+    par.max_MC = 0
+    par.max_mods = 0
     #
     par.eval()
     return par

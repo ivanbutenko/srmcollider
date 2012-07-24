@@ -420,7 +420,7 @@ else:
 
   print shared.toggleDisplay # Javascript function to toggle a div
   print """
-<form action="/srmcollider_test/srmcollider.py" method="post">
+<form action="/srmcollider/srmcollider.py" method="post">
     <p class='input_field'>
         <label for="peptides">Please enter the peptide sequences here:</label><br />
         <textarea id="pep_input" name="peptides" rows="20"></textarea>

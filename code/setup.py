@@ -31,11 +31,15 @@ Dependencies in Python (the following packages must be available):
     MySQLdb
     sqlite
 
-instructions: python csetup.py build
-sudo apt-get install python-dev
+instructions: python setup.py build
+
+sudo apt-get install python-dev python-sqlite python-mysqldb
 sudo apt-get install libboost-dev
 sudo apt-get install libcgal-dev
 sudo apt-get install libboost-python-dev 
+# to also get the pure C files to compile
+sudo apt-get install libboost-filesystem-test libboost-test-dev libboost-system-dev
+# to also draw nice images in the web
 sudo apt-get install python-matplotlib
 
 #or all at the same time
