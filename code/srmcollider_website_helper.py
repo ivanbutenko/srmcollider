@@ -216,7 +216,7 @@ class SRMColliderController():
         par.considerIsotopes = True
         par.isotopes_up_to = isotope
         par.q3_range = [low, high]
-        par.peptide_table = self.db_used + self.default_org_prefix + table_used
+        par.peptide_tables = [self.db_used + self.default_org_prefix + table_used]
         par.transition_table = self.db_used + '.srmTransitions_' + table_used
         par.__dict__.update( ions )
         par.eval()
@@ -304,7 +304,7 @@ def getSRMParameter(q1_w, q3_w, ssr_w, high, low, isotope, ions,
     par.considerIsotopes = True
     par.isotopes_up_to = isotope
     par.q3_range = [low, high]
-    par.peptide_table = db_used + default_org_prefix + table_used
+    par.peptide_tables = [db_used + default_org_prefix + table_used]
     par.transition_table = db_used + '.srmTransitions_' + table_used
     par.__dict__.update( ions )
     par.eval()

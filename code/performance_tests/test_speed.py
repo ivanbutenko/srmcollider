@@ -379,14 +379,13 @@ class Test_speed_integrated(unittest.TestCase):
             cursor = db.cursor()
             self.cursor = cursor
 
-
             par = test_shared.get_default_setup_parameters()
             par.use_sqlite = True
             par.q1_window = 1.2 / 2.0 
             par.q3_window = 2.0 / 2.0
             par.ssrcalc_window = 4 / 2.0 
             par.ssrcalc_window = 9999 / 2.0 
-            par.peptide_table = 'hroest.srmPeptides_yeast'
+            par.peptide_tables = ['hroest.srmPeptides_yeast']
             par.transition_table = 'hroest.srmTransitions_yeast'
             par.isotopes_up_to = 3
             self.mycollider = collider.SRMcollider()
@@ -410,7 +409,7 @@ class Test_speed_integrated(unittest.TestCase):
             select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, isotope_nr, 0, 0
             from %s where q1 between %s and %s
             #and isotope_nr = 0
-                           """ % (par.peptide_table, self.min_q1 - par.q1_window, self.max_q1 + par.q1_window) 
+                           """ % (par.peptide_tables[0], self.min_q1 - par.q1_window, self.max_q1 + par.q1_window) 
             cursor.execute(query)
             self.alltuples =  list(cursor.fetchall() )
             #print "len alltuples", len(self.alltuples)
@@ -419,7 +418,7 @@ class Test_speed_integrated(unittest.TestCase):
             select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, isotope_nr, 0, 0
             from %s where q1 between %s - %s and %s
             and isotope_nr = 0
-                           """ % (par.peptide_table, self.min_q1 - par.q1_window, isotope_correction, self.max_q1 + par.q1_window) 
+                           """ % (par.peptide_tables[0], self.min_q1 - par.q1_window, isotope_correction, self.max_q1 + par.q1_window) 
             cursor.execute(query)
             self.alltuples_isotope_correction =  list(cursor.fetchall())
             #print "len alltuples zero", len(self.alltuples_isotope_correction)
@@ -438,7 +437,7 @@ class Test_speed_integrated(unittest.TestCase):
             select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
             from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
             and isotope_nr = 0
-            """ % {'peptide_table' : par.peptide_table, 
+            """ % {'peptide_table' : par.peptide_tables[0],
                           'lowq1'  : lower_q1,  # min_q1 - par.q1_window
                           'highq1' : upper_q1, # max_q1 + par.q1_window,
                           'isotope_correction' : isotope_correction

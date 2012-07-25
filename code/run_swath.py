@@ -96,7 +96,6 @@ swath_mode = options.swath_mode
 restable = options.restable
 dry_run = options.dry_run
 #ssrcalcwin = float(sys.argv[4])
-#peptide_table = sys.argv[5]
 par.__dict__.update( options.__dict__ )
 par.q3_range = [options.q3_low, options.q3_high]
 par.q1_window /= 2.0
@@ -114,7 +113,6 @@ par.dontdo2p2f = False #also look at 2+ parent / 2+ fragment ions
 #par.q3_range = [400, 1400]
 par.eval()
 #print par.experiment_type
-#par.peptide_table = peptide_table
 print par.get_common_filename()
 mycollider = collider.SRMcollider()
 
@@ -136,6 +134,7 @@ print "add 1", par.query1_add
 print "add 2", par.query2_add
 
 
+assert(len(par.peptide_tables) == 1)
 
 if options.insert_mysql:
     common_filename = par.get_common_filename()
@@ -147,8 +146,8 @@ if options.insert_mysql:
     VALUES (
         'ludovic_swath', '%s', '%s', '%s', '%s','%s', %s, 0
     )
-    """ %( common_filename + '_' + par.peptide_table.split('.')[1], 
-          par.experiment_type, par.peptide_table, par.transition_table,
+    """ %( common_filename + '_' + par.peptide_tables[0].split('.')[1], 
+          par.experiment_type, par.peptide_tables[0], par.transition_table,
           #comment3
           'q1: %s; q3 %s ; isotopes 0,1' % (par.q1_window, par.q3_window),
           superkey)
@@ -161,7 +160,7 @@ q =  """
 select modified_sequence, peptide_key, parent_id, q1_charge, q1, ssrcalc, isotope_nr
 from %(peptide_table)s where q1 between %(lowq1)s and %(highq1)s
 %(qadd)s
-""" % {'peptide_table' : par.peptide_table, 
+""" % {'peptide_table' : par.peptide_tables[0], 
               'lowq1'  : min_q1 ,
               'highq1' : max_q1,
               'qadd'   : qadd
@@ -211,7 +210,7 @@ if swath_mode:
     %(query_add)s
     """ % { 'q1_high' : q1_high, 'q1_low'  : q1_low,
            'query_add' : par.query2_add,
-           'pep' : par.peptide_table,
+           'pep' : par.peptide_tables[0],
            'values' : values}
     print 'swath ' , query2
     cursor.execute( query2 )

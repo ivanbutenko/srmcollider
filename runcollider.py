@@ -52,18 +52,15 @@ import collider, progress, precursor; from Residues import Residues
 
 # some options that can be changed locally for your convenience
 default_mysql = "~/.srm.cnf"
-default_org_prefix = 'srmcollider.srmPeptides_'
+default_org_prefix = 'hroest.srmPeptides_'
 default_ssrcalc = 'srmcollider.ssrcalc_pr_copy'
 
 # Cmd line option parsing
 # {{{
 from optparse import OptionParser, OptionGroup
-usage = "usage: %prog spectrallibrary backgroundorganism [options]\n" +\
+usage = "usage: %prog spectrallibrary [options]\n" +\
         " *      spectrallibrary: path to library WITHOUT the splib ending\n" +\
-        " *      backgroundorganism: e.g. 'yeast' or 'human', others need to be requested " +\
-        "\n" #+ \
-#        "This program overrides the options --q3_low and --q3_high default values " + \
-#        "with values of 0 to "
+        "\n" 
 
 parser = OptionParser(usage=usage)
 group = OptionGroup(parser, "SRMCollider Options", "")
@@ -125,15 +122,11 @@ safetytransitions = options.safetytransitions
 outfile = options.outfile
 pepmapfile = options.pepmapfile
 libfile = args[0]
-peptide_table = options.organism_prefix + args[1]
 use_experimental_height = False
 if options.exp_resultfile != '': use_experimental_height = True
 
 par = parameters
 parameters.dontdo2p2f = False
-parameters.peptide_table = peptide_table
-if not options.peptide_table is None:
-    parameters.peptide_table = options.peptide_table
 parameters.print_query = False
 parameters.eval()
 
@@ -153,9 +146,9 @@ except ImportError:
 db = MySQLdb.connect(read_default_file=par.mysql_config)
 cursor = db.cursor()
 try:
-    cursor.execute("desc %s" % parameters.peptide_table)
+    cursor.execute("desc %s" % parameters.peptide_tables[0])
 except Exception:
-    err = "Could not access database '%s'.\n" % parameters.peptide_table +\
+    err = "Could not access database '%s'.\n" % parameters.peptide_tables[0] +\
     "Make sure that your --db_prefix and configuration file are correct.\n" 
     print err
     sys.stderr.write(err) 
@@ -203,7 +196,7 @@ elif options.srmatlas_tsv:
 print ' '*5, par.thresh
 print ' '*5, 'Da for the q3 transitions.'
 print ' '*5, 'Using file : %s' % file_used
-print ' '*5, 'Using background organism: %s' % args[1]
+print ' '*5, 'Using background organism(s): %s' % par.peptide_tbl_identifier
 print ' '*5,  "with %s modifications and %s missed cleavages" % (par.max_mods, par.max_MC)
 
 

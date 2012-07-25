@@ -33,7 +33,7 @@ class SRM_parameters(object):
         self.isotopes_up_to    = None
         self.ppm               = None
         self.transition_table  = None
-        self.peptide_table     = None
+        self.peptide_tables    = None
         self.q3_range          = None
         self.ssrcalc_window    = None
         self.q1_window         = None
@@ -89,7 +89,7 @@ class SRM_parameters(object):
         if self.q3_low          is None: self.q3_low = 400
         if self.q3_high         is None: self.q3_high = 1400
         if self.max_uis         is None: self.max_uis = 0
-        if self.peptide_table   is None: self.peptide_table = 'srmcollider.srmPeptides_yeast'
+        if self.peptide_tables  is None: self.peptide_tables = ['srmcollider.srmPeptides_yeast']
         if self.mysql_config    is None: self.mysql_config = '~/.my.cnf'
         if self.sqlite_database is None: self.sqlite_database = ''
         if self.use_sqlite      is None: self.use_sqlite = False
@@ -115,14 +115,18 @@ class SRM_parameters(object):
     def set_q3_range(self, a, b):
         self.q3_range = [a, b]
 
-    def set_peptide_table(self, p):
-        self.peptide_table = p
+    def set_peptide_tables(self, p):
+        self.peptide_tables = p
  
     def set_mysql_config(self, c):
         self.mysql_config = c
 
     def parse_cmdl_args(self, parser, default_mysql = "~/.my.cnf"):
         from optparse import OptionGroup
+
+        def callback_peptidetables(option, opt, value, parser):
+          setattr(parser.values, option.dest, value.split(' '))
+
         group = OptionGroup(parser, "General Options",
                             "These are the general options for the SRM  Collider")
         group.add_option("-c", "--config", dest="config_file", 
@@ -148,10 +152,9 @@ class SRM_parameters(object):
         group.add_option("--max_uis", dest="max_uis", type='int',
                           help="maximal order of UIS to calculate " +
                           "(defaults to 0 == no UIS)" )
-        group.add_option("--peptide_table", dest="peptide_table", 
-                          help="MySQL table containing the peptides" )
-        group.add_option("--transition_table", dest="transition_table", 
-                          help="MySQL table containing the transitions" )
+        group.add_option("-p", "--peptide_tables", dest="peptide_tables", 
+                          help="A list of MySQL tables containing the peptides", 
+                            action="callback", type="string", callback=callback_peptidetables )
         group.add_option("--sqlite_database", dest="sqlite_database", default='',
                           help="Use specified sqlite database instead of MySQL database" )
         group.add_option("--mysql_config", dest="mysql_config", 
@@ -216,7 +219,7 @@ class SRM_parameters(object):
             not self.do_1vs, not self.do_vs1,
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
           self.ppm_string, self.q3_range[0], self.q3_range[1], self.dontdo2p2f, 
-          self.peptide_table, self.transition_table, self.isotopes_up_to)
+          str(self.peptide_tables), self.transition_table, self.isotopes_up_to)
         self.thresh = \
         "thresholds of SSRCalc %s, Q1 %s (Th), Q3 %s (%s) and a range of %s to %s" % (
           self.ssrcalc_window*2,  self.q1_window*2, self.q3_window*2, 
@@ -278,26 +281,6 @@ class SRM_parameters(object):
         self.MMinusNH3  ==  False 
         )
 
-    @property
-    def transition_db(self): return self.transition_table.split('.')[0]
-
-    @property
-    def transition_tbl(self): return self.transition_table.split('.')[1]
-
-    @property
-    def peptide_db(self): return self.peptide_table.split('.')[0]
-
-    @property
-    def peptide_tbl(self): 
-        try:
-            return self.peptide_table.split('.')[1]
-        except IndexError:
-            #not in database.table format
-            return self.peptide_table
-
-    @property
-    def peptide_tbl_identifier(self): return self.peptide_tbl[12:] #cut off 'srmPeptides'
-
     def print_ionseries(self):
         print """
             self.bions      =  %s
@@ -342,13 +325,16 @@ class SRM_parameters(object):
     def calculate_isotope_correction(self):
       return self.isotopes_up_to * self.R.mass_diffC13 / min(self.parent_charges)
 
+    @property
+    def peptide_tbl_identifier(self): return "_".join(self.peptide_tables)
+
 def testcase(testdatabase='srmcollider'):
     par = SRM_parameters()
     par.q1_window = 0.7 / 2
     par.q3_window = 1.0 / 2
     par.ppm = False
     par.transition_table = testdatabase + '.srmTransitions_test'
-    par.peptide_table = testdatabase + '.srmPeptides_test'
+    par.peptide_tables = [testdatabase + '.srmPeptides_test']
     par.dontdo2p2f = False #do not look at 2+ parent / 2+ fragment ions
     #default 
     #par.considerIsotopes = False #do not consider the C13 isotopes

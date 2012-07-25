@@ -86,22 +86,23 @@ class Precursors:
   def getFromDB(self, par, cursor, lower_q1, upper_q1):
     # Get all precursors from the DB within a window of Q1
     self.precursors = []
-    isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-    q =  """
-    select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
-    from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
-    """ % {'peptide_table' : par.peptide_table, 
-                  'lowq1'  : lower_q1,  # min_q1 - par.q1_window
-                  'highq1' : upper_q1, # max_q1 + par.q1_window,
-                  'isotope_correction' : isotope_correction
-          } 
-    cursor.execute(q)
-    for res in cursor.fetchall():
-      p = Precursor()
-      p.initialize(*res)
-      # Only include those precursors that are actually have isotopes in the specified range
-      if(p.included_in_isotopic_range(lower_q1, upper_q1, par) ): 
-        self.precursors.append(p)
+    for table in par.peptide_tables:
+        isotope_correction = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+        q =  """
+        select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
+        from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
+        """ % {'peptide_table' : table,
+                      'lowq1'  : lower_q1,  # min_q1 - par.q1_window
+                      'highq1' : upper_q1, # max_q1 + par.q1_window,
+                      'isotope_correction' : isotope_correction
+              } 
+        cursor.execute(q)
+        for res in cursor.fetchall():
+          p = Precursor()
+          p.initialize(*res)
+          # Only include those precursors that are actually have isotopes in the specified range
+          if(p.included_in_isotopic_range(lower_q1, upper_q1, par) ): 
+            self.precursors.append(p)
 
   def getPrecursorsToEvaluate(self, min_q1, max_q1):
     """

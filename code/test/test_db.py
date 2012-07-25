@@ -36,14 +36,14 @@ def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
      inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
      where genome_occurence = 1
      %s
-    """ % (par.peptide_table, par.peptide_table, par.query_add )
+    """ % (par.peptide_tables[0], par.peptide_tables[0], par.query_add )
     if ignore_genomeoccurence:
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide_key, modified_sequence, transition_group
          from %s
          where 4 = 4
          %s
-        """ % (par.peptide_table, par.query_add )
+        """ % (par.peptide_tables[0], par.query_add )
     if par.print_query: print query
     cursor.execute( query )
     res = cursor.fetchall()
@@ -158,7 +158,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.q1_window = 1.2 / 2.0
         self.par.ssrcalc_window = 9999
         self.par.query2_add = ' and isotope_nr = 0 '
-        self.par.peptide_table = test_database + '.srmPeptides_human'
+        self.par.peptide_tables = [test_database + '.srmPeptides_human']
         self.par.transition_table = test_database + '.srmTransitions_human'
         self.par.print_query = False
         self.par.select_floor = False
@@ -351,7 +351,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.q1_window = 0.1 / 2.0
         self.par.ssrcalc_window = 2.0 / 2.0 
         self.par.query2_add = ''
-        self.par.peptide_table = test_database + '.srmPeptides_human'
+        self.par.peptide_tables = [test_database + '.srmPeptides_human']
         self.par.query2_add = ' and isotope_nr = 0'  # necessary because of old style tables
         self.par.print_query = False
 
@@ -503,7 +503,7 @@ class Test_collider_sqlite(unittest.TestCase):
         #par.query2_add = ' and isotope_nr = 0 ' # still necessary, old style tables
         par.quiet = True
         par.transition_table = 'srmTransitions_test'
-        par.peptide_table = 'srmPeptides_test'
+        par.peptide_tables = ['srmPeptides_test']
         cursor = self.db.cursor()
 
         #for historic reasons, we only select a subset of peptides

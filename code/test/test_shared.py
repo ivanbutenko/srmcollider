@@ -366,7 +366,7 @@ def get_default_setup_parameters():
         par.q3_low = 400
         par.q3_high = 1400
         par.max_uis = 5
-        par.peptide_table = 'srmPeptides_test'
+        par.peptide_tables = ['srmPeptides_test']
         par.mysql_config = '~/.my.cnf'
         par.sqlite_database = SQLITE_DATABASE_LOCATION
         par.use_sqlite = False

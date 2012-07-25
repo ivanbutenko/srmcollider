@@ -57,32 +57,35 @@ class SRMcollider(object):
     def _get_all_precursors_sub(self, par, pep, cursor, 
          values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
          bysequence=False):
-        vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
-                'transition_group' : pep['transition_group'], 'q1_window' : par.q1_window,
-                'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-                'pep' : par.peptide_table, 'values' : values, 
-                'pepseq' : pep['mod_sequence']}
-        if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
-        else: selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
-        vdict['selectby'] = selectby
-        #
-        # calculate how much lower we need to select to get all potential isotopes:
-        #  to get all isotopes = lower_winow - nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
-        R = Residues.Residues('mono')
-        vdict['isotope_correction'] = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
-        query2 = """
-        select %(values)s
-        from %(pep)s
-        where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
-            and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-        and q1 > %(q1)s - %(q1_window)s - %(isotope_correction)s and q1 < %(q1)s + %(q1_window)s
-        %(selectby)s
-        %(query_add)s
-        """ % vdict
-        if par.print_query: print query2
-        #print query2
-        cursor.execute( query2 )
-        return cursor.fetchall()
+        result = []
+        for table in par.peptide_tables:
+            vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
+                    'transition_group' : pep['transition_group'], 'q1_window' : par.q1_window,
+                    'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
+                    'pep' : table, 'values' : values, 
+                    'pepseq' : pep['mod_sequence']}
+            if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
+            else: selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
+            vdict['selectby'] = selectby
+            #
+            # calculate how much lower we need to select to get all potential isotopes:
+            #  to get all isotopes = lower_winow - nr_isotopes_to_consider * mass_difference_of_C13 / minimal_parent_charge
+            R = Residues.Residues('mono')
+            vdict['isotope_correction'] = par.isotopes_up_to * R.mass_diffC13 / min(par.parent_charges)
+            query2 = """
+            select %(values)s
+            from %(pep)s
+            where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
+                and ssrcalc < %(ssrcalc)s + %(ssr_window)s
+            and q1 > %(q1)s - %(q1_window)s - %(isotope_correction)s and q1 < %(q1)s + %(q1_window)s
+            %(selectby)s
+            %(query_add)s
+            """ % vdict
+            if par.print_query: print query2
+            #print query2
+            cursor.execute( query2 )
+            result += cursor.fetchall()
+        return result
 
     # calculates all fragments of the peptide in Python and compares them to
     # the fragments of the precursors
@@ -211,6 +214,7 @@ class SRMcollider(object):
         #TODO we select all peptides that are in the peplink table
         #TODO test this fxn
         #regardless whether their charge is actually correct
+        assert False
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide.id, m.sequence
          from %s  srmPep
@@ -242,6 +246,7 @@ class SRMcollider(object):
 
     def _get_all_transitions_toptransitions(self, par, pep, cursor, values = 'q3, m.id'):
         # TODO test this fxn
+        assert False
         q3_low, q3_high = par.get_q3range_transitions()
         query1 = """
         select %(values)s
