@@ -399,6 +399,7 @@ def get_default_setup_parameters():
 #########################
 #########################
 def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
+    assert( len(par.peptide_tables) == 1)
     query = """
     select parent_id, q1, q1_charge, ssrcalc, peptide.id, modified_sequence, transition_group
      from %s
@@ -407,14 +408,14 @@ def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
      inner join ddb.peptideOrganism on peptide.id = peptideOrganism.peptide_key 
      where genome_occurence = 1
      %s
-    """ % (par.peptide_table, par.peptide_table, par.query_add )
+    """ % (par.peptide_tables[0], par.peptide_tables[0], par.query_add )
     if ignore_genomeoccurence:
         query = """
         select parent_id, q1, q1_charge, ssrcalc, peptide_key, modified_sequence, transition_group
          from %s
          where 4 = 4
          %s
-        """ % (par.peptide_table, par.query_add )
+        """ % (par.peptide_tables[0], par.query_add )
     if par.print_query: print query
     #print query
     cursor.execute( query )
@@ -435,11 +436,12 @@ def _get_unique_pepids(par, cursor, ignore_genomeoccurence=False):
 def _get_all_collisions(self, par, pep, cursor,
             values="q3, q1, srm_id, peptide_key", transitions=None,
             bysequence=False):
+    assert( len(par.peptide_tables) == 1)
     q3_low, q3_high = par.get_q3range_collisions()
     vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
             'peptide_key' : pep['peptide_key'], 'q1_window' : par.q1_window,
             'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
-            'pep' : par.peptide_table, 'values' : values,
+            'pep' : par.peptide_tables[0], 'values' : values,
             'pepseq' : pep['mod_sequence'],
             'q3_low':q3_low,'q3_high':q3_high,
             'trans' : par.transition_table,
