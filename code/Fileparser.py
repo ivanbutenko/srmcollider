@@ -48,9 +48,7 @@ class Spectrum():
 # File parsing routines
 def parse_srmatlas_file(csvfile):
     myfile = open(csvfile, 'rU') 
-    dialect = csv.Sniffer().sniff(myfile.read(1024))
-    myfile.seek(0)
-    r = csv.reader(myfile, dialect)
+    r = get_csv_obj(myfile)
     header = r.next()
     # We know the header
     headerdict = {}
@@ -87,12 +85,23 @@ def parse_srmatlas_file(csvfile):
         library.append(s)
     return library
  
+def get_csv_obj(myfile):
+    try:
+      dialect = csv.Sniffer().sniff(myfile.read(1024))
+      myfile.seek(0)
+      r = csv.reader( myfile, dialect)
+    except Exception:
+        myfile.seek(0)
+        try:
+          r = csv.reader( myfile, delimiter=",")
+        except Exception:
+          r = csv.reader( myfile, delimiter="\t")
+    return r
+
 def parse_mprophet_methodfile(csvfile):
 
     myfile = open(csvfile, 'rU') 
-    dialect = csv.Sniffer().sniff(myfile.read(1024))
-    myfile.seek(0)
-    r = csv.reader( myfile, dialect)
+    r = get_csv_obj(myfile)
     header = r.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
     specdict = {}
@@ -134,9 +143,7 @@ def parse_mprophet_resultfile(library, infile, threshold):
     exp_peptides = {}
     libdict = dict([ (s.name.replace('/', '.'), s) for s in library ] )
     myfile = open(infile, 'rU') 
-    dialect = csv.Sniffer().sniff(myfile.read(1024))
-    myfile.seek(0)
-    experimental_infile = csv.reader(myfile, dialect)
+    experimental_infile = get_csv_obj(myfile)
 
     header = experimental_infile.next()
     headerdict = dict([(t,i) for i,t in enumerate(header)])
