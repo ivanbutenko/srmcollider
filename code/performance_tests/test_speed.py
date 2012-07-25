@@ -389,6 +389,7 @@ class Test_speed_integrated(unittest.TestCase):
             par.transition_table = 'hroest.srmTransitions_yeast'
             par.isotopes_up_to = 3
             self.mycollider = collider.SRMcollider()
+            par.select_by = "id"
 
             self.par = par
             self.min_q1 = 440

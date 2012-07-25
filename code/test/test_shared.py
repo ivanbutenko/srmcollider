@@ -371,6 +371,7 @@ def get_default_setup_parameters():
         par.sqlite_database = SQLITE_DATABASE_LOCATION
         par.use_sqlite = False
         par.quiet = False
+        par.select_by = "id"
 
         par.bions      =  True
         par.yions      =  True

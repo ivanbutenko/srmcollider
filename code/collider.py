@@ -41,22 +41,19 @@ class SRMcollider(object):
       self.RN15 = Residues.Residues('mono')
       self.RN15.recalculate_monisotopic_data_for_N15()
 
-    def _get_all_precursors(self, par, precursor, cursor, 
-         bysequence=False):
+    def _get_all_precursors(self, par, precursor, cursor):
       precursors = []
-      values = "modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified"
       R = Residues.Residues('mono')
       pep = precursor.to_old_pep()
-      for res in self._get_all_precursors_sub(par, pep, cursor, values, bysequence):
+      for res in self._get_all_precursors_sub(par, pep, cursor):
         p = Precursor()
         p.initialize(*res)
         if(p.included_in_isotopic_range(precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, par) ): 
           precursors.append(p)
       return precursors
 
-    def _get_all_precursors_sub(self, par, pep, cursor, 
-         values="q1, modified_sequence, transition_group, q1_charge, isotopically_modified", 
-         bysequence=False):
+    def _get_all_precursors_sub(self, par, pep, cursor):
+        values = "modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified"
         result = []
         for table in par.peptide_tables:
             vdict = { 'q1' : pep['q1'], 'ssrcalc' : pep['ssrcalc'],
@@ -64,8 +61,11 @@ class SRMcollider(object):
                     'query_add' : par.query2_add, 'ssr_window' : par.ssrcalc_window,
                     'pep' : table, 'values' : values, 
                     'pepseq' : pep['mod_sequence']}
-            if bysequence: selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
-            else: selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
+            if par.select_by == "modified_sequence": selectby = "and %(pep)s.modified_sequence != '%(pepseq)s'" % vdict
+            elif par.select_by == "sequence": selectby = ""
+            elif par.select_by == "id": selectby = "and %(pep)s.transition_group != %(transition_group)d" % vdict
+            elif par.select_by == "none": selectby = ""
+            else: assert False
             vdict['selectby'] = selectby
             #
             # calculate how much lower we need to select to get all potential isotopes:
@@ -84,7 +84,11 @@ class SRMcollider(object):
             if par.print_query: print query2
             #print query2
             cursor.execute( query2 )
-            result += cursor.fetchall()
+            mysql_result = cursor.fetchall()
+            if par.select_by == "sequence": 
+                # filter out all sequences that are the same on naked peptide level
+                mysql_result = [r for r in mysql_result if filter(str.isalpha, r[0]) != filter(str.isalpha, pep["mod_sequence"])]
+            result += mysql_result
         return result
 
     # calculates all fragments of the peptide in Python and compares them to

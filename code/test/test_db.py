@@ -163,6 +163,7 @@ class Test_collider_mysql(unittest.TestCase):
         self.par.print_query = False
         self.par.select_floor = False
         self.par.isotopes_up_to = 3
+        self.par.select_by = "id"
 
         self.par.parent_charges      =  [2,3]
 

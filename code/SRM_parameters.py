@@ -72,6 +72,7 @@ class SRM_parameters(object):
         self.max_MC          = None # missed cleavages
 
         self.experiment_type = ''
+        self.select_by       = None # possible values are "id", "sequence", "modified_sequence", "none"
 
         self.R = Residues.Residues('mono')
 
@@ -96,6 +97,7 @@ class SRM_parameters(object):
         if self.quiet           is None: self.quiet = False
         if self.max_mods        is None: self.max_mods = 0
         if self.max_MC          is None: self.max_MC = 0
+        if self.select_by       is None: self.select_by = "modified_sequence"
 
         if self.bions      is None: self.bions      =  True
         if self.yions      is None: self.yions      =  True
@@ -348,6 +350,7 @@ def testcase(testdatabase='srmcollider'):
     par.yions      =  True
     par.isotopes_up_to = 0
     par.max_MC = 0
+    par.select_by = "id"
     par.max_mods = 0
     #
     par.eval()

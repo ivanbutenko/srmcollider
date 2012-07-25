@@ -285,18 +285,16 @@ for counter,spectrum in enumerate(library):
         transitions = [ (p.peak, i) for i,p in enumerate(peaks) if p.experimental_height > threshold]
     nr_transitions = len( transitions )
     if nr_transitions == 0: continue #no transitions in this window
+    if (nr_transitions > 31):
+        print "Skipping", spectrum.modified_sequence, "too many transitions (%s)" % nr_transitions
+        continue
 
     peptide_obj.fix_mprophet_sequence_bug() # fix mProphet-bug (modified cysteins are [C160] instead of C[160]
 
     #
-    # Get all interfering precursors, delete of the current peptide)
-    # If we dont use C++, we need to get the transition_group correct
+    # Get all interfering precursors, (w/o the current peptide)
     precursors = mycollider._get_all_precursors(par, peptide_obj, cursor)
-    if not use_cpp: 
-        own_peptide = [p for p in precursors if p.modified_sequence == peptide_obj.modified_sequence]
-        if len(own_peptide) > 0: peptide_ob.transition_group = own_peptide[0].transition_group
 
-    precursors = [p for p in precursors if p.modified_sequence != peptide_obj.modified_sequence]
     R = Residues('mono')
     q3_low, q3_high = par.get_q3range_collisions()
     #
