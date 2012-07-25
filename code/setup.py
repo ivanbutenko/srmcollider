@@ -85,22 +85,26 @@ setup(name="srmcollider",
 
     ext_modules=[
         Extension("c_combinations", ["combinations.cpp"],
-            libraries = ["boost_python"]),
+            include_dirs=["./", boost_includedir],
+            library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/", boost_libdir],
+            libraries = ["boost_python"]
+            ),
         Extension("c_getnonuis", ["getNonUis.cpp"], 
             include_dirs=["./", boost_includedir],
             library_dirs=["./", "/usr/local/lib/python2.6/dist-packages/", boost_libdir],
             runtime_library_dirs=["./", "../"],
             libraries = ["boost_python"]),
         Extension("c_rangetree", ["py_rangetree.cpp"],
-            libraries = ["boost_python", "CGAL"],
             include_dirs=[CGAL_libraries + '/include/', boost_includedir],
             library_dirs=[CGAL_libraries +'/lib/', boost_libdir],
+            libraries = ["boost_python", "CGAL"],
             ),
         Extension("c_integrated", ["py_integratedrun.cpp"], 
             include_dirs=[CGAL_libraries + '/include/', boost_includedir],
             library_dirs=[CGAL_libraries +'/lib/', boost_libdir],
             runtime_library_dirs=["./", "../"],
-            libraries = ["boost_python", "CGAL"]),
+            libraries = ["boost_python", "CGAL"]
+            ),
     ],
      ) 
 
