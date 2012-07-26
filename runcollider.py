@@ -69,6 +69,8 @@ group.add_option("--safety", dest="safetytransitions", default=3, type="float",
     "Defaults to 3." , metavar='3')
 group.add_option("-f", "--file", dest="outfile", default='outfile', metavar='out',
     help="Output file"   )
+group.add_option("-l", "--log", dest="logfile", default='', metavar='LOG',
+    help="Log file"   )
 group.add_option("--db_prefix", dest="organism_prefix", default=default_org_prefix,
     help="The DB table will be prefix+organism"   )
 group.add_option("--ssrcalc_table", dest="ssrcalc_table", default=default_ssrcalc,
@@ -120,6 +122,9 @@ parameters.parse_options(options)
 #local arguments
 safetytransitions = options.safetytransitions
 outfile = options.outfile
+logfile = options.logfile
+if len(options.logfile) != 0:
+    sys.stdout = open(options.logfile, 'w')
 pepmapfile = options.pepmapfile
 libfile = args[0]
 use_experimental_height = False
@@ -140,8 +145,10 @@ if par.max_uis == 0:
 try:
     import c_getnonuis
     use_cpp = True
+    print "Imported the C++ libraries with success"
 except ImportError: 
     use_cpp = False
+    print "Could not import the C++ libraries, please compile them."
 
 db = MySQLdb.connect(read_default_file=par.mysql_config)
 cursor = db.cursor()
