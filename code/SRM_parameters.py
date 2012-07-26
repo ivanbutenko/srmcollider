@@ -29,7 +29,7 @@ class SRM_parameters(object):
     def __init__(self): 
         self.do_1vs            = None
         self.do_vs1            = None
-        self.dontdo2p2f        = None
+        self.dontdo2p2f        = False
         self.isotopes_up_to    = None
         self.ppm               = None
         self.transition_table  = None
@@ -62,7 +62,6 @@ class SRM_parameters(object):
         #
         self.q3_low     = None
         self.q3_high    = None
-        self.isotopes_up_to = None
 
         self.mysql_config    = None
         self.sqlite_database = None
@@ -73,8 +72,10 @@ class SRM_parameters(object):
 
         self.experiment_type = ''
         self.select_by       = None # possible values are "id", "sequence", "modified_sequence", "none"
+        self.add_sql_select  = None 
 
         self.R = Residues.Residues('mono')
+
 
     def __repr__(self):
         return "SRMParameters: " + self.experiment_type
@@ -98,6 +99,7 @@ class SRM_parameters(object):
         if self.max_mods        is None: self.max_mods = 0
         if self.max_MC          is None: self.max_MC = 0
         if self.select_by       is None: self.select_by = "modified_sequence"
+        if self.add_sql_select  is None: self.add_sql_select = ""
 
         if self.bions      is None: self.bions      =  True
         if self.yions      is None: self.yions      =  True
@@ -211,6 +213,7 @@ class SRM_parameters(object):
         # is default since isotopes are not in the database any more
         self.query2_add += " " 
         self.query2_add += " and modifications <= %s and missed_cleavages <= %s" % (int(self.max_mods), int(self.max_MC))
+        self.query2_add +=  " " + self.add_sql_select + " "
         if self.ppm: self.ppm_string = "PPM"
         self.experiment_type = """Experiment Type:
         check all four charge states [%s] vs all four charge states [%s] with
@@ -351,6 +354,7 @@ def testcase(testdatabase='srmcollider'):
     par.isotopes_up_to = 0
     par.max_MC = 0
     par.select_by = "id"
+    par.add_sql_select = ""
     par.max_mods = 0
     #
     par.eval()

@@ -118,6 +118,8 @@ parameters = collider.SRM_parameters()
 parameters.parse_cmdl_args(parser, default_mysql=default_mysql)
 options, args = parser.parse_args(sys.argv[1:])
 parameters.parse_options(options)
+par = parameters
+parameters.eval()
 
 #local arguments
 safetytransitions = options.safetytransitions
@@ -129,11 +131,6 @@ pepmapfile = options.pepmapfile
 libfile = args[0]
 use_experimental_height = False
 if options.exp_resultfile != '': use_experimental_height = True
-
-par = parameters
-parameters.dontdo2p2f = False
-parameters.print_query = False
-parameters.eval()
 
 if par.max_uis == 0:
     err = "Error: --max_uis needs to be larger than 0\n"

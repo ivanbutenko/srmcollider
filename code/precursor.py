@@ -91,11 +91,14 @@ class Precursors:
         q =  """
         select modified_sequence, transition_group, parent_id, q1_charge, q1, ssrcalc, modifications, missed_cleavages, isotopically_modified
         from %(peptide_table)s where q1 between %(lowq1)s - %(isotope_correction)s and %(highq1)s
+        %(query_add)s
         """ % {'peptide_table' : table,
                       'lowq1'  : lower_q1,  # min_q1 - par.q1_window
                       'highq1' : upper_q1, # max_q1 + par.q1_window,
-                      'isotope_correction' : isotope_correction
-              } 
+                      'isotope_correction' : isotope_correction,
+                      'query_add' : par.query2_add
+        } 
+        print "Selecting peptides from the background", q
         cursor.execute(q)
         for res in cursor.fetchall():
           p = Precursor()
@@ -110,6 +113,7 @@ class Precursors:
     e.g. only 2+ charge, no modifications or missed cleavages and within the q1
     max/min range.
     """
+    print "Selecting query peptides: 2+ charged, no mods / MC and between %s - %s Da." % (min_q1, max_q1)
     return [p for p in self.precursors 
                        if p.q1_charge == 2 
                        and p.modifications == 0
