@@ -346,7 +346,7 @@ def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
         # Step 3 : find all potentially interfering precursors
         #  Create precursor and use db to find all interfering precursors
         #
-        precursor = Precursor(modified_sequence = peptide.sequence, parent_id = -1,
+        precursor = Precursor(modified_sequence = peptide.get_modified_sequence(), parent_id = -1,
             q1 = peptide.charged_mass, q1_charge = 2, ssrcalc = ssrcalc, transition_group = -1)
         precursor.seq_id = seq_id
         precursors_obj = mycollider._get_all_precursors(par, precursor, local_cursor, bysequence=True)
