@@ -20,14 +20,90 @@ print """
 
             <h1> Instructions </h1>
 
+            <h2> Transition Input </h2>
+
             <p>
             The main content is provided in the big textarea where peptides or transitions can be posted.
             There are three ways to provide input to the SRMCollider:
             </p>
 
-            <h4> Peptide Sequences </h4>
+            <h4>1) Peptide Sequences </h4>
             <p>
-            You can provide one peptide sequence per line.
+            You can provide one peptide sequence per line. The collider will
+            then compute the precursor mass and the b and y series fragment
+            masses and search for interferences. This may not be suited for you
+            if you already have library fragment ion intensities.
+            </p>
+
+            <h4>2) MGF / SpectaST Style library </h4>
+
+            <p>
+            To assess the uniqueness of a specific assay, you can provide 
+            assays in SpectraST style format
+            </p>
+                                                 
+            <p>
+            Name: NLQGSNGGYAWEDEIK <br/> 
+            Charge: 2 <br/>              
+            1167.53227 10 y10 1 <br/>    
+            890.42602 12 y7 1 <br/>      
+            504.26700 1 y4 1 <br/>       
+            962.43323 4 b10 1 <br/>      
+            </p>
+                               
+            <p>
+            This will then also allow you to study the uniqueness of the top n
+            transitions.   
+            </p>
+
+            <h4>3) CSV format </h4>
+
+            <p>
+            Alternatively, you can enter your transitions in CSV format. Each
+            peptide precursor needs to have a unique identifier
+            (UniquePeptideIdentifier) in this format, this can be a number or a
+            combination of sequence, charge state and modification status.
+            Please use the following column order (please do not provide a
+            header):
+            </p>
+
+            <p>
+            UniquePeptideIdentifier, PrecursorPeptideSequence, PrecursorCharge, Q1Mass, Q3Mass, FragmentIonLibraryIntensity, FragmentIonCharge, FragmentIonAnnotation
+            </p>
+
+            <p>
+            For example, this is a valid input (note: no header)
+            </p>
+
+            <p>
+            tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,1167.53227,10,1,y10 <br/>
+            tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,890.42602,12,1,y7 <br/>
+            tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,504.26700,1,1,y4 <br/>
+            tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,962.43323,4,1,b10 <br/>
+            tr1_2,NLQGSNGGYAWEIK,2,890.91106,992.43323,4,1,b10 <br/>
+            tr1_2,NLQGSNGGYAWEDIK,2,890.91106,982.43323,4,1,b10 <br/>
+            </p>
+
+            <h2> Available Modifications </h2>
+
+            <p>
+            Currently, the SRMCollider understands the following modifications:
+            CAM (indicated as C[160]), oxidized methionines (indicated as
+            M[147]) and deamidated asparagines (indicated as N[115])
+            </p>
+
+            <h2> Further Options </h2>
+
+            <p>
+            Currently, a limited number of genomes are available, upon request
+            more can be added. Please contact me at roest <> at <> imsb.ethz.ch
+            </p>
+            
+
+            <p>
+            Precursor isotopes are considered in the analysis (but not fragment
+            isotopes) and the default value is to consider isotopes up to +3
+            amu.
             </p>
 
             </div>
