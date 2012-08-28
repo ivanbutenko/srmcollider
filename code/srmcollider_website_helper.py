@@ -20,6 +20,18 @@ Charge: 2
 890.42602 12 y7 1
 504.26700 1 y4 1
 962.43323 4 b10 1
+
+
+or 
+
+UniquePeptideIdentifier, PrecursorPeptideSequence, PrecursorCharge, Q1Mass, Q3Mass, FragmentIonLibraryIntensity, FragmentIonCharge, FragmentIonAnnotation
+
+tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,1167.53227,10,1,y10
+tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,890.42602,12,1,y7
+tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,504.26700,1,1,y4
+tr1_1,NLQGSNGGYAWEDEIK,2,890.91106,962.43323,4,1,b10
+tr1_2,NLQGSNGGYAWEIK,2,890.91106,992.43323,4,1,b10
+tr1_2,NLQGSNGGYAWEDIK,2,890.91106,982.43323,4,1,b10
 """
 
 class NonUnique():
@@ -43,6 +55,13 @@ class PeptideParser():
 
     def parse_stack(self, stack):
         assert len(stack) > 2
+        assert len(stack[0]) > 7
+        try:
+            charge = int(stack[1][7:].strip())
+        except ValueError:
+            # Could not parse the stack, most likely its csv
+            assert False
+
         peptide = DDB.Peptide()
         s = stack[0][5:].strip() 
         peptide.charge = int(stack[1][7:].strip())
@@ -81,6 +100,45 @@ class PeptideParser():
           peptides.append(peptide)
 
         return peptides
+
+    def parse_peptide_lines(self, data):
+        # Parse lines belonging to the same peptides, the lines are expected to be in the format 
+        peptide = DDB.Peptide()
+        firstline = data[0]
+        if len(firstline) != 8: return None
+        s = firstline[1].strip()
+        peptide.charge = int(firstline[2].strip())
+        sanitized = "".join( [i for i in s if (str.isalnum(i) or i in [ '[', ']']  )] )
+        peptide.set_sequence(sanitized)
+        peptide.fragments = []
+        cnt = 0
+        for newtr in data:
+            ann = "".join( [i for i in newtr[7] if (str.isalnum(i))] )
+            fr = DDB.Fragment(float(newtr[4]), ann, int(newtr[6]) )
+            fr.library_intensity = float(newtr[5])
+            fr.fragment_count = cnt
+            cnt += 1
+            peptide.fragments.append(fr)
+        # to make sure that it has a charged mass!
+        peptide.create_fragmentation_pattern(self.R)
+        return peptide
+
+    def parse_transition_csv(self, data):
+        # Parse raw data that is organized in csv format (see above for format)
+        import csv
+        peptides = {}
+        for line in csv.reader( data.split("\n")):
+            if len(line) < 8: continue
+            if not peptides.has_key(line[0]):
+              peptides[ line[0] ] = []
+            peptides[ line[0] ].append(line)
+
+        result = []
+        for pepkey in peptides:
+            peptide = self.parse_peptide_lines(peptides[pepkey])
+            if peptide is not None: result.append(peptide)
+
+        return result
 
     def sanitize_peptide_input(self, myinput):
 
@@ -250,6 +308,13 @@ class SRMColliderController():
           seqs, input_sequences = parser.get_seqs(self.peptides)
         except AssertionError:
           self.peptides = []
+
+        if len(self.peptides) == 0:
+            try:
+              self.peptides = parser.parse_transition_csv(peptides_raw)
+              seqs, input_sequences = parser.get_seqs(self.peptides)
+            except AssertionError:
+              self.peptides = []
 
         if len(self.peptides) == 0:
             # sanitize input: all input is already sanitized except myinput and genome

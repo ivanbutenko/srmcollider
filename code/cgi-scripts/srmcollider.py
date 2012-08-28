@@ -409,7 +409,7 @@ print "<div class='main'>"
 
 sample_peptides_html = controller.get_sample_peptides_html()
 form = cgi.FieldStorage()   # FieldStorage object to
-if form.has_key('peptides'):
+if form.has_key('peptides') and not form.has_key("from_api"):
     par = controller.parse_srmcollider_form(form, genomes_that_require_N15_data)
     start = time.time()
     main(par)
@@ -417,13 +417,16 @@ if form.has_key('peptides'):
 else:
 
   html_ions = get_html_ions()
+  textfield_peptides = ""
+  if form.has_key('peptides'):
+    textfield_peptides = cgi.escape(form.getvalue("peptides"))
 
   print shared.toggleDisplay # Javascript function to toggle a div
   print """
 <form action="/srmcollider/srmcollider.py" method="post">
     <p class='input_field'>
         <label for="peptides">Please enter the peptide sequences here:</label><br />
-        <textarea id="pep_input" name="peptides" rows="20"></textarea>
+        <textarea id="pep_input" name="peptides" rows="20">%(textfield_peptides)s</textarea>
     </p>
 
     <p class='input_field'>
@@ -532,7 +535,7 @@ To try this tool, you could use the following sample peptides:
 <br/>%(sample_peptides_html)s    
 </!-->
 """ % {'sample_peptides_html' : sample_peptides_html, 'genome_select':
-       genome_select, 'ion_series' : html_ions} 
+       genome_select, 'ion_series' : html_ions, 'textfield_peptides' : textfield_peptides} 
 
 print "</div>"
 print """
