@@ -277,6 +277,10 @@ class SRMColliderController():
         par.peptide_tables = [self.db_used + self.default_org_prefix + table_used]
         par.transition_table = self.db_used + '.srmTransitions_' + table_used
         par.__dict__.update( ions )
+        par.max_mods = -1
+        par.max_MC = -1
+        par.add_sql_select = ""
+        par.select_by = "modified_sequence"
         par.eval()
         par.query2_add = ''
         if not oxMet and not Deamid:
