@@ -48,6 +48,7 @@ warm_welcome = topdiv % """
     </span>
     <span class="inactive-nav"> <a href="download.html">Download </a> </span>
     <span class="inactive-nav"> <a href="about.html">About </a> </span>
+    <span class="inactive-nav"> <a href="instructions.html">Instructions </a> </span>
 """
 
 
