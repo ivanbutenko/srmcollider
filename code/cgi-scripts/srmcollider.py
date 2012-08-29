@@ -227,21 +227,12 @@ def print_uniqueness_analysis(collisions_per_peptide, peptide):
     print "<table border='1' class='col_table' id='x_col_transitions2_%s'>" % ii
     print "<tr> <td>Transitions</td><td>Nr transitions</td> <td>Combined Uniqueness</td> </tr>"
     for i in range(len(transitions_order)):
-      #print [f for f in peptide.fragments if f.fragment_count ==  transitions_order[i][0]]
-      mytransitions = tuple(sorted( [t[0] for t in transitions_order[:i+1]]))
+      mytransitions = set(sorted( [t[0] for t in transitions_order[:i+1]]))
       tr = [t[2] for t in transitions_order[:i+1]]
-
-
-      # mytransitions = tuple(sorted([t[1] for t in transitions[:j]]))
-      # unuseable = False
-      # for k,v in collisions_per_peptide.iteritems():
-      #     if tuple(sorted(v)[:j]) == mytransitions: unuseable=True
-      # if not unuseable: min_needed = j
-
       unuseable = False
       for k,v in collisions_per_peptide.iteritems():
-          if tuple(sorted(v)[:i+1]) == mytransitions: unuseable=True
-
+          if mytransitions.issubset(set(v)): 
+              unuseable=True
       print "<tr><td>"
       print " + ".join([t.annotation for t in tr])
       print "</td><td>%s</td><td>" % (i+1)
