@@ -406,20 +406,26 @@ print shared.warm_welcome
 print "<div class='main'>"
 
 
-
 sample_peptides_html = controller.get_sample_peptides_html()
 form = cgi.FieldStorage()   # FieldStorage object to
-if form.has_key('peptides') and not form.has_key("from_api"):
-    par = controller.parse_srmcollider_form(form, genomes_that_require_N15_data)
+
+if form.has_key('peptides'):
+    try:
+      par = controller.parse_srmcollider_form(form, genomes_that_require_N15_data)
+    except KeyError,e:
+        print "Could not parse your input %s." % cgi.escape(str(e)) 
+        print "<br/>Please check the <a href='instructions.html'>Instructions</a> and make sure the modifications you used are supported by the SRMCollider."
+        exit()
     start = time.time()
-    main(par)
+    main(par, controller)
     print "<hr> <br/>This query took: %s s" % (time.time() - start)
 else:
 
   html_ions = get_html_ions()
   textfield_peptides = ""
-  if form.has_key('peptides'):
-    textfield_peptides = cgi.escape(form.getvalue("peptides"))
+  if form.has_key("SkylineReport"):
+    textfield_peptides = controller.parse_skyline(
+      cgi.escape(form.getvalue("SkylineReport")) )
 
   print shared.toggleDisplay # Javascript function to toggle a div
   print """

@@ -115,7 +115,10 @@ class PeptideParser():
         for newtr in data:
             ann = "".join( [i for i in newtr[7] if (str.isalnum(i))] )
             fr = DDB.Fragment(float(newtr[4]), ann, int(newtr[6]) )
-            fr.library_intensity = float(newtr[5])
+            try: 
+              fr.library_intensity = float(newtr[5])
+            except ValueError:
+              fr.library_intensity = -1
             fr.fragment_count = cnt
             cnt += 1
             peptide.fragments.append(fr)
@@ -359,6 +362,22 @@ class SRMColliderController():
                 nonunique_obj.append(o)
             res[key] = nonunique_obj
         return res
+
+    def parse_skyline(self, data):
+        # Parse Skyline reports:
+        # 1. Fix unique peptide identifier from skyline (use modified sequence + charge)
+        # 2. replace modifications AA[+n] with AA[mass] for parsing
+        import csv
+        result = ""
+        header = True
+        for line in csv.reader( data.split("\n")):
+            if len(line) < 8: continue
+            if header: header = False; continue
+            line[0] = line[1] + "/" + line[2]
+            nextline = ",".join(line) + "\n"
+            nextline = nextline.replace("K[+8]", "K[136]").replace("R[+10]", "R[166]").replace("M[+16]", "M[147]").replace("N[-1]", "N[115]").replace("C[+57]", "C[160]")
+            result += nextline
+        return result
 
 def getSRMParameter(q1_w, q3_w, ssr_w, high, low, isotope, ions,
          missed, oxMet, Deamid, db_used, default_org_prefix, table_used):
