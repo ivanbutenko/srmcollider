@@ -251,6 +251,9 @@ class Residues:
         'X': ('Leucine/Isoleucine', 113.08406), # Can't distinguish leucine/isoleucine
         'Y': ('Tyrosine', 163.06333),
         'Z': ('Glutamic acid, or glutamine', 128.05858),
+        # SILAC labels unimod 259, 267
+        'K[136]' : ('heavy Lysine', 128.09496 + 8.014199),
+        'R[166]' : ('heavy Arginine', 156.10111 + 10.008269),
         }
 
     #E[111] 351      => pyroGlu

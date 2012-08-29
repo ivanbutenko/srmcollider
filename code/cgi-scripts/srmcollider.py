@@ -83,18 +83,13 @@ def get_html_ions():
       """ %  {'ion' : ion, 'check' : check}
   return html_ions
 
-def print_header(input_sequences):
+def print_header(peptides):
     """
     Print headers, link to csv file and table of content
     """
-    unique = unique_values(input_sequences)
-    # print "<a href ='%s'>Download csv file</a>" % myCSVFile_rel
-    # print "<br/>"
-    print "input: %s peptides" % (len(input_sequences)) 
-    print "<br/>"
-    print "unique: %s peptides" % (len( unique )) 
+    print "input: %s peptides" % (len(peptides)) 
     print "<div class='toc'><ul>"
-    for u in input_sequences: print '<li><a href="#%s">%s</a></li>' % (u,u)
+    for u in [p.get_modified_sequence() for p in peptides]: print '<li><a href="#%s">%s</a></li>' % (u,u)
     print "</ul></div>"
     print """<a title="Toggle all" href="javascript:toggleAll()">
     Toggle all <small>Click to fold/unfold all</small>
@@ -288,7 +283,7 @@ def print_transition_detail(unuseable, nonunique_obj, ii):
         print "</td></tr>"
     print "</table>"
 
-def main(par):
+def main(par, controller):
     local_cursor = db.cursor()
 
     # create unique files and prepare a csv
@@ -308,13 +303,13 @@ def main(par):
         print "<a href ='%s'>Download csv file with UIS</a>" % myUIS_CSVFile_rel
         print "<br/>"
 
-    print_header(par.input_sequences)
+    print_header(controller.peptides)
     print shared.toggleDisplay # Javascript function to toggle a div
 
-    do_analysis(par.input_sequences, par.seqs, par, writer_uis, local_cursor)
+    do_analysis(par.input_sequences, par.seqs, par, writer_uis, local_cursor, controller)
     fuis.close()
 
-def do_analysis(input_sequences, seqs, par, wuis, local_cursor):
+def do_analysis(input_sequences, seqs, par, wuis, local_cursor, controller):
     """
     ###########################################################################
     # Do analysis

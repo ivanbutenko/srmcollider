@@ -83,6 +83,22 @@ namespace SRMCollider
                           throw AANotFound("Unknown modification for asparagine");
                         }
                         res_mass = 115.026945583; break;
+                    case 'R': 
+                        if(!(sequence[start+2] == '1' && 
+                             sequence[start+3] == '6' && 
+                             sequence[start+4] == '6' )) 
+                        {
+                          throw AANotFound("Unknown modification for arginine");
+                        }
+                        res_mass = 166.109379; break;
+                    case 'K': 
+                        if(!(sequence[start+2] == '1' && 
+                             sequence[start+3] == '3' && 
+                             sequence[start+4] == '6' )) 
+                        {
+                          throw AANotFound("Unknown modification for lysine");
+                        }
+                        res_mass = 136.109159; break;
 
                     default: 
                           throw AANotFound("Unknown modification");
@@ -90,6 +106,8 @@ namespace SRMCollider
                 //'M[147]':  131.04049 + mass_O), # oxygen
                 //'C[160]':  103.00919 + mass_CAM - mass_H ), # CAM replaces H
                 //'N[115]':  114.04293 - mass_N - mass_H + mass_O
+                // 'K[136]' : ('heavy Lysine', 128.09496 + 8.014199),
+                // 'R[166]' : ('heavy Arginine', 156.10111 + 10.008269),
 
                 acc_mass += res_mass;
                 tmp[scounter] = acc_mass;
@@ -166,6 +184,9 @@ namespace SRMCollider
                           throw AANotFound("Unknown modification for asparagine");
                         }
                         res_mass = 116.023977918; break;
+                    // SILAC label and N15 is not very likely
+                    // case 'R': 
+                    // case 'K': 
 
                     default: 
                           throw AANotFound("Unknown modification");
