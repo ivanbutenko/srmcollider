@@ -57,6 +57,27 @@ div.header {
   padding-bottom: 5px;
   padding-right: 10px;
   padding-left: 10px;
-
 }
 
+div.navigation { 
+    position: absolute; 
+    top: 144px;
+    height: 25px;
+} 
+
+div.top { 
+  height : 138px;
+}
+
+/* Would be for Firefox under Linux, however breaks 
+Firefox under Windows. One solution would be javascript
+http://rafael.adm.br/css_browser_selector/
+*/
+/*
+@-moz-document url-prefix() { 
+    div.navigation { 
+        position: absolute; 
+        top: 143px;
+    } 
+}
+*/
