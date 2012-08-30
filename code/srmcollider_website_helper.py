@@ -377,7 +377,7 @@ class SRMColliderController():
             line[0] = line[1] + "/" + line[2]
             nextline = ",".join(line) + "\n"
             for mmap in mod_mapping:
-                nextline = nextline.replace(m, mod_mapping[m])
+                nextline = nextline.replace(mmap, mod_mapping[mmap])
             result += nextline
         return result
 
