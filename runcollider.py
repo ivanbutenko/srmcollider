@@ -303,7 +303,7 @@ for counter,spectrum in enumerate(library):
     precursors = mycollider._get_all_precursors(par, peptide_obj, cursor)
     if not use_cpp: 
         own_peptide = [p for p in precursors if p.modified_sequence == peptide_obj.modified_sequence]
-        if len(own_peptide) > 0: peptide_ob.transition_group = own_peptide[0].transition_group
+        if len(own_peptide) > 0: peptide_obj.transition_group = own_peptide[0].transition_group
 
     precursors = [p for p in precursors if p.modified_sequence != peptide_obj.modified_sequence]
     R = Residues('mono')
