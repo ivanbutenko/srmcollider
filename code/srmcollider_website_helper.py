@@ -370,12 +370,14 @@ class SRMColliderController():
         import csv
         result = ""
         header = True
+        mod_mapping = self.R.mod_mapping
         for line in csv.reader( data.split("\n")):
             if len(line) < 8: continue
             if header: header = False; continue
             line[0] = line[1] + "/" + line[2]
             nextline = ",".join(line) + "\n"
-            nextline = nextline.replace("K[+8]", "K[136]").replace("R[+10]", "R[166]").replace("M[+16]", "M[147]").replace("N[-1]", "N[115]").replace("C[+57]", "C[160]")
+            for mmap in mod_mapping:
+                nextline = nextline.replace(m, mod_mapping[m])
             result += nextline
         return result
 

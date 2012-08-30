@@ -31,7 +31,6 @@ import string
 NOISOTOPEMODIFICATION = 0
 N15_ISOTOPEMODIFICATION = 1
 
-
 class Residues:
 
     # http://www.sisweb.com/referenc/source/exactmaa.htm
@@ -218,14 +217,12 @@ class Residues:
         }
     
     #e.g. from http://education.expasy.org/student_projects/isotopident/htdocs/aa-list.html
+    # see also http://www.sbeams.org/svn/sbeams/trunk/sbeams/lib/perl/SBEAMS/Proteomics/AminoAcidModifications.pm
     monoisotopic_data = { 
         # Key on abbreviation, give name, molecular weight (in daltons).
         'A': ('Alanine', 71.03711),
         'B': ('Aspartic Acid or Asparagine', 114.04293), 
         'C': ('Cysteine', 103.00919), 
-        #'c': ('Modified cysteine' , 160.00919), # Add 57
-        'c': ('Modified cysteine' , 103.00919 + mass_CAM - mass_H ), # CAM replaces H
-        'C[160]': ('Modified cysteine' , 103.00919 + mass_CAM - mass_H ), # CAM replaces H
         'D': ('Aspartate', 115.02694),
         'E': ('Glutamate', 129.04259),
         'F': ('Phenylalanine', 147.06841),
@@ -233,14 +230,9 @@ class Residues:
         'H': ('Histidine', 137.05891),
         'I': ('Isoleucine', 113.08406),
         'K': ('Lysine', 128.09496),
-        'k': ('Lys->Cys substitution and carbamidomethylation (903)', 128.09496 + 31.935685),
         'L': ('Leucine', 113.08406),
         'M': ('Methionine', 131.04049),
-        #'m': ('Modified methionine', 147.04049), # add 16
-        'm': ('Modified methionine', 131.04049 + mass_O), # oxygen
-        'M[147]': ('Modified methionine', 131.04049 + mass_O), # oxygen
         'N': ('Asparagine', 114.04293),
-        'N[115]': ('Asparagine', 114.04293 - mass_N - mass_H + mass_O),
         'P': ('Proline', 97.05276),
         'Q': ('Glutamine', 128.05858),
         'R': ('Arginine', 156.10111),
@@ -251,22 +243,55 @@ class Residues:
         'X': ('Leucine/Isoleucine', 113.08406), # Can't distinguish leucine/isoleucine
         'Y': ('Tyrosine', 163.06333),
         'Z': ('Glutamic acid, or glutamine', 128.05858),
-        # SILAC labels unimod 259, 267
-        'K[136]' : ('heavy Lysine', 128.09496 + 8.014199),
-        'R[166]' : ('heavy Arginine', 156.10111 + 10.008269),
         }
 
-    #E[111] 351      => pyroGlu
+    monoisotopic_mod = {
+        #'c': ('Modified cysteine' , 160.00919), # Add 57
+        'c': ('Modified cysteine', monoisotopic_data["C"] + mass_CAM - mass_H ), # CAM replaces H
+        'C[160]': ('Modified cysteine', monoisotopic_data["C"] + mass_CAM - mass_H ), # CAM replaces H
+        'k': ('Lys->Cys substitution and carbamidomethylation (903)', 128.09496 + 31.935685),
+        'N[115]': ('Asparagine', monoisotopic_data["N"] - mass_N - mass_H + mass_O),
+        #'m': ('Modified methionine', 147.04049), # add 16
+        'm': ('Modified methionine', monoisotopic_data["M"] + mass_O), # oxygen
+        'M[147]': ('Modified methionine', monoisotopic_data["M"] + mass_O), # oxygen
+        # SILAC labels 
+        'K[136]' : ('heavy Lysine',   monoisotopic_data["K"] + 8.014199), #UniMod:259
+        'R[166]' : ('heavy Arginine', monoisotopic_data["R"] + 10.008269), #UniMod:267
+        'R[162]' : ('heavy Arginine', monoisotopic_data["R"]  + 6*mass_diffC13), #UniMod:188
+        'V[104]' : ('heavy Valine',   monoisotopic_data["V"] + 5*mass_diffC13), # no unimod
+        'V[105]' : ('heavy Valine',   monoisotopic_data["V"] + 5*mass_diffC13 + mass_diffN15), # unimod 268
+        # Pyro Unimod 27 and 28
+        'E[111]': ('pyro Glutamate', 129.04259 - mass_O - 2*mass_H),
+        'Q[111]': ('pyro Glutamine', 128.05858 - mass_O - 2*mass_H),
+        # Unimod 385 # Pyro-carbamidomethyl as a delta from Carbamidomethyl-Cys
+        'C[143]': ('Pyro-carbamidomethyl cysteine' , monoisotopic_data["C"] + mass_CAM - mass_H - 3*mass_H - mass_N),  
+        # Phospho
+        'S[166]': ('Phospho Serine', 87.03203 + mass_H1PO3),
+        'S[167]': ('Phospho Serine', 87.03203 + mass_H1PO3),
+        'T[181]': ('Phospho Threonine', 101.04768 + mass_H1PO3),
+        'Y[243]': ('Phospho Tyrosine', 163.06333 + mass_H1PO3),
+    }
+
+    mod_mapping = 
+    {
+        "K[+8]" : "K[136]",
+        "R[+10]": "R[166]",
+        "M[+16]": "M[147]",
+        "N[-1]" : "N[115]",
+        "C[+57]": "C[160]",
+        "C[+40]": "C[160]",
+        "R[+6]" : "R[162]",
+        "V[+5]" : "V[104]",
+        "V[+6]" : "R[105]",
+        "S[+80]" : "S[167]",
+        "T[+80]" : "T[181]",
+        "Y[+80]" : "Y[243]",
+    }
+
+    monoisotopic_data.update(monoisotopic_mod)
+
     #C[169] 58       => ? 
-    #R[166] 12599    => SILAC?
-    #C[143] 319      => Pyro-carbamidomethyl 
     #C[152] 2        => ?
-    #C[553] 4        => ICAT?
-    #K[136] 15131    => SILAC?
-    #Q[111] 1730     => pyroGlu  (loss of 17)
-    #C[330] 37       => ICAT?
-    #C[339] 20       => ICAT?
-    #C[545] 4        => ICAT?
     #W[202] 23       => Oxidation?
 
 
