@@ -1,0 +1,13 @@
+
+Release 1.4.1
+
+- Web: add more modifications
+- Web: add integration with Skyline, e.g. a SkylineReport can be sent to the
+       srmcollider with a POST request
+- Web: bugfix: exclude modified precursor from search
+- allow multiple proteomes as background
+
+Release 1.4
+- Web: add dynamic graphs for the website
+- Web: allow users to upload transition list in mgf format
+- Refactor: Refactor many C++ functions, create controller for web
