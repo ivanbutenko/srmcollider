@@ -29,6 +29,10 @@
 # All changes that should be done by the user are in the collider_config.py
 from collider_config import *
 
+if debug:
+	import cgitb; cgitb.enable()
+
+
 ###########################################################################
 # No changes after here
 

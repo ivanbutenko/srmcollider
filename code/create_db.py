@@ -293,5 +293,5 @@ for id, line in enumerate(reader):
     del modified
     del peptide
 
-if use_sqlite: db.commit()
+db.commit()
 

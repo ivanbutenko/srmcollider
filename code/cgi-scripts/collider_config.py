@@ -76,3 +76,6 @@ db_tables_map = {
   'human': 'human_oxMetDeamid_miss1',
 }
 
+# set to True to enable debugging output on the web interface.
+debug=True
+
