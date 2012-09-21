@@ -77,9 +77,9 @@ class SRMcollider(object):
             from %(pep)s
             where ssrcalc > %(ssrcalc)s - %(ssr_window)s 
                 and ssrcalc < %(ssrcalc)s + %(ssr_window)s
-            # Note the isotope correction: we select more precursors with lower
-            # masses and then check if their isotopes overlap with the selected
-            # window.
+            -- Note the isotope correction: we select more precursors with lower
+            -- masses and then check if their isotopes overlap with the selected
+            -- window.
             and q1 > %(q1)s - %(q1_window)s - %(isotope_correction)s and q1 < %(q1)s + %(q1_window)s
             %(selectby)s
             %(query_add)s

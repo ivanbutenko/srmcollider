@@ -7,6 +7,7 @@ include *.cpp *.h *.C
 include *.C
 include test/*.py test/*/*.py performance_tests/*
 include test/sqltest*.out
-include cgi-scripts/* css/*
+include cgi-scripts/* css/* srmcollider_website_helper.py
 include DDB.py progress.py Residues.py
+include ReleaseNotes
 
