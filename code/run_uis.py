@@ -57,6 +57,7 @@ Order 5, Average non useable UIS 0.0
 
 import sys 
 import collider, progress
+from copy import copy
 
 # count the number of interfering peptides
 count_avg_transitions = False
@@ -74,6 +75,7 @@ group.add_option("--restable", dest="restable", default='srmcollider.result_srmu
 group.add_option("--insert",
                   action="store_true", dest="insert_mysql", default=False,
                   help="Insert into mysql experiments table")
+group.add_option("--query_peptide_table", type="str", help="Peptide table to get query peptides from")
 parser.add_option_group(group)
 
 # Run the collider
@@ -119,7 +121,16 @@ if options.insert_mysql:
 from precursor import Precursors
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
-precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
+if not options.query_peptide_table is None and not options.query_peptide_table == "":
+  print "Using a different table for the query peptides than for the background peptides!"
+  print "Will use table %s " % options.query_peptide_table
+  query_precursors = Precursors()
+  query_par = copy(par)
+  query_par.peptide_tables = [options.query_peptide_table]
+  query_precursors.getFromDB(query_par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
+  precursors_to_evaluate = query_precursors.getPrecursorsToEvaluate(min_q1, max_q1)
+else:
+  precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 myprecursors.build_parent_id_lookup()
 myprecursors.build_transition_group_lookup()
 

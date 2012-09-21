@@ -1,0 +1,15 @@
+diff --git code/create_db.py code/create_db.py
+index 800d114..b6d14ea 100644
+--- code/create_db.py
++++ code/create_db.py
+@@ -50,10 +50,6 @@ import Residues
+ import DDB 
+ import collider
+ 
+-print "Script is deactivated, please edit if you want to use it."
+-# Since this drops tables, we done want to run it by accident.
+-sys.exit() #remove this if you want to use this script. 
+-
+ from optparse import OptionParser, OptionGroup
+ usage = "usage: %prog [options]\n" 
+ parser = OptionParser(usage=usage)

@@ -49,6 +49,7 @@ Order 5, Average non useable UIS 3.86353977514e-06
 import sys 
 import c_integrated, collider, progress
 from precursor import Precursors
+from copy import copy
 
 from optparse import OptionParser, OptionGroup
 usage = "usage: %prog experiment_key startQ1 endQ1 [options]"
@@ -57,6 +58,7 @@ group = OptionGroup(parser, "Run integrated Options")
 group.add_option("--insert",
                   action="store_true", dest="insert_mysql", default=False,
                   help="Insert into mysql experiments table")
+group.add_option("--query_peptide_table", type="str", help="Peptide table to get query peptides from")
 parser.add_option_group(group)
 
 # Run the collider
@@ -89,10 +91,20 @@ if par.max_uis ==0:
 ###########################################################################
 myprecursors = Precursors()
 myprecursors.getFromDB(par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
-precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
+if not options.query_peptide_table is None and not options.query_peptide_table == "":
+  print "Using a different table for the query peptides than for the background peptides!"
+  print "Will use table %s " % options.query_peptide_table
+  query_precursors = Precursors()
+  query_par = copy(par)
+  query_par.peptide_tables = [options.query_peptide_table]
+  query_precursors.getFromDB(query_par, db.cursor(), min_q1 - par.q1_window, max_q1 + par.q1_window)
+  precursors_to_evaluate = query_precursors.getPrecursorsToEvaluate(min_q1, max_q1)
+else:
+  precursors_to_evaluate = myprecursors.getPrecursorsToEvaluate(min_q1, max_q1)
 isotope_correction = par.calculate_isotope_correction()
 r_tree = myprecursors.build_extended_rangetree ()
 
+print "Will evaluate %s precursors" % len(precursors_to_evaluate)
 progressm = progress.ProgressMeter(total=len(precursors_to_evaluate), unit='peptides')
 prepare  = []
 for precursor in precursors_to_evaluate:

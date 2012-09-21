@@ -98,7 +98,7 @@ class Precursors:
                       'isotope_correction' : isotope_correction,
                       'query_add' : par.query2_add
         } 
-        print "Selecting peptides from the background", q
+        #print "Selecting peptides from the background table %s using the query:" % table, q
         cursor.execute(q)
         for res in cursor.fetchall():
           p = Precursor()
