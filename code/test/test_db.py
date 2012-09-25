@@ -16,7 +16,7 @@ from test_shared import *
 import test_shared 
 from test_shared import check_cgetnonuis_availability
 
-test_database = 'hroest'
+test_database = 'srmcollider'
 mysql_conf_file = "~/.my.cnf.srmcollider"
 
 def psort_old(x,y):
