@@ -1,4 +1,13 @@
 
+Release 1.4.2
+
+- Bugfixes: Fix Skyline integration
+- Bugfixes: Fix create_db.py by Martijn van Iersel
+- Features: Allow to select a different table for query peptides than for the background
+- Internal: remove internal-only tests from the release
+- Internal: Fix build system to auto-discover python 
+- Doc: Extended documentation to describe expected setup of MySQL
+
 Release 1.4.1
 
 - Web: add more modifications

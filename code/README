@@ -176,14 +176,18 @@ at yourdomain.org/srmcollider/srmcollider.py
 {{{ 
 
 === MySQL setup ===
-login to your mysql server as root and issue the following commands
+
+Login to your mysql server as root and issue the following commands
 
 CREATE USER 'srmcollider'@'localhost' IDENTIFIED BY 'srmcollider';
 CREATE DATABASE srmcollider;
 GRANT ALL ON srmcollider.* TO 'srmcollider'@'localhost';
 FLUSH PRIVILEGES;
 
-then create a .my.local.srmcollider file
+This will create a user with the name "srmcollider" and the password
+"srmcollider". Do _not_ do this on a server that is accessible to the public,
+chose some other username/password combination! Then create a
+.my.cnf.srmcollider file that looks like this
 
 [client]
 host=localhost
@@ -192,7 +196,9 @@ port=3306
 password=srmcollider
 database=srmcollider
 
-
+Great, you now have a MySQL server that is configured for the SRMCollider.  The
+script sqltest_tables_setup.py in the test folder is able to fill test data in
+(see action below) and the create_db.py script can add real data.
 
 ==== Setup ==== 
 
@@ -202,7 +208,7 @@ You can set up the collider on a protein fasta file using these commands:
 python scripts/trypsinize.py mygenome.fasta peptides.txt
 ./SSRCalc3.pl --alg 3.0 --source_file peptides.txt --output tsv  --B 1 --A 0  \
         > ssrcalc.out
-python create_db.py --mysql_config=~/.my.cnf --peptide_table=mygenome \
+python create_db.py --mysql_config=~/.my.cnf.srmcollider --peptide_table=mygenome \
         --tsv_file=ssrcalc.out 
 
 note that you need SSRCalc installed to compute the second step. This script is
@@ -234,7 +240,7 @@ Example Workflow:
     2.a make sure that you select as many fragments per peptide as possible,
         e.g. use the option "Num of highest Inten Frag Ions to Keep:"
     3. download file "best_peptides..." 
-    4. run "./runcollider.py filename mygenome --srmatlas_tsv --max_uis 10"
+    4. run "./runcollider.py filename mygenome --srmatlas_tsv --max_uis 10 --mysql_config=~/.my.cnf.srmcollider"
 
 This will produce two files, outfile_peptides.csv and outfile_transitions.csv
 where the outfile_peptides.csv file contains only 2 columns: the name /
@@ -242,7 +248,7 @@ sequence of the peptide and secondly the number of minimally necessary
 transitions. NOTE that a value of -1 means that there were not enough
 transitions to be specific in the given background.
 
-The omission of the --mysql_config=~/.my.cnf parameter was possible, since this is the
+The omission of the parameter was possible, since this is the
 default value. It will output some statistics and a file that contains the
 transitions to use (for each precursor the minimally necessary number of
 transitions plus a specified number of extra (safety) transitions).
@@ -292,10 +298,9 @@ stylesheet, e.g. called brown.css which is also necessary.
 To run the collider on all peptides between 400 and 1400 Da, execute the
 following command:
 
-python run_uis.py 1 400 1400 --peptide_table=mygenome --max_uis 5 --use_db
+python run_uis.py 1 400 1400 --peptide_table=mygenome --max_uis 5 --use_db --mysql_config=~/.my.cnf.srmcollider"
 
-Note the omission of the --mysql_config=~/.my.cnf parameter, since this is the
-default value.  However that for large genomes, this might cause all memory of
+However that for large genomes, this might cause all memory of
 the system to be used since it tries to build a rangetree with all peptides in
 the genome.  There are two solutions: 
 * either partition the calls to run_uis.py using the convenient

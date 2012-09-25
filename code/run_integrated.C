@@ -49,6 +49,7 @@ int main(int argc, const char ** argv)
   // now time to insert the current working directory into the python path so module search can take advantage
   // this must happen after python has been initialised
   boost::filesystem::path workingDir = boost::filesystem3::complete("./").normalize();
+  // TODO use filesystem or filesystem3
   PyObject* sysPath = PySys_GetObject("path");
   PyList_Insert( sysPath, 0, PyString_FromString(workingDir.string().c_str()));
 
