@@ -26,6 +26,8 @@ except MySQLdb.OperationalError as e:
     # If the table doesnt exist, mysql throws an error. We cannot use IF EXISTS
     # in the SQL query because Sqlite doesnt understand that!
     pass
+except sqlite.DatabaseError as e:
+    pass
 
 c.execute(
 """
