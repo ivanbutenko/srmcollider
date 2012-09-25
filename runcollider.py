@@ -51,8 +51,8 @@ import collider, progress, precursor; from Residues import Residues
 #from code import collider, Residues, progress
 
 # some options that can be changed locally for your convenience
-default_mysql = "~/.srm.cnf"
-default_org_prefix = 'hroest.srmPeptides_'
+default_mysql = "~/.my.cnf.srmcollider"
+default_org_prefix = 'srmcollider.srmPeptides_'
 default_ssrcalc = 'srmcollider.ssrcalc_pr_copy'
 
 # Cmd line option parsing
