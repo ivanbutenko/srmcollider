@@ -1,0 +1,13 @@
+diff --git code/CMakeLists.txt code/CMakeLists.txt
+index c070382..fea0374 100644
+--- code/CMakeLists.txt
++++ code/CMakeLists.txt
+@@ -12,7 +12,7 @@ testRangetree
+ testeUIS
+ testLibrary
+ combinatorics_test
+-run_integrated
++#run_integrated
+ )
+ 
+ # All classes that will go into the library
