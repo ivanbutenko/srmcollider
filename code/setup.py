@@ -33,6 +33,7 @@ Dependencies in Python (the following packages must be available):
 
 instructions: python setup.py build
 
+sudo apt-get install python-nosexcover 
 sudo apt-get install python-dev python-sqlite python-mysqldb
 sudo apt-get install libboost-dev
 sudo apt-get install libcgal-dev
@@ -71,6 +72,7 @@ from distutils.core import setup
 from distutils.extension import Extension
 
 # if your CGAL libraries are somewhere else, please tell us here
+# CGAL is currently used header-only, so no need to link
 CGAL_libraries = '.'
  
 boost_libdir = '.'
@@ -97,13 +99,13 @@ setup(name="srmcollider",
         Extension("c_rangetree", ["py_rangetree.cpp"],
             include_dirs=[CGAL_libraries + '/include/', boost_includedir],
             library_dirs=[CGAL_libraries +'/lib/', boost_libdir],
-            libraries = ["boost_python", "CGAL"],
+            libraries = ["boost_python"],
             ),
         Extension("c_integrated", ["py_integratedrun.cpp"], 
             include_dirs=[CGAL_libraries + '/include/', boost_includedir],
             library_dirs=[CGAL_libraries +'/lib/', boost_libdir],
             runtime_library_dirs=["./", "../"],
-            libraries = ["boost_python", "CGAL"]
+            libraries = ["boost_python"]
             ),
     ],
      ) 

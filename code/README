@@ -45,6 +45,10 @@ necessary as well as the CGAL libraries. These can be installed on Ubuntu using
 the command
 
 $ sudo apt-get install -y python-dev libcgal-dev libboost-python-dev
+$ sudo apt-get install libboost-filesystem-dev libboost-test-dev libboost-system-dev
+
+In order to install the webserver, you would need to install
+$ sudo apt-get install apache2 python-matplotlib
 
 Then you can try to build the extensions and copy them 
 
@@ -170,6 +174,25 @@ at yourdomain.org/srmcollider/srmcollider.py
 
 === Useage === 
 {{{ 
+
+=== MySQL setup ===
+login to your mysql server as root and issue the following commands
+
+CREATE USER 'srmcollider'@'localhost' IDENTIFIED BY 'srmcollider';
+CREATE DATABASE srmcollider;
+GRANT ALL ON srmcollider.* TO 'srmcollider'@'localhost';
+FLUSH PRIVILEGES;
+
+then create a .my.local.srmcollider file
+
+[client]
+host=localhost
+user=srmcollider
+port=3306
+password=srmcollider
+database=srmcollider
+
+
 
 ==== Setup ==== 
 
@@ -299,6 +322,10 @@ Changing the constraints for Q1/Q3/RT can be easily done using the --q1_window,
 The easiest way to test which functions are enabled and which ones are not is
 by running the tests. Please use the -s option because it may give you valuable
 information whether all the modules are correctly loaded and available.
+
+To work with nosetests, you need to install them first
+
+sudo apt-get install python-nosexcover 
 
 $ nosetests test --with-coverage -s
 $ nosetests performance_tests
