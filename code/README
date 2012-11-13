@@ -333,7 +333,6 @@ To work with nosetests, you need to install them first
 sudo apt-get install python-nosexcover 
 
 $ nosetests test --with-coverage -s
-$ nosetests performance_tests
 
 In order to test sqlite, first an sqlite and mysql databse needs to be created:
 $ cd test; python sqltest_tables_setup.py mysql; python sqltest_tables_setup.py sqlite
