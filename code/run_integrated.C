@@ -41,6 +41,9 @@
 #include "getNonUis.cpp"
 #include "py_integratedrun.cpp"
 
+// this should be equivalent to running
+// python run_integrated.py 1999 700 715 --q1_window=1.0 --q3_window=1.0 --ssrcalc_window=10 -p hroest.srmpeptides_yeast --max_uis 5
+//
 int main(int argc, const char ** argv)
 {
 
@@ -72,10 +75,10 @@ int main(int argc, const char ** argv)
   int max_nr_isotopes = 3;
   bool ppm = false;
 
-  ignored = par.attr("set_peptide_table")("hroest.srmPeptides_yeast");
+  ignored = par.attr("set_single_peptide_table")("hroest.srmPeptides_yeast");
   ignored = par.attr("set_q3_range")(400, 1400);
   ignored = par.attr("set_default_vars")();
-  ignored = par.attr("set_mysql_config")("~/.my.cnf.orl");
+  ignored = par.attr("set_mysql_config")("~/.my.cnf");
   python::object db = par.attr("get_db")();
   python::object cursor = db.attr("cursor")();
   std::cout << "Got a db cursor, trying to get precursors from the db..." << std::endl;
