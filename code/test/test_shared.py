@@ -1,9 +1,14 @@
 #
 # vim:set fdm=marker:
 
-import sys
+import sys, os
 sys.path.extend( ['.', '../', '../external'])
 SQLITE_DATABASE_LOCATION = '/tmp/srmcollider_testdb'
+
+script_dirname = os.path.dirname(os.path.abspath(__file__))
+
+PEPTIDE_TABLE_NAME = "srmPeptides_test"
+USE_SQLITE = True
 
 def ignoreImportError_rangetree(f):
     def new(*args):
@@ -335,7 +340,8 @@ pep1_bseries = [49.534205032000003, 114.055500032,
 
 peptide2 = (400, 'CEPC[160]IDM[147]E',2,2)
 
-from test_shared_large import *
+execfile( os.path.join(script_dirname, "test_shared_large.dta") )
+
 
 runprecursors_obj1 = []
 for p in runprecursors1:
@@ -366,10 +372,10 @@ def get_default_setup_parameters():
         par.q3_low = 400
         par.q3_high = 1400
         par.max_uis = 5
-        par.peptide_tables = ['srmPeptides_test']
+        par.peptide_tables = [ PEPTIDE_TABLE_NAME ]
         par.mysql_config = '~/.my.cnf'
         par.sqlite_database = SQLITE_DATABASE_LOCATION
-        par.use_sqlite = False
+        par.use_sqlite = USE_SQLITE
         par.quiet = False
         par.select_by = "id"
 

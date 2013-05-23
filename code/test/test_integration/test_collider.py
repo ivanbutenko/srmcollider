@@ -3,10 +3,13 @@ import unittest
 This file tests the functionality of the collider.py module. 
 """
 
-import sys, time, test
+import sys, time
 sys.path.extend(['.', '..','../..' '../external/', 'external/'])
 sys.path.extend(['test/'])
 import collider
+
+PEPTIDE_TABLE_NAME = "srmPeptides_test"
+USE_SQLITE = True
 
 import test_shared 
 from test_shared import check_crangetree_availability, transitions_def1, collisions_def1
@@ -35,10 +38,11 @@ class Test_integration_run_uis(unittest.TestCase):
     par.q3_low = 400
     par.q3_high = 1400
     par.max_uis = 5
-    par.peptide_tables = ['srmPeptides_test']
+    par.peptide_tables = [ PEPTIDE_TABLE_NAME ]
     par.mysql_config = '~/.my.cnf'
     par.sqlite_database = test_shared.SQLITE_DATABASE_LOCATION
-    par.use_sqlite = True
+    print par.sqlite_database 
+    par.use_sqlite = USE_SQLITE
     par.quiet = False
 
     par.bions      =  True
