@@ -33,7 +33,6 @@
 //include our own libraries
 #include "srmcollider.h"
 #include "srmcolliderLib.h"
-#include "srmcolliderLib.cpp"
 
 using namespace SRMCollider::Common;
 using namespace std;

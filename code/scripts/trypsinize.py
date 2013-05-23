@@ -23,7 +23,6 @@ SWDLVK
 from optparse import OptionParser, OptionGroup
 import sys; sys.path.extend(['..', '.'])
 from Bio import SeqIO
-import DDB
 
 usage = 'A script to read a fasta file and output trypsinized peptides, one per line\n'
 usage += "usage: %prog fasta_file outputfile missed_cleavages min_len\nAfterwards run SSRcalc:\n" 
@@ -56,7 +55,6 @@ def trypsinize(sequence, missed=0):
           current = current + protein[i+k]
           yield current
           k+=1
-
 
 done_already = {}
 f = open(outfile, 'w')
