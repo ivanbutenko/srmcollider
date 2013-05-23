@@ -240,7 +240,7 @@ Example Workflow:
     2.a make sure that you select as many fragments per peptide as possible,
         e.g. use the option "Num of highest Inten Frag Ions to Keep:"
     3. download file "best_peptides..." 
-    4. run "./runcollider.py filename mygenome --srmatlas_tsv --max_uis 10 --mysql_config=~/.my.cnf.srmcollider"
+    4. run "./runcollider.py filename -p mygenome --srmatlas_tsv --max_uis 10 --mysql_config=~/.my.cnf.srmcollider"
 
 This will produce two files, outfile_peptides.csv and outfile_transitions.csv
 where the outfile_peptides.csv file contains only 2 columns: the name /
@@ -328,14 +328,18 @@ The easiest way to test which functions are enabled and which ones are not is
 by running the tests. Please use the -s option because it may give you valuable
 information whether all the modules are correctly loaded and available.
 
-To work with nosetests, you need to install them first
-
-sudo apt-get install python-nosexcover 
-
-$ nosetests test --with-coverage -s
+To work with nosetests, you first need to install nosetests (e.g. on Ubuntu do
+"sudo apt-get install python-nose").
 
 In order to test sqlite, first an sqlite and mysql databse needs to be created:
-$ cd test; python sqltest_tables_setup.py mysql; python sqltest_tables_setup.py sqlite
+
+$ cd test
+$ python sqltest_tables_setup.py mysql
+$ python sqltest_tables_setup.py sqlite
+
+Then you can run the tests
+
+$ nosetests test --with-coverage -s
 
 To run all nonslow tests (e.g. no database tests or complete functionality tests)
 $ nosetests test -a '!slow' -s
@@ -351,7 +355,6 @@ To test the functionality of the C++ functions, you can run
 
 $ cmake .
 $ make && make test
-
 
  }}}
 

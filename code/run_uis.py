@@ -190,7 +190,7 @@ for precursor in precursors_to_evaluate:
           collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
               precursor, min_q1, max_q1, transitions, par, rtree)
         else:
-          # Case 4: retular SRMCollider, get transitions from the rangetree
+          # Case 4: regular SRMCollider, get transitions from the rangetree
           collisions_per_peptide = myprecursors.get_collisions_per_peptide_from_rangetree(
               precursor, precursor.q1 - par.q1_window, precursor.q1 + par.q1_window, 
               transitions, par, rtree)
